@@ -11,6 +11,7 @@ use crate::beings::BeingView;
 use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::creation_view::{CreationView, creation_view};
+use crate::data_ops::{DefinitionRow, DefinitionView, KindCount, Words};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::names::Place;
@@ -19,20 +20,22 @@ use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::rest_view::{RestView, rest_view};
+pub use crate::rules_ops::{
+    RuleOrigin, RulesView, SlotView, rule_reply, rules_set, rules_view, slot_view,
+};
 use crate::save::{SaveCheck, examine_running, restore};
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, Settings, World};
-use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{EraId, Level, MapId};
-use omnis_data::limits::{check_asset_path, string_fits};
+use omnis_data::edit::{Brush, Edit, EditorStatus, MapEntry, NewMap, Place as EditPlace};
+use omnis_data::limits::{MAX_FILE_BYTES, check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
 use serde::{Deserialize, Serialize};
@@ -182,6 +185,55 @@ pub enum Op {
         /// Slot name such as `spell_points.pool`.
         slot: String,
     },
+    /// The kinds of definition the loaded packs hold, each with its count, and the languages
+    /// of their text. Needs no game, as every `data.*` op.
+    #[serde(rename = "data.kinds")]
+    DataKinds,
+    /// The loaded definitions that pass every filter given, in kind then id order, a page at a
+    /// time: each with its name, the name's text, and the pack that supplied it.
+    #[serde(rename = "data.list")]
+    DataList {
+        /// Only this kind (`item`, `monster`, ...); a kind this engine lacks lists nothing.
+        #[serde(default)]
+        kind: Option<String>,
+        /// Only ids starting with this.
+        #[serde(default)]
+        prefix: Option<String>,
+        /// Only definitions whose id or name holds this, whatever the case.
+        #[serde(default)]
+        matching: Option<String>,
+        /// Only definitions that name this id anywhere in them.
+        #[serde(default)]
+        refers_to: Option<String>,
+        /// The language of the words; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
+        /// The `cursor` of the page before, to go on from it.
+        #[serde(default)]
+        cursor: Option<String>,
+        /// How many at most: 100 when left out, never over 500.
+        #[serde(default)]
+        limit: Option<usize>,
+    },
+    /// One definition as its pack wrote it, with the text of every key in it, the ids it
+    /// names, and the pack that supplied it.
+    #[serde(rename = "data.get")]
+    DataGet {
+        /// `pack:kind:name`.
+        id: String,
+        /// The language of the words; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
+    },
+    /// The text of text keys, as any view carries them.
+    #[serde(rename = "data.text")]
+    DataText {
+        /// The keys, at most 256.
+        keys: Vec<String>,
+        /// The language; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
+    },
     /// Every holder's clock and contact, and the party's age, shared time and date (M8).
     #[serde(rename = "time.clocks")]
     TimeClocks,
@@ -214,6 +266,110 @@ pub enum Op {
         /// The new expression.
         source: String,
     },
+    // ---- The editor (M5.3; `omnis_data::edit`). Host ops: they touch the pack's files. ----
+    /// Host: the editor's state: the open map's shape, dirtiness, and the loader's verdict.
+    #[serde(rename = "editor.status")]
+    EditorStatus,
+    /// Host: the edited pack's map files, with the id each declares.
+    #[serde(rename = "editor.maps")]
+    EditorMaps,
+    /// Host: open a map of the edited pack by id.
+    #[serde(rename = "editor.open")]
+    EditorOpen {
+        /// `pack:map:name`.
+        map: String,
+    },
+    /// Host: start a new map in the edited pack, open and unsaved.
+    #[serde(rename = "editor.new")]
+    EditorNew {
+        /// Its shape.
+        map: NewMap,
+    },
+    /// Host: paint one tile or edge of the open map.
+    #[serde(rename = "editor.paint")]
+    EditorPaint {
+        /// The level; 0 when left out.
+        #[serde(default)]
+        level: Level,
+        /// Column.
+        x: u16,
+        /// Row.
+        y: u16,
+        /// With what.
+        brush: Brush,
+        /// Join the step the last paint opened (a drag undoes as one); a new step when left out.
+        #[serde(default)]
+        stroke: bool,
+    },
+    /// Host: put a placement on the open map, replacing one with the same key, or remove one.
+    #[serde(rename = "editor.place")]
+    EditorPlace {
+        /// Which.
+        place: EditPlace,
+    },
+    /// Host: change the open map's structure: size, fields, a level, a terrain, a stair's rise.
+    #[serde(rename = "editor.edit")]
+    EditorEdit {
+        /// Which.
+        edit: Edit,
+    },
+    /// Host: back one step.
+    #[serde(rename = "editor.undo")]
+    EditorUndo,
+    /// Host: forward one step.
+    #[serde(rename = "editor.redo")]
+    EditorRedo,
+    /// Host: write the open map to its file and reseal the pack at its next patch version.
+    #[serde(rename = "editor.save")]
+    EditorSave,
+    /// Host: every file of the edited pack the loader reads.
+    #[serde(rename = "editor.files")]
+    EditorFiles,
+    /// Host: a file's text.
+    #[serde(rename = "editor.read")]
+    EditorRead {
+        /// Root-relative `.ron` path.
+        path: String,
+    },
+    /// Host: what the loader would say of `text` as the file at `path`; nothing is written.
+    #[serde(rename = "editor.check")]
+    EditorCheck {
+        /// Root-relative `.ron` path.
+        path: String,
+        /// The text, at most `MAX_FILE_BYTES`.
+        text: String,
+    },
+    /// Host: write `text` as the file at `path`, as typed, once the loader's check passes, and
+    /// reseal the pack unless the file is a note.
+    #[serde(rename = "editor.write")]
+    EditorWrite {
+        /// Root-relative `.ron` path.
+        path: String,
+        /// The text, at most `MAX_FILE_BYTES`.
+        text: String,
+    },
+    /// Host: the author's note on a key.
+    #[serde(rename = "editor.note")]
+    EditorNote {
+        /// A content id, or one followed by `/` and a path inside it.
+        key: String,
+    },
+    /// Host: write the author's note on a key, or take it away.
+    #[serde(rename = "editor.note_set")]
+    EditorNoteSet {
+        /// The key.
+        key: String,
+        /// The text, or none to take the note away.
+        #[serde(default)]
+        text: Option<String>,
+    },
+    /// Host: the keys that carry notes, and the orphans among all notes.
+    #[serde(rename = "editor.notes")]
+    EditorNotes {
+        /// Only keys starting with this, when given.
+        #[serde(default)]
+        prefix: Option<String>,
+    },
 }
 
 fn default_tail() -> usize {
@@ -233,6 +389,23 @@ impl Op {
                 | Op::Screenshot { .. }
                 | Op::ScreenText
                 | Op::RulesSet { .. }
+                | Op::EditorStatus
+                | Op::EditorMaps
+                | Op::EditorOpen { .. }
+                | Op::EditorNew { .. }
+                | Op::EditorPaint { .. }
+                | Op::EditorPlace { .. }
+                | Op::EditorEdit { .. }
+                | Op::EditorUndo
+                | Op::EditorRedo
+                | Op::EditorSave
+                | Op::EditorFiles
+                | Op::EditorRead { .. }
+                | Op::EditorCheck { .. }
+                | Op::EditorWrite { .. }
+                | Op::EditorNote { .. }
+                | Op::EditorNoteSet { .. }
+                | Op::EditorNotes { .. }
         )
     }
 }
@@ -297,28 +470,6 @@ pub struct KnownTile {
     pub known: Known,
 }
 
-/// One rule slot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SlotView {
-    /// Slot name.
-    pub name: String,
-    /// Declared inputs.
-    pub inputs: Vec<String>,
-    /// The expression.
-    pub source: String,
-}
-
-/// The loaded rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RulesView {
-    /// Every slot.
-    pub slots: Vec<SlotView>,
-    /// Plain values.
-    pub values: BTreeMap<String, i64>,
-    /// Tables.
-    pub tables: BTreeMap<String, Vec<i64>>,
-}
-
 /// A successful result. Tagged inside: the wire carries the plain object with `"reply"` naming
 /// the variant in snake case, so a client can decode a reply without knowing the op it sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,10 +508,13 @@ pub enum Reply {
         /// The text.
         text: String,
     },
-    /// `save.write` and `screenshot`.
+    /// `save.write`, `screenshot`, `editor.save` and `editor.write`.
     Written {
         /// The file written.
         path: String,
+        /// The version the pack was resealed at, when the write resealed one (M5.3).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        version: Option<String>,
     },
     /// `party.get`.
     Party {
@@ -376,6 +530,8 @@ pub enum Reply {
     Rule {
         /// The slot.
         rule: SlotView,
+        /// Where its definition came from and what it beat; null for a slot no file wrote.
+        origin: Option<RuleOrigin>,
     },
     /// `combat.get`.
     Combat {
@@ -433,6 +589,75 @@ pub enum Reply {
         /// The report.
         check: SaveCheck,
     },
+    /// The editor's state: `editor.status`, and every editor op that changes the open map.
+    Editor {
+        /// The state.
+        editor: EditorStatus,
+    },
+    /// `editor.maps`.
+    Maps {
+        /// The edited pack's map files.
+        maps: Vec<MapEntry>,
+    },
+    /// `editor.files`.
+    Files {
+        /// Root-relative paths.
+        files: Vec<String>,
+    },
+    /// `editor.read`.
+    File {
+        /// Root-relative.
+        path: String,
+        /// The text.
+        text: String,
+    },
+    /// `editor.check`.
+    Checked {
+        /// The loader's words, one per problem; empty when the text loads.
+        errors: Vec<String>,
+    },
+    /// `editor.note` and `editor.note_set`.
+    Note {
+        /// The key.
+        key: String,
+        /// The text, if there is one.
+        text: Option<String>,
+    },
+    /// `editor.notes`.
+    Notes {
+        /// The keys with notes, sorted.
+        keys: Vec<String>,
+        /// The keys whose target is nowhere, sorted.
+        orphans: Vec<String>,
+    },
+    /// `data.kinds`.
+    Kinds {
+        /// Every kind of definition this engine reads, with how many are loaded, by word.
+        kinds: Vec<KindCount>,
+        /// The languages the loaded text is in.
+        languages: Vec<String>,
+    },
+    /// `data.list`.
+    Definitions {
+        /// One page, in kind then id order.
+        definitions: Vec<DefinitionRow>,
+        /// What to pass as `cursor` for the next page; null when this page is the last.
+        cursor: Option<String>,
+    },
+    /// `data.get`.
+    Definition {
+        /// The definition.
+        definition: Box<DefinitionView>,
+    },
+    /// `data.text`.
+    Words {
+        /// The language answered in.
+        lang: String,
+        /// Each key some language file has, with its text; null where `lang` has none.
+        words: Words,
+        /// The keys no language file has, sorted.
+        unknown: Vec<String>,
+    },
 }
 
 /// A failed op. The world is unchanged unless the message says otherwise.
@@ -454,12 +679,17 @@ pub enum OpError {
         /// The name given.
         slot: String,
     },
+    /// No loaded pack defines that id, or its kind is one this engine does not read.
+    UnknownId {
+        /// The id given.
+        id: String,
+    },
     /// A string argument is longer than `limits::MAX_STRING_BYTES`.
     TooLong {
         /// The limit in bytes.
         limit: usize,
     },
-    /// A script has more than `MAX_SCRIPT` commands.
+    /// A script has more than `MAX_SCRIPT` commands, or a `data.text` more than its 256 keys.
     TooMany {
         /// The limit.
         limit: usize,
@@ -480,6 +710,12 @@ pub enum OpError {
         /// What went wrong.
         message: String,
     },
+    /// The editor refused: the loader's words for a map or file that would not load (nothing
+    /// was written), or the one rule the edit broke (M5.3).
+    Invalid {
+        /// The problems, one per line.
+        errors: Vec<String>,
+    },
 }
 
 impl fmt::Display for OpError {
@@ -488,13 +724,21 @@ impl fmt::Display for OpError {
             OpError::Rejected { rejection } => write!(f, "{rejection}"),
             OpError::UnknownMap { map } => write!(f, "no map '{map}' is loaded"),
             OpError::UnknownSlot { slot } => write!(f, "no rule slot '{slot}'"),
+            OpError::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),
             OpError::TooLong { limit } => write!(f, "string longer than {limit} bytes"),
-            OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
+            OpError::TooMany { limit } => write!(f, "more than {limit} in one request"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
             OpError::NoEncounter => f.write_str("no encounter or fight is in progress"),
             OpError::NoService => f.write_str("the party is not inside a service"),
             OpError::BadRequest { message } => write!(f, "bad request: {message}"),
             OpError::Failed { message } => f.write_str(message),
+            OpError::Invalid { errors } => {
+                write!(f, "{} problem(s)", errors.len())?;
+                for e in errors {
+                    write!(f, "; {e}")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -630,42 +874,35 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),
-        Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
+        Op::RulesGet { slot } => rule_reply(data, slot),
+        Op::DataKinds | Op::DataList { .. } | Op::DataGet { .. } | Op::DataText { .. } => {
+            op.data(data).unwrap_or(Err(OpError::HostOnly))
+        }
         Op::SaveWrite { .. }
         | Op::SaveRead { .. }
         | Op::SaveCheck { .. }
         | Op::PackReload { .. }
         | Op::Screenshot { .. }
         | Op::ScreenText
-        | Op::RulesSet { .. } => Err(OpError::HostOnly),
+        | Op::RulesSet { .. }
+        | Op::EditorStatus
+        | Op::EditorMaps
+        | Op::EditorOpen { .. }
+        | Op::EditorNew { .. }
+        | Op::EditorPaint { .. }
+        | Op::EditorPlace { .. }
+        | Op::EditorEdit { .. }
+        | Op::EditorUndo
+        | Op::EditorRedo
+        | Op::EditorSave
+        | Op::EditorFiles
+        | Op::EditorRead { .. }
+        | Op::EditorCheck { .. }
+        | Op::EditorWrite { .. }
+        | Op::EditorNote { .. }
+        | Op::EditorNoteSet { .. }
+        | Op::EditorNotes { .. } => Err(OpError::HostOnly),
     }
-}
-
-/// `rules.list`.
-#[must_use]
-pub fn rules_view(data: &Data) -> RulesView {
-    RulesView {
-        slots: data
-            .rules
-            .slot_names()
-            .filter_map(|name| slot_view(data, name).ok())
-            .collect(),
-        values: data.rules.values().clone(),
-        tables: data.rules.tables().clone(),
-    }
-}
-
-/// `rules.get`, and what `rules.set` answers with.
-pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
-    bounded(name)?;
-    let slot = data.rules.slot(name).ok_or_else(|| OpError::UnknownSlot {
-        slot: name.to_owned(),
-    })?;
-    Ok(SlotView {
-        name: name.to_owned(),
-        inputs: slot.inputs().to_vec(),
-        source: slot.source().to_owned(),
-    })
 }
 
 /// `game.status`.
@@ -747,17 +984,6 @@ impl From<ReloadRefused> for OpError {
     }
 }
 
-/// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with
-/// the slot.
-pub fn rules_set(data: &mut Data, slot: &str, source: &str) -> Result<Reply, OpError> {
-    bounded(source)?;
-    slot_view(data, slot)?;
-    data.rules
-        .set_slot(slot, source)
-        .map_err(OpError::bad_request)?;
-    slot_view(data, slot).map(|rule| Reply::Rule { rule })
-}
-
 fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply, OpError> {
     if commands.len() > MAX_SCRIPT {
         return Err(OpError::TooMany { limit: MAX_SCRIPT });
@@ -792,6 +1018,16 @@ pub fn bounded(s: &str) -> Result<(), OpError> {
         Err(OpError::TooLong {
             limit: omnis_data::limits::MAX_STRING_BYTES,
         })
+    }
+}
+
+/// Refuse a file's text longer than the loader would read (`MAX_FILE_BYTES`).
+pub fn bounded_file(text: &str) -> Result<(), OpError> {
+    let limit = usize::try_from(MAX_FILE_BYTES).unwrap_or(usize::MAX);
+    if text.len() <= limit {
+        Ok(())
+    } else {
+        Err(OpError::TooLong { limit })
     }
 }
 

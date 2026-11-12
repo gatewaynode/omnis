@@ -329,7 +329,9 @@ fn portals_link_the_maps_both_ways() {
                 level: omnis_core::Level::GROUND,
                 x: 1,
                 y: 0,
-                facing: Facing::South
+                // Away from the stairs back up at (0, 0): the way back stands behind the landing
+                // (the entrances and exits enhancement, W1).
+                facing: Facing::East
             }
         }
     );
@@ -608,4 +610,77 @@ fn the_log_is_bounded_and_not_saved() {
     );
     let text = world.to_ron().unwrap();
     assert!(!text.contains("log"), "the log is not part of the save");
+}
+
+/// The entrances and exits enhancement (W1, 2026-11-01): the loader refuses a portal whose
+/// landing the party cannot stand on; should one reach the engine, the step onto the portal's
+/// tile is a plain step, with no second `Moved`.
+#[test]
+fn a_portal_whose_landing_cannot_be_stood_on_is_a_plain_tile() {
+    let mut data = data();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let stairs = data.maps.get_mut(&meadow).unwrap();
+    let down = stairs
+        .portals
+        .iter_mut()
+        .find(|p| (p.x, p.y) == (16, 5))
+        .expect("the stairs down");
+    // (3, 3) of the dungeon is rock; before the rule the landing was only asked for ground.
+    (down.to_x, down.to_y) = (3, 3);
+    let mut world = world(&data);
+    for _ in 0..10 {
+        step(&mut world, &data);
+    }
+    let events = without_visible(step(&mut world, &data));
+    let moves = events
+        .iter()
+        .filter(|e| matches!(e, Event::Moved { .. }))
+        .count();
+    assert_eq!(moves, 1, "{events:?}");
+    assert_eq!(
+        (world.position.map, world.position.x, world.position.y),
+        (meadow, 16, 5)
+    );
+}
+
+/// The entrances and exits enhancement, step 2 (W1, 2026-11-01, links): a portal nothing links
+/// to is unlinked, saved yet inert: the loader resolves it to nothing, so the engine sees a
+/// plain tile and a step onto it is one `Moved`.
+#[test]
+fn an_unlinked_portal_is_a_plain_tile() {
+    use omnis_core::Level;
+    use omnis_sim::omnis_data::MapData;
+    let mut data = data();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let mut def = data.maps[&meadow].def.clone();
+    // The cell ahead of the meadow's start, where the test world begins facing north.
+    let (sx, sy, facing) = def.start;
+    let (x, y) = facing.ahead_of((sx, sy)).expect("inside the map");
+    let mut spare = def.portals[0].clone();
+    (spare.id, spare.link, spare.x, spare.y) = ("spare".to_owned(), None, x, y);
+    let before = def.portals.len();
+    def.portals.push(spare);
+    let file = std::path::Path::new("data/maps/meadow.ron");
+    let resolved = MapData::resolve(&def, file, &data).unwrap_or_else(|e| panic!("{e:?}"));
+    assert!(
+        resolved.portal_at(Level::GROUND, x, y).is_none(),
+        "unlinked: not among the resolved portals"
+    );
+    assert_eq!(
+        resolved.def.portals.len(),
+        before + 1,
+        "yet saved in the file"
+    );
+    data.maps.insert(meadow, resolved);
+    let mut world = world(&data);
+    let events = without_visible(step(&mut world, &data));
+    let moves = events
+        .iter()
+        .filter(|e| matches!(e, Event::Moved { .. }))
+        .count();
+    assert_eq!(moves, 1, "{events:?}");
+    assert_eq!(
+        (world.position.map, world.position.x, world.position.y),
+        (meadow, x, y)
+    );
 }

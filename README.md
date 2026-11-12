@@ -14,7 +14,7 @@ is recorded in `tasks/archive/`.
 
 ## Status
 
-The MVP is built and played: Phase 1 of `PRD.md` §13 is complete but the editor. Each milestone was
+The MVP is built and played: Phase 1 of `PRD.md` §13 is complete, the editor included (M5, 2026-10-25). Each milestone was
 played by the owner before the next one started; the record of each is in
 `tasks/archive/TODO-2026-10-20.md`.
 
@@ -25,7 +25,7 @@ played by the owner before the next one started; the record of each is in
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
 | M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1, deferred by the owner; next (W1 of `tasks/TODO.md`) |
+| M5 | Editor v1 (W1 of `tasks/TODO.md`): the ops and MCP tools, the plan view and brushes, forms for every placement, the author's notes, a 3D preview, Playtest, the RON text editor; `packs/test` re-authored through it (M5.10) |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
 | M7 | Town and services, rest, progression, the turn budget and declared reactions |
 | M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |
@@ -33,8 +33,8 @@ played by the owner before the next one started; the record of each is in
 | Vector adoption | The 3D vector client `omnis-vector` replaces the 2D client at parity (P0 to P9) |
 | M8.5 | Elevation, levels and stairs, objects in data, occluding fills, the camera's pitch, the save model and saves by name across changed packs |
 
-Next is the plan in `tasks/TODO.md`: the editor (M5), then the look in data, the world's structure
-(M9), the living world (M10, M11) and release (M12), toward the owner building the first locality.
+Next is the plan in `tasks/TODO.md`: the look in data, the world's structure (M9), the living world
+(M10, M11) and release (M12), toward the owner building the first locality.
 
 ## Layout
 
@@ -52,10 +52,12 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
 | `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, world tidy, pack seal, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
+| `omnis-icon` | The Lucide icon set (ISC, `assets/svg-icons/`) compiled in and read as strokes: a dependency-free SVG subset reader, path flattening with arcs, every icon by name |
 
 Game content lives in `packs/`. `packs/base` is the shipped content (SRD 5.1 material under
-CC-BY-4.0, see `ATTRIBUTION.md`); `packs/test` holds the fixtures the tests and golden replays
-use. Every number a rule needs is a value or a Rhai slot in the pack's `rules/` files: Rust rolls
+CC-BY-4.0, see `ATTRIBUTION.md`); `packs/the_lower_kingdoms` is the owner's world under construction, the game's
+default beside the base pack. The tests and the golden replays run against `crates/omnis-sim/tests/packs/test`,
+a frozen fixture (id `test`, sealed once, never saved onto), so building the world moves no test. Every number a rule needs is a value or a Rhai slot in the pack's `rules/` files: Rust rolls
 the dice, Rhai adds and compares.
 
 ## Building and running
@@ -66,6 +68,7 @@ dev socket, `Dev` commands, the debug panel); a release build turns it off.
 ```sh
 just run                                     # the game, the same as the next line; flags pass through
 cargo run -p omnis-vector                    # the binary omnis: fullscreen, at the title; --windowed, --monitor N, --pack DIR
+cargo run -p omnis-vector -- --windowed --editor test:map:dungeon   # the editor (M5.4), that map open; --editor alone opens none
 cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed party of four; --save FILE names the quick save
 cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
 cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel
@@ -85,7 +88,8 @@ Settings, Debug (in a game with developer tools; also the backtick key), Quit to
 A member's sheet, inventory and spells open from the party column. In a fight, the buttons pick
 the action and a click on a figure the target; the number keys pick from a list. Saves are RON
 files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
-`.omnis/settings.ron`. A save holds the party and what it changed; the world it plays in is kept
+`.omnis/settings.ron`; a start that fails leaves its reason in `.omnis/last-error.txt` as well as on stderr
+(Windows shows the game no console). A save holds the party and what it changed; the world it plays in is kept
 beside it under `.omnis/worlds/`, and `omnis-cli world tidy` (or the debug page's Tidy) lists the
 world files no save names and deletes them only when asked.
 
@@ -95,13 +99,14 @@ world files no save names and deletes them only when asked.
 on every target and on the client's library with and without developer tools, every test, the simulation-crate
 lint, the dependency-duplicate check, and pack validation, and it exits non-zero on any failure.
 CI runs the same steps plus the golden replays
-through the CLI, on macOS as the required check and on Linux as an advisory job that reports and never
-blocks (PRD D31).
+through the CLI, on macOS as the required check and on Linux and Windows as advisory jobs that report and
+never block (PRD D31).
 
 ```sh
 scripts/verify.sh
-cargo run -p omnis-cli -- validate packs/base packs/test
-cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron
+cargo run -p omnis-cli -- validate packs/base packs/the_lower_kingdoms
+cargo run -p omnis-cli -- validate packs/base crates/omnis-sim/tests/packs/test
+cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack crates/omnis-sim/tests/packs/test
 ```
 
 On macOS, `cc` finds clang through `xcodebuild -find clang`, which reads Xcode's license file. A
@@ -120,11 +125,14 @@ about the linker; check a toolchain change with a fresh target directory.
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes 27 tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes 48 tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
 `save_check`, `pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
-`service_get`, `rest_get`, `cast_get`, `objects_get`, `creation_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and
-`time_reconcile`. Each tool is an op of the simulation's JSON protocol, the engine's API for
+`service_get`, `rest_get`, `cast_get`, `objects_get`, `creation_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks`,
+`time_reconcile`, and the editor's (M5.3) `editor_status`, `editor_maps`, `editor_open`, `editor_new`, `editor_paint`,
+`editor_place`, `editor_edit`, `editor_undo`, `editor_redo`, `editor_save`, `editor_files`, `editor_read`, `editor_check`,
+`editor_write`, `editor_note`, `editor_note_set` and `editor_notes`, and for what the loaded packs define
+`data_kinds`, `data_list`, `data_get` and `data_text`. Each tool is an op of the simulation's JSON protocol, the engine's API for
 clients other than the Rust library (`ARCHITECTURE.md` §4.9).
 
 ```sh

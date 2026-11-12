@@ -2,10 +2,11 @@
 //! a check for the headless tests. One line per text on screen, in tree order under each root
 //! node, indented by its depth among such lines: its rectangle in window pixels once layout has
 //! run, `[button]` when a click on it does something, `[field]` for a text field, and the text;
-//! a slider is `[slider]` with its value and range. What is not shown (a node
+//! a slider is `[slider]` with its value and range; an icon is `[icon]` and its name. What is not shown (a node
 //! with `Display::None`, or hidden) is left out, so the answer is the screen, for any screen,
 //! with no code per screen.
 
+use super::icons::IconOf;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::UiGlobalTransform;
@@ -76,10 +77,16 @@ fn line(world: &World, entity: Entity, depth: usize) -> Option<String> {
             range.end()
         ));
     }
-    let (field, text) = match (world.get::<Text>(entity), world.get::<EditableText>(entity)) {
-        (Some(text), _) => (false, text.0.clone()),
-        (None, Some(field)) => (true, field.value().to_string()),
-        (None, None) => return None,
+    let icon = world.get::<IconOf>(entity).map(|i| i.0);
+    let (field, text) = match (
+        icon,
+        world.get::<Text>(entity),
+        world.get::<EditableText>(entity),
+    ) {
+        (Some(name), _, _) => (false, name.to_owned()),
+        (None, Some(text), _) => (false, text.0.clone()),
+        (None, None, Some(field)) => (true, field.value().to_string()),
+        (None, None, None) => return None,
     };
     let mut line = "  ".repeat(depth);
     if let (Some(node), Some(at)) = (
@@ -103,6 +110,9 @@ fn line(world: &World, entity: Entity, depth: usize) -> Option<String> {
     }
     if field {
         line.push_str("[field] ");
+    }
+    if icon.is_some() {
+        line.push_str("[icon] ");
     }
     // Debug quoting keeps a text of several lines on one line.
     line.push_str(&format!("{text:?}"));

@@ -35,6 +35,22 @@ fn at(data: &Data, level: Level, x: u16, y: u16, facing: Facing) -> World {
     world
 }
 
+/// A new game begins on the start's level (W1 step 3): the tower made the entry, its start on
+/// the bridge of the upper floor, puts the party there, facing as the start does.
+#[test]
+fn a_new_game_begins_on_the_start_s_level() {
+    let mut data = tower();
+    let map = data.registry.maps.get("levels:map:tower").expect("tower");
+    data.entry = Some(map);
+    let def = &mut data.maps.get_mut(&map).expect("the tower").def;
+    def.start = (4, 2, Facing::South);
+    def.start_level = UPPER;
+    let world = World::new(&data, 7, Settings::default()).expect("entry map");
+    assert_eq!(place(&world), (UPPER, 4, 2));
+    assert_eq!(world.position.facing, Facing::South);
+    assert_eq!(world.position.map, map);
+}
+
 /// Where the party is: level, column, row.
 fn place(world: &World) -> (Level, u16, u16) {
     (world.position.level, world.position.x, world.position.y)

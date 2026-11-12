@@ -1,7 +1,9 @@
 //! The game paused (presentation-ARCHITECTURE §6.3, §6.7, from the retired client's pause): the
 //! game's seed and settings, then Resume, Save, Load, Save log, Settings, Debug (dim outside a
-//! devtools world) and Quit to title, and Quit in its own row, set apart from the rest (PRD §7). A control that cannot be used now says why: the
-//! save rule forbids saving here, there is no save to load, the log no longer replays.
+//! devtools world) and Quit to title, and Quit in its own row, set apart from the rest (PRD §7). A
+//! control that cannot be used now says why: the save rule forbids saving here, there is no save
+//! to load, the log no longer replays. In a playtest from the editor (M5.8) nothing is saved or
+//! loaded and the way out is Back to editor.
 
 use super::{Control, ControlId, Ctx, Effect, Game, HostOp, Panel, Row, Screen, ScreenId, Span};
 use crate::labels;
@@ -23,6 +25,17 @@ pub fn content(ctx: &Ctx, game: Game) -> Screen {
     log.why_not = game
         .unreplayable
         .map(|why| format!("the log no longer replays: {why}"));
+    if ctx.playtest {
+        // A playtest is the editor's: nothing of it is kept (M5.8).
+        save.why_not = Some("a playtest is not saved".to_owned());
+        load.why_not = Some("a playtest is not loaded".to_owned());
+        log.why_not = Some("a playtest's log is not saved".to_owned());
+    }
+    let leave = if ctx.playtest {
+        Control::button(ControlId::BackToEditor, "Back to editor")
+    } else {
+        Control::button(ControlId::QuitToTitle, "Quit to title")
+    };
     Screen {
         id: ScreenId::Pause,
         title: Span::title("PAUSED"),
@@ -46,10 +59,7 @@ pub fn content(ctx: &Ctx, game: Game) -> Screen {
                         ..Control::button(ControlId::OpenDebug, "Debug")
                     },
                 ]),
-                Row::controls(vec![Control::button(
-                    ControlId::QuitToTitle,
-                    "Quit to title",
-                )]),
+                Row::controls(vec![leave]),
                 Row::controls(vec![Control::button(ControlId::Quit, "Quit")]),
             ],
         }],
@@ -69,6 +79,7 @@ pub fn apply(control: ControlId) -> Effect {
         ControlId::Settings => Effect::Open(ScreenId::Settings),
         ControlId::OpenDebug => Effect::Open(ScreenId::Debug),
         ControlId::QuitToTitle => Effect::ToTitle,
+        ControlId::BackToEditor => Effect::ToEditor,
         ControlId::Quit => Effect::Quit,
         _ => Effect::None,
     }

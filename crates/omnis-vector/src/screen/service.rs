@@ -129,6 +129,7 @@ fn bank_row(data: &Data, game: Game, bank: &str) -> Row {
             kind: Kind::Text {
                 value: bank.to_owned(),
                 max: AMOUNT_DIGITS,
+                lines: 1,
             },
             why_not: None,
         },

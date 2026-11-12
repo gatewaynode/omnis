@@ -56,12 +56,17 @@ pub struct Config {
     pub timing: bool,
     /// The dev socket's loopback address (feature `devtools`); `None` with `--no-dev-socket`.
     pub dev_socket: Option<String>,
+    /// Start in the editor (`--editor`, M5.4), with this map open when one is named.
+    pub editor: Option<Option<String>>,
 }
 
 impl Default for Config {
     fn default() -> Config {
         Config {
-            packs: vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")],
+            packs: vec![
+                PathBuf::from("packs/base"),
+                PathBuf::from("packs/the_lower_kingdoms"),
+            ],
             seed: 1,
             play: false,
             screen: None,
@@ -77,6 +82,7 @@ impl Default for Config {
             size: (1600, 900),
             timing: false,
             dev_socket: Some("127.0.0.1:0".to_owned()),
+            editor: None,
         }
     }
 }
@@ -143,14 +149,14 @@ impl Config {
 /// `--size WxH` (the offscreen capture's size), `--timing` (with `--screenshot`: run uncapped and
 /// report the frame times), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
-/// `--no-dev-socket`.
+/// `--no-dev-socket`, and `--editor [map-id]` (start in the editor, with that map open).
 ///
 /// # Errors
 /// A message naming the bad argument.
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
     let mut config = Config::default();
     let mut packs = Vec::new();
-    let mut args = args.into_iter();
+    let mut args = args.into_iter().peekable();
     while let Some(arg) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match arg.as_str() {
@@ -226,6 +232,14 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     .map_err(|_| "--walk takes a frame count".to_owned())?
             }
             "--timing" => config.timing = true,
+            "--editor" => {
+                let map = args.next_if(|a| !a.starts_with("--"));
+                if let Some(map) = &map {
+                    omnis_sim::ops::bounded(map)
+                        .map_err(|e| format!("--editor takes a map id: {e}"))?;
+                }
+                config.editor = Some(map);
+            }
             "--dev-socket" if cfg!(feature = "devtools") => {
                 config.dev_socket = Some(value("--dev-socket")?);
             }
@@ -238,6 +252,11 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
     }
     if config.timing && config.screenshot.is_none() {
         return Err("--timing times a capture: it needs --screenshot".to_owned());
+    }
+    if config.editor.is_some() && (config.starts_in_game() || config.screen.is_some()) {
+        return Err(
+            "--editor starts with no game: not with --seed, --screen or --screenshot".to_owned(),
+        );
     }
     Ok(config)
 }

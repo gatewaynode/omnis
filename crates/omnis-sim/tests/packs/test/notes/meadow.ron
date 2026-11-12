@@ -1,0 +1,6 @@
+(
+    schema: 1,
+    entries: {
+        "test:map:meadow": "A 32x32 meadow: a road north to the dungeon entrance and south to the town, a pond, tree clumps, a hedge all round.\n\nA random table that never fires: every step still rolls its check on the encounter stream, which the stream-isolation tests count.\n\nWhat may happen while the party rests here: placeholders at chance 0 (per mille) until the owner\'s ideas fill them.",
+    },
+)

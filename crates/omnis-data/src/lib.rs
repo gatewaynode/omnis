@@ -8,9 +8,11 @@
 #![warn(missing_docs)]
 
 pub mod action;
+pub mod catalog;
 pub mod character;
 pub mod condition;
 mod content;
+pub mod edit;
 pub mod encounter;
 pub mod error;
 pub mod flag;
@@ -26,6 +28,7 @@ pub mod map;
 pub mod map_data;
 pub mod migration;
 pub mod monster;
+pub mod notes;
 pub mod object;
 pub mod placement;
 pub mod region;
@@ -38,6 +41,7 @@ pub mod sense;
 pub mod service;
 pub mod spell;
 pub mod stairs;
+pub mod strings;
 pub mod terms;
 pub mod text;
 pub mod tileset;
@@ -59,8 +63,9 @@ pub use loot::{LootEntry, LootTable};
 pub use lore::{CellLore, Lore};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, Join, MapDef, MapKind, Portal, Terrain, WallSurfaces};
-pub use map_data::{MapData, ResolvedPortal};
+pub use map_data::{MapData, ResolvedPortal, partner_of, unlinked_portals, unlinked_portals_in};
 pub use monster::{Attack, Monster, MonsterCasting};
+pub use notes::{NotesFile, is_note_key};
 pub use object::{
     Attributes, Effect as ObjectEffect, Interaction, Look, Material, ObjectKind, Requirement,
     Shape, StateDef, Verb,
@@ -70,7 +75,7 @@ pub use placement::{GroundDef, Pile, Placement, ResolvedPlacement};
 pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};
-pub use rules::{RulesFile, SlotDef};
+pub use rules::{RulesFile, SlotDef, TableDef, ValueDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
 pub use service::{ResolvedSite, RumorDef, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};

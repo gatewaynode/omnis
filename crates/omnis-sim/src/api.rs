@@ -67,10 +67,11 @@ pub use crate::objects::{ObjectState, blocks_step as object_blocks};
 // What a client reads of objects: `objects.get`'s view, and what it draws of a whole level.
 pub use crate::objects_view::{
     CheckView, ItemCount, ObjectView, ObjectsView, PileView, SeenObject, VerbView, objects_view,
-    on_level as objects_on_level,
+    on_level as objects_on_level, placed_on_level,
 };
-// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level.
-pub use crate::beings::{BeingView, on_level as beings_on_level};
+// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level; and, for an
+// editor's preview with no world (M5.7), what a map places.
+pub use crate::beings::{BeingView, on_level as beings_on_level, standing_as_placed};
 pub use crate::journal::{Change, apply_changes, archive_len, journal_len};
 pub use crate::log::{Logged, history, told};
 pub use crate::query::{
@@ -95,7 +96,15 @@ pub use crate::view::{
 
 // The JSON op protocol.
 pub use crate::ops::{
-    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RulesView,
-    ShotTarget, SlotView, Status, client_path, dispatch, reload, rules_set,
+    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RuleOrigin,
+    RulesView, ShotTarget, SlotView, Status, bounded_file, client_path, dispatch, reload,
+    rules_set,
+};
+pub use omnis_data::rules::{Beaten, RuleKind};
+// The `data.*` ops: what the loaded packs define. `Definition` is the pack format's own shape.
+pub use crate::data_ops::{
+    DEFAULT_LANG, DefinitionRow, DefinitionView, KindCount, LIST_DEFAULT, LIST_MAX, Listing,
+    MAX_KEYS, Words,
 };
 pub use omnis_core::Edges;
+pub use omnis_data::catalog::Definition;

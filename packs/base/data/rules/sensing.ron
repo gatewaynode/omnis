@@ -11,8 +11,8 @@
 (
     schema: 1,
     id: "base:rules:sensing",
-    values: {"sight_rise_per_tile": 8},
+    values: {"sight_rise_per_tile": (priority: 0, value: 8)},
     slots: {
-        "sense.dc": (inputs: ["distance", "visibility", "layer"], expr: "10 + max(0, distance - visibility) + (layer - 1) * 2"),
+        "sense.dc": (priority: 0, inputs: ["distance", "visibility", "layer"], expr: "10 + max(0, distance - visibility) + (layer - 1) * 2"),
     },
 )

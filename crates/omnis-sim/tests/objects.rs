@@ -117,8 +117,17 @@ fn the_yard_places_every_object_in_the_cells_its_footprint_reaches() {
 #[test]
 fn the_shipped_maps_place_nothing() {
     let data = crate::common::data();
-    for map in data.maps.values() {
-        assert!(map.objects.is_empty() && map.object_cells.is_empty() && map.ground.is_empty());
+    let depths = data.registry.maps.get("test:map:depths").unwrap();
+    for (id, map) in &data.maps {
+        assert!(map.objects.is_empty() && map.object_cells.is_empty());
+        // The owner's pile of arrows at (1, 9) of the depths, dropped in the editor (2026-10-31),
+        // is the one thing shipped on the ground.
+        if *id == depths {
+            assert_eq!(map.ground.len(), 1, "{:?}", map.ground);
+            assert!(map.ground.contains_key(&(omnis_core::Level::GROUND, 1, 9)));
+        } else {
+            assert!(map.ground.is_empty());
+        }
     }
 }
 
@@ -448,5 +457,58 @@ fn the_yard_s_lore_resolves_by_cell_by_kind_and_by_placement() {
             .unwrap()
             .lore
             .is_none()
+    );
+}
+
+/// An editor's preview reads a map's objects and groups as placed (M5.7): every object in its
+/// placed state, hidden ones too, the piles, and every standing group; a fresh world shows less
+/// (its hidden objects unfound) and the same otherwise.
+#[test]
+fn a_map_s_objects_and_groups_read_as_placed_with_no_world() {
+    use omnis_sim::api::{beings_on_level, objects_on_level, placed_on_level, standing_as_placed};
+    let data = objects();
+    let yard = yard(&data);
+    let map = &data.maps[&yard];
+    let (objects, piles) = placed_on_level(&data, map, Level::GROUND);
+    assert_eq!(
+        objects.len(),
+        10,
+        "ten on the ground, the loft's crate apart"
+    );
+    assert!(
+        objects.iter().any(|o| o.object == "lever_1"),
+        "hidden, shown"
+    );
+    assert!(
+        objects.iter().any(|o| o.object == "rune_1"),
+        "hidden, shown"
+    );
+    assert_eq!(piles.len(), 1);
+    assert_eq!((piles[0].x, piles[0].y), (2, 2));
+    let world = in_yard(&data, 0, 1, 2, Facing::East);
+    let (seen, seen_piles) = objects_on_level(&world, &data, yard, Level::GROUND);
+    assert_eq!(seen.len(), 8, "the two hidden ones unfound");
+    assert!(
+        objects
+            .iter()
+            .filter(|o| o.object != "lever_1" && o.object != "rune_1")
+            .eq(seen.iter())
+    );
+    assert_eq!(piles, seen_piles);
+    let standing = standing_as_placed(&data, map, Level::GROUND);
+    assert_eq!(standing.len(), 1);
+    assert_eq!(
+        (standing[0].being.as_str(), standing[0].facing),
+        ("rat", Facing::West)
+    );
+    assert_eq!(
+        standing,
+        beings_on_level(&world, &data, yard, Level::GROUND)
+    );
+    assert!(
+        placed_on_level(&data, map, Level(1))
+            .0
+            .iter()
+            .any(|o| o.object == "crate_2")
     );
 }

@@ -8,9 +8,14 @@ fails the script), `scripts/lint-sim.sh --self-test` and the lint, `scripts/chec
 and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exits zero only when
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
 same steps, the release clippy included since M7 step 1, plus both golden replays through the CLI
-with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-default-features`)
-carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
-push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
+with `--pack packs/base --pack crates/omnis-sim/tests/packs/test`, on macOS as the required check and on
+Linux (W0.6) and Windows (2026-11-08) as advisory jobs that report and never block. The shipped configuration
+(`--no-default-features`) carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a
+push to `main`, on a pull request, and by hand from the Actions tab (`workflow_dispatch`, so a branch's
+advisory jobs can be read before its PR): a push to a work branch with no PR open and no run started by hand
+shows the Socket scans alone, which is not a green build. The Windows job needs an LF checkout
+(`.gitattributes`) and LF pretty RON (`ron_io::to_string`): the seals, the fingerprints and the frozen world
+folders are hashed as text.
 
 Test count at the gate: 712 passed, 12 ignored (2026-10-14, after M8.5 1c and the hills' crests; 708 after 1c; 697 after step 3; 678 after 1b; 715 and 13
 ignored after parity P3, before `omnis-app` retired; 583 before `omnis-vector` joined). The gate's log says it
@@ -72,12 +77,21 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `8711507745385976768`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `247886029114634643`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `5247080599556612730` under the golden seed (M8 step 4: the base pack hash, the rumors' minutes; step 3: contacts, party time and the bus in the save, and `Reconciled` at each region entry, every other event unchanged; step 1: the pack hash; before that M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
+  fight `14419409718594269417` under the golden seed, **against the frozen fixture
+  `crates/omnis-sim/tests/packs/test`** (id `test`, 0.2.9, hash 14523718773761627429: `packs/test` as committed at
+  `8d58c3e2`; since 2026-11-07 the owner's canvas under `packs/` is a pack of its own and moves no test; the replays
+  move only when the fixture is re-sealed on purpose. History: that day the canvas reached 0.2.18, hash
+  6618162262592301701, the town's sites on rows 0 and 4; before it 0.2.9, three unlinked portals and four cells; 0.2.8 before it, committed by the
+  owner with the tests; 2026-11-01, step 2a of the entrances enhancement: the
+  portals linked by id, `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two stairs' arrivals
+  faced east, 0.2.4, hash 5777870636897639874; 2026-10-31: the owner drew on the depths through the
+  editor, 0.2.3; M5.10: the test pack re-authored through the
+  editor and sealed at 0.2.0; M8 step 4: the base pack hash, the rumors' minutes; step 3: contacts, party time and the bus in the save, and `Reconciled` at each region entry, every other event unchanged; step 1: the pack hash; before that M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
-  with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
-  serialized-`World` change.
+  with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any change to the fixture
+  or to the serialized `World`.
 - `SAVE_SCHEMA 9` (M8.5 7d, the character save: ARCHITECTURE §4.1.1; 7h2, fixed encounters by id and the manifest's name table); a schema 1 to 7 save is migrated to 7, then converted on load, and a schema 8 save has its encounter rows converted (`save/rows.rs`). `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
   (gold ×100, a saved fight's loot too), `v5_to_v6` (M7c: auto-cast spells become declared sets; a
   saved fight gets its budget and reactions) and `v6_to_v7` (M8: the past counted in full as shared
@@ -95,7 +109,7 @@ repository root (the root has no rules file).
   `omnis-cli`'s schema dump, 25, in `omnis-cli/tests/headless.rs`: a hand list, so a new op is added to
   `omnis-cli/src/schema.rs` by hand; the gate does not catch a missing one); the hand-written
   `Command` schema has `oneOf` 12 (M8.5 1b: `Climb`), combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
-  `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
+  `rest_schema` 2, `dev_schema` 15 (2026-11-11: `Pass`).
 - The schema proof (`omnis-mcp/tests/schema_proof.rs`): 96 instances from the `next` chain of
   exhaustive matches (M8.5 1b: `Climb`), 145 offered `oneOf` branches and `enum` values, all used; the drift test's
   padded branch is `/oneOf/12`. A new `Command`

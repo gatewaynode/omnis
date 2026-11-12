@@ -424,7 +424,9 @@ fn the_schema_8_fixture_still_loads() {
     assert_eq!(world.archive.len(), 1, "the segment the fold put away");
     assert!(world.origin.is_some(), "the bases the fold made");
     assert!(!world.log.is_empty());
-    if world.packs == data.fingerprints {
+    // A load by name records today's packs, so the world's own field cannot tell the packs the
+    // save was made with from today's: the report's fit can.
+    if report.fit == PackFit::Same {
         let made = fixture_world(&data, "walk");
         assert_eq!(world.fingerprint(), made.fingerprint());
         assert_eq!(world.journal, made.journal);
@@ -463,7 +465,7 @@ fn the_schema_9_fixture_still_loads() {
         text.contains("id:\"giant_rat_3_8\""),
         "the journal's change by id"
     );
-    if world.packs == data.fingerprints {
+    if report.fit == PackFit::Same {
         let made = fixture_world(&data, "fight");
         assert_eq!(world.fingerprint(), made.fingerprint());
         assert_eq!(world.journal, made.journal);

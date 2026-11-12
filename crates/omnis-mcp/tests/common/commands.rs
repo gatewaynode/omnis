@@ -295,7 +295,8 @@ fn next_dev(command: &DevCommand) -> Option<DevCommand> {
             region: "test:region:town".into(),
         },
         DevCommand::Reconcile { .. } => DevCommand::Fold,
-        DevCommand::Fold => return None,
+        DevCommand::Fold => DevCommand::Pass { minutes: 90 },
+        DevCommand::Pass { .. } => return None,
     })
 }
 

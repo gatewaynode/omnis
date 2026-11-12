@@ -8,7 +8,7 @@ use common::{SEED, data, levels_data, map};
 use omnis_sim::Settings;
 use omnis_sim::omnis_core::Level;
 use omnis_sim::omnis_data::Data;
-use omnis_vector::geometry::{SegKind, Segment, extract};
+use omnis_vector::geometry::{SegKind, Segment, activities, extract};
 use omnis_vector::ground::Ground;
 use omnis_vector::scene::{NEIGHBOUR_DIM, Scene};
 use omnis_vector::sim::SimWorld;
@@ -180,12 +180,25 @@ fn no_ceiling_grid_is_drawn_under_ground_of_the_level_above() {
 fn a_map_without_levels_draws_its_extract_and_nothing_beside_it() {
     let data = data();
     let world = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
-    for (&id, m) in &data.maps {
+    // The depths carry the owner's pile, drawn beside the extract: the flat maps only.
+    for (id, m) in crate::common::flat_maps(&data) {
         let scene = Scene::build(&data, id, Level::GROUND, &world);
         let ground = Ground::from_map(m, Level::GROUND);
+        // The level's own lines are its extract and its activities' icons (2026-10-24).
+        let (icons, lines): (Vec<Segment>, Vec<Segment>) = scene
+            .own
+            .iter()
+            .cloned()
+            .partition(|s| s.kind == SegKind::Activity);
         assert_eq!(
-            scene.own,
+            lines,
             extract(m, id, Level::GROUND, &world, &ground),
+            "{}",
+            m.def.id
+        );
+        assert_eq!(
+            icons,
+            activities(&data, m, Level::GROUND, &ground),
             "{}",
             m.def.id
         );

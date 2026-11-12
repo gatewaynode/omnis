@@ -83,3 +83,18 @@ the fix) and the fixing commit. Newest last.
   (a friendly rat on the tower's bridge, level 1; red before the fix: the retreat read `Level(0)`; the
   mutation back to `GROUND` is caught).
 - **Fixed in**: the commit that adds this entry.
+
+## B8 — The view turned over and the walk ran backwards (M5.3 acceptance, 2026-10-22)
+- **Report** (owner, on `heights:map:hills`): "I ended upside down and the forward and back keys seem to be
+  inverted."
+- **Cause**: not a defect in the code as specified. The pitch was unlimited by the owner's choice of 2026-10-12
+  (`tasks/plans/m8.5-camera-pitch.md`: "Limits: none. Full 360° by 360°"; "the view is a free head"): past
+  straight up `look::wrap_pitch` carried the view over the top, looking back upside down, while W kept walking
+  the body forward, so the picture moved away from what it showed. Found by accident while mouse look was
+  locked, when steps do not level the view.
+- **Decision** (owner, 2026-10-22): clamp the pitch a degree short of straight up and down, the first-person
+  convention. `PITCH_LIMIT`, `clamp_pitch`; `upside_down` and `yaw_sign` removed with the state they served.
+- **Test**: `omnis-vector/tests/look.rs::the_pitch_stops_just_short_of_straight_up_and_down` (red on the old
+  code: fourteen frames of mouse up wrapped round to 0.44 rad).
+- **Fixed in**: the commit after `fef5fe1` that names B8.
+

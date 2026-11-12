@@ -703,3 +703,54 @@ fn the_world_page_counts_the_manifests_names() {
         "{lines:?}"
     );
 }
+
+#[test]
+fn the_world_page_passes_the_minutes_typed_and_keeps_them_for_the_next_press() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert_eq!(value(&shown(&session, &forms), Num::Minutes), "60");
+    assert_eq!(why(&shown(&session, &forms), DebugAct::Pass), None);
+    use_(
+        &session,
+        &mut forms,
+        DebugAct::Field(Num::Minutes),
+        Payload::Text("1440".into()),
+    );
+    let before = session.world.party_clock().elapsed;
+    for presses in 1..=2 {
+        let effect = use_(&session, &mut forms, DebugAct::Pass, Payload::Press);
+        assert_eq!(
+            effect,
+            Effect::Command {
+                command: Command::Dev(DevCommand::Pass { minutes: 1440 }),
+                close: false
+            }
+        );
+        send(&mut session, &mut forms, effect);
+        assert_eq!(session.world.party_clock().elapsed, before + 1440 * presses);
+        assert_eq!(value(&shown(&session, &forms), Num::Minutes), "1440");
+    }
+    // Past a year the engine refuses, and the button says why before it is pressed.
+    for typed in ["0", "518401"] {
+        use_(
+            &session,
+            &mut forms,
+            DebugAct::Field(Num::Minutes),
+            Payload::Text(typed.into()),
+        );
+        assert_eq!(
+            why(&shown(&session, &forms), DebugAct::Pass).as_deref(),
+            Some("a count, score, or index is out of range"),
+            "{typed}"
+        );
+    }
+}
+
+#[test]
+fn in_a_fight_pass_is_dim() {
+    let session = turn_of("Brenna");
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert!(why(&shown(&session, &forms), DebugAct::Pass).is_some());
+}

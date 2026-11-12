@@ -214,7 +214,29 @@ impl SimWorld {
     pub fn beings_on(&self, data: &Data, map: MapId, level: Level) -> Vec<BeingView> {
         beings_on_level(&self.0, data, map, level)
     }
+}
 
+/// The game's world answers the scene's questions from its state (M5.7).
+impl crate::scene::Occupancy for SimWorld {
+    fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        SimWorld::door_open(self, map, level, x, y, facing)
+    }
+
+    fn objects_on(
+        &self,
+        data: &Data,
+        map: MapId,
+        level: Level,
+    ) -> (Vec<SeenObject>, Vec<PileView>) {
+        SimWorld::objects_on(self, data, map, level)
+    }
+
+    fn beings_on(&self, data: &Data, map: MapId, level: Level) -> Vec<BeingView> {
+        SimWorld::beings_on(self, data, map, level)
+    }
+}
+
+impl SimWorld {
     /// Where a step in `direction` would leave the party (`api::step_lands`).
     #[must_use]
     pub fn step_lands(&self, data: &Data, direction: Direction) -> Option<Position> {

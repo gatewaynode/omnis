@@ -25,7 +25,10 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
     match op {
         Op::SaveWrite { path } => {
             game_io::save(&session.world, &session.data, root, path)?;
-            Ok(Reply::Written { path: path.clone() })
+            Ok(Reply::Written {
+                path: path.clone(),
+                version: None,
+            })
         }
         Op::SaveRead {
             path,

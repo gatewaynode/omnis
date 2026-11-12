@@ -183,10 +183,7 @@ fn standable(
     map: &MapData,
     (level, x, y): (Level, u16, u16),
 ) -> bool {
-    let Some(cell) = map.cell(level, x, y) else {
-        return false;
-    };
-    if !map.terrain(cell).passable {
+    if !map.enterable(level, x, y) {
         return false;
     }
     !map.objects_at(level, x, y).any(|(_, p)| {
@@ -250,7 +247,7 @@ fn party(world: &mut World, data: &Data, out: &mut Vec<PlaceWarning>) {
     });
     let (level, x, y) = match to {
         Some((x, y)) => (level, x, y),
-        None => (Level::GROUND, map.def.start.0, map.def.start.1),
+        None => (map.def.start_level, map.def.start.0, map.def.start.1),
     };
     out.push(PlaceWarning {
         map: map_name(data, p.map),

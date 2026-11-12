@@ -2,6 +2,6 @@
     schema: 1,
     id: "badc:rules:objects",
     slots: {
-        "objects.age": (inputs: ["age"], expr: "age > 1"),
+        "objects.age": (priority: 0, inputs: ["age"], expr: "age > 1"),
     },
 )

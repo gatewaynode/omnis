@@ -1,0 +1,925 @@
+//! The editor's layer (M5.4; `tasks/plans/m5-editor-v1.md` §Client side, presentation-ARCHITECTURE
+//! §6): while the `Editing` resource is there, three columns stand in place of the 3D view:
+//! the tools (a kit screen), the plan (the Bevy-free raster in one image node, with the cursor
+//! as a bordered node over it, and since M5.6 the attribute bar over it, a kit screen) and the
+//! inspector (a kit screen). Built like the fight screen: a column is rebuilt only when its
+//! screen's shape changed and its words are rewritten in place when only they did (so a
+//! field keeps its caret), the plan repainted only when what it shows changed. The pointer paints (M5.5): a left click paints the brush at what the
+//! pointer aims at (`Editor::aim`, shown as a hover over the plan before the click) and a drag
+//! is one stroke, a right click picks what is there; a drag with the Move tool carries a
+//! placement or pans the plan, as the middle button does with any tool (step 2, 2026-10-25). The editor
+//! runs with no `Session`, so nothing of the game moves or draws; its menu is a screen of the
+//! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
+//! painted, and the rest stands.
+
+use super::screen::{Arrow, Screens, Slid};
+use super::screen_draw::{
+    EditorPress, Mark, Placed, Scrolls, WHEEL_LINE, build, colour, shade, sync,
+};
+use super::session::{Packs, Session};
+use super::{VectorSet, ViewState};
+use crate::editor::brush::Target;
+use crate::editor::plan::{self, Source};
+use crate::editor::run::{Pointer, Press};
+use crate::editor::{Asked, EditAct, Editor, playtest, view};
+use crate::pose::Pose;
+use crate::screen::nav::Nav;
+use crate::screen::{ControlId, Kind, Screen, ScreenId};
+use crate::sim::game_settings;
+use crate::style::{Role, scaled};
+use bevy::ecs::system::SystemParam;
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
+use bevy::input_focus::InputFocus;
+use bevy::prelude::*;
+use bevy::text::EditableText;
+use bevy::ui::RelativeCursorPosition;
+use bevy::window::PrimaryWindow;
+use omnis_sim::omnis_core::Facing;
+use omnis_sim::{Command, Settings};
+
+/// The editor, while it is open. Wraps the Bevy-free model.
+#[derive(Resource, Debug)]
+pub struct Editing(pub Editor);
+
+impl core::ops::Deref for Editing {
+    type Target = Editor;
+    fn deref(&self) -> &Editor {
+        &self.0
+    }
+}
+
+impl core::ops::DerefMut for Editing {
+    fn deref_mut(&mut self) -> &mut Editor {
+        &mut self.0
+    }
+}
+
+/// The editor parked while its playtest runs (M5.8): the whole model, untouched, so Back to
+/// editor brings it back as it was left. Removing `Editing` takes the layer and the preview
+/// down through their own hooks; inserting it again rebuilds them from this.
+#[derive(Resource, Debug)]
+pub struct Playtesting(pub Editor);
+
+/// Marks the layer's root; everything of the editor is under it.
+#[derive(Component)]
+pub struct EditorRoot;
+
+/// Which column a node is.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Column {
+    /// The tools, left.
+    Tools,
+    /// The plan's pane, centre.
+    Plan,
+    /// The attribute bar over the plan (M5.6).
+    Bar,
+    /// A file's text in the centre, in Files mode (M5.9).
+    Text,
+    /// The preview's picture over the inspector (M5.7); only with a renderer.
+    Preview,
+    /// The inspector, right.
+    Inspector,
+}
+
+/// The plan's picture.
+#[derive(Component)]
+pub struct PlanImage;
+
+/// The cursor's border over the plan.
+#[derive(Component)]
+pub struct PlanCursor;
+
+/// The aim under the pointer, over the plan: a cell's outline, or a bar along the side an edge
+/// brush would paint.
+#[derive(Component)]
+pub struct PlanHover;
+
+/// The plan's picture node: its image and its size.
+type Picture = (&'static mut ImageNode, &'static mut Node);
+/// Which node the picture is.
+type IsPicture = (With<PlanImage>, Without<PlanCursor>, Without<PlanHover>);
+/// Which node the cursor is.
+type IsCursor = (With<PlanCursor>, Without<PlanHover>);
+/// The hover node: its place and its fill.
+type Hover = (&'static mut Node, &'static mut BackgroundColor);
+/// Which nodes are the columns, apart from the plan's own.
+type IsColumn = (
+    With<Column>,
+    Without<PlanImage>,
+    Without<PlanCursor>,
+    Without<PlanHover>,
+);
+
+/// What the layer last drew.
+#[derive(Resource, Debug, Default)]
+struct Drawn {
+    tools: Option<(Screen, u32)>,
+    bar: Option<(Screen, u32)>,
+    text: Option<(Screen, u32)>,
+    inspector: Option<(Screen, u32)>,
+    plan: Option<(u64, (u32, u32))>,
+    hover: Option<(Option<Target>, u64, (u32, u32))>,
+    /// The scroll of a column rebuilt last frame, for its new panel: a column is rebuilt where
+    /// it stood, so stepping the height never sends the brushes back to the top.
+    scrolls: Vec<(Column, f32)>,
+}
+
+/// The tools column's width at the reference height.
+const TOOLS: f32 = 330.0;
+/// The inspector column's width at the reference height.
+const INSPECTOR: f32 = 400.0;
+
+/// The wheel's motion over the plan not yet turned into a zoom step (M5.9d): a notch is a step,
+/// a trackpad's pixels add up to the kit's line first.
+#[derive(Resource, Default)]
+pub struct Zooming(pub f32);
+
+/// The layer, its input and its drawing.
+pub struct EditorPlugin;
+
+impl Plugin for EditorPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<Drawn>()
+            .init_resource::<Zooming>()
+            .add_systems(
+                Update,
+                (
+                    enter.run_if(resource_added::<Editing>),
+                    leave.run_if(resource_removed::<Editing>),
+                    (route, refresh, super::controls::shade)
+                        .chain()
+                        .run_if(resource_exists::<Editing>),
+                )
+                    .chain()
+                    .in_set(VectorSet::Screens),
+            );
+    }
+}
+
+fn enter(
+    mut commands: Commands,
+    mut drawn: ResMut<Drawn>,
+    picture: Option<Res<super::preview::PreviewTarget>>,
+) {
+    *drawn = Drawn::default();
+    let picture = picture.map(|p| p.0.clone());
+    commands
+        .spawn((
+            EditorRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Row,
+                ..default()
+            },
+            BackgroundColor(shade(0)),
+        ))
+        .with_children(|root| {
+            root.spawn((
+                Column::Tools,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    flex_shrink: 0.0,
+                    width: Val::Px(TOOLS),
+                    padding: UiRect::all(Val::Px(12.0)),
+                    row_gap: Val::Px(8.0),
+                    border: UiRect::right(Val::Px(1.0)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                BorderColor::all(colour(Role::Dim)),
+            ));
+            // The centre: the bar over the plan.
+            root.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
+                min_width: Val::Px(0.0),
+                ..default()
+            })
+            .with_children(|centre| {
+                centre.spawn((
+                    Column::Bar,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_shrink: 0.0,
+                        padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                        row_gap: Val::Px(6.0),
+                        border: UiRect::bottom(Val::Px(1.0)),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    },
+                    BorderColor::all(colour(Role::Dim)),
+                ));
+                centre
+                    .spawn((
+                        Column::Plan,
+                        RelativeCursorPosition::default(),
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: Val::Px(0.0),
+                            min_height: Val::Px(0.0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                    ))
+                    .with_children(plan_nodes);
+                // A file's text in Files mode (M5.9), in place of the bar and the plan.
+                centre.spawn((
+                    Column::Text,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        min_width: Val::Px(0.0),
+                        min_height: Val::Px(0.0),
+                        padding: UiRect::all(Val::Px(12.0)),
+                        row_gap: Val::Px(8.0),
+                        overflow: Overflow::clip(),
+                        display: Display::None,
+                        ..default()
+                    },
+                ));
+            });
+            // The right: the preview's picture (with a renderer) over the inspector.
+            root.spawn((
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    flex_shrink: 0.0,
+                    width: Val::Px(INSPECTOR),
+                    min_height: Val::Px(0.0),
+                    border: UiRect::left(Val::Px(1.0)),
+                    ..default()
+                },
+                BorderColor::all(colour(Role::Dim)),
+            ))
+            .with_children(|right| {
+                if let Some(image) = picture {
+                    let width = INSPECTOR - 24.0;
+                    right.spawn((
+                        Column::Preview,
+                        ImageNode::new(image),
+                        Node {
+                            width: Val::Px(width),
+                            height: Val::Px(super::preview::picture_height(width)),
+                            margin: UiRect::new(
+                                Val::Px(12.0),
+                                Val::Px(12.0),
+                                Val::Px(12.0),
+                                Val::Px(0.0),
+                            ),
+                            flex_shrink: 0.0,
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BorderColor::all(colour(Role::Dim)),
+                    ));
+                }
+                right.spawn((
+                    Column::Inspector,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        min_height: Val::Px(0.0),
+                        padding: UiRect::all(Val::Px(12.0)),
+                        row_gap: Val::Px(8.0),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    },
+                ));
+            });
+        });
+}
+
+/// The plan's drawn nodes and the images they are painted into, for `refresh` (a system takes
+/// sixteen parameters at most).
+#[derive(SystemParam)]
+struct PlanNodes<'w, 's> {
+    images: Option<ResMut<'w, Assets<Image>>>,
+    picture: Query<'w, 's, Picture, IsPicture>,
+    cursor: Query<'w, 's, &'static mut Node, IsCursor>,
+    hovers: Query<'w, 's, Hover, With<PlanHover>>,
+}
+
+/// The plan's nodes under its pane: the picture, the cursor and the hover.
+fn plan_nodes(pane: &mut ChildSpawnerCommands) {
+    pane.spawn((
+        PlanImage,
+        ImageNode::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            ..default()
+        },
+    ));
+    pane.spawn((
+        PlanCursor,
+        Node {
+            position_type: PositionType::Absolute,
+            border: UiRect::all(Val::Px(2.0)),
+            display: Display::None,
+            ..default()
+        },
+        BorderColor::all(colour(Role::Interface)),
+        Pickable::IGNORE,
+    ));
+    pane.spawn((
+        PlanHover,
+        Node {
+            position_type: PositionType::Absolute,
+            display: Display::None,
+            ..default()
+        },
+        BorderColor::all(colour(Role::Caution)),
+        BackgroundColor(Color::NONE),
+        Pickable::IGNORE,
+    ));
+}
+
+fn leave(mut commands: Commands, roots: Query<Entity, With<EditorRoot>>, mut drawn: ResMut<Drawn>) {
+    for root in &roots {
+        commands.entity(root).despawn();
+    }
+    *drawn = Drawn::default();
+}
+
+/// Use a control of the editor: the act applied to the model and, after a Save, the packs
+/// read from disk again (the sealed pack is what a new game walks) and the editor told.
+pub fn act(editing: &mut Editing, packs: &mut Packs, act: EditAct, step: i8) -> Asked {
+    let asked = editing.apply(&packs.data, act, step);
+    if asked == Asked::Saved {
+        match Packs::load(&packs.config) {
+            Ok(fresh) => {
+                packs.data = fresh.data;
+                editing.changed(&packs.data);
+            }
+            Err(e) => editing.message = Some(format!("Saved, but the packs did not reload: {e}")),
+        }
+    }
+    asked
+}
+
+/// Open or close the overlays an act asked for: the menu, the file picker, a stamp's detail
+/// picker, its properties (in the picker's place when that is on top), or the modal on top
+/// closed when something was picked. A playtest and a save are the layer's own.
+pub fn answer(nav: &mut Nav, asked: Asked) {
+    match asked {
+        Asked::Menu => nav.open(ScreenId::EditorMenu, None),
+        Asked::Pick => nav.open(ScreenId::EditorFiles, None),
+        Asked::PickDetail => nav.open(ScreenId::EditorPick, None),
+        Asked::History => nav.open(ScreenId::EditorHistory, None),
+        Asked::Rules => nav.open(ScreenId::EditorRules, None),
+        Asked::Props => {
+            if nav.top(None) == Some(ScreenId::EditorPick) {
+                nav.back();
+            }
+            nav.open(ScreenId::EditorProps, None);
+        }
+        Asked::Picked => {
+            if matches!(
+                nav.top(None),
+                Some(
+                    ScreenId::EditorFiles
+                        | ScreenId::EditorPick
+                        | ScreenId::EditorProps
+                        | ScreenId::EditorRules
+                )
+            ) {
+                nav.back();
+            }
+        }
+        Asked::Nothing | Asked::Saved | Asked::Playtest => {}
+    }
+}
+
+/// A game on the edited map as the editor holds it, the fixed party standing on the cursor's
+/// cell facing as the cursor does (M5.8). The packs are copied with the map put in, never
+/// changed.
+///
+/// # Errors
+/// What stops it (`playtest::blocked`), a game that will not start, or a teleport refused.
+pub fn start_playtest(editing: &Editor, packs: &Packs) -> Result<Session, String> {
+    if let Some(why) = playtest::blocked(editing) {
+        return Err(why);
+    }
+    let data = playtest::data_for(editing, &packs.data).ok_or("the map has not loaded")?;
+    let temp = Packs {
+        data,
+        config: packs.config.clone(),
+    };
+    let mut session = Session::with_party(
+        &temp,
+        packs.config.seed,
+        game_settings(Settings::default()),
+        &crate::party::fixed(),
+    )?;
+    let step = playtest::teleport(editing).ok_or("open a map first")?;
+    session.ordered(Command::Dev(step))?;
+    session.pose = Pose::at(session.views.position);
+    Ok(session)
+}
+
+/// Whether the columns offer `act` now: a dim control takes no press.
+fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> bool {
+    let id = ControlId::Edit(act);
+    [
+        view::tools(editing, data),
+        view::bar(editing, data),
+        view::inspector(editing, data),
+    ]
+    .iter()
+    .find_map(|s| s.control(id).map(|c| c.why_not.is_none()))
+    .unwrap_or(true)
+}
+
+/// The first text field of `screen`, which takes the keyboard when the screen is drawn anew.
+fn first_field(screen: &Screen) -> Option<ControlId> {
+    screen
+        .controls()
+        .find(|c| matches!(c.kind, Kind::Text { .. } | Kind::Document { .. }))
+        .map(|c| c.id)
+}
+
+/// What a column needs this frame: nothing, its words rewritten, or its nodes built anew.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Need {
+    Nothing,
+    Words,
+    Nodes,
+}
+
+/// Whether the column drawn as `last` shows `want` already, needs only its words rewritten
+/// (the same shape and height bucket, an outcome line in both or neither) or is built anew.
+fn need(last: Option<&(Screen, u32)>, want: &Screen, bucket: u32) -> Need {
+    match last {
+        Some((s, h)) if *h == bucket && s == want => Need::Nothing,
+        Some((s, h))
+            if *h == bucket
+                && s.shape() == want.shape()
+                && s.message.is_some() == want.message.is_some() =>
+        {
+            Need::Words
+        }
+        _ => Need::Nodes,
+    }
+}
+
+/// The hover node over `aim`: a cell's rectangle as a thin outline, an edge as a filled bar
+/// along that side, a sixth of the side thick; hidden with no aim.
+fn place_hover(
+    node: &mut Node,
+    fill: &mut BackgroundColor,
+    aim: Option<((i64, i64, u32), Option<Facing>)>,
+) {
+    let Some(((left, top, side), edge)) = aim else {
+        node.display = Display::None;
+        return;
+    };
+    let side = i64::from(side);
+    let thick = (side / 6).max(2);
+    let (x, y, w, h) = match edge {
+        None => (left, top, side, side),
+        Some(Facing::North) => (left, top - thick / 2, side, thick),
+        Some(Facing::South) => (left, top + side - thick / 2, side, thick),
+        Some(Facing::West) => (left - thick / 2, top, thick, side),
+        Some(Facing::East) => (left + side - thick / 2, top, thick, side),
+    };
+    #[allow(clippy::cast_precision_loss)]
+    {
+        node.left = Val::Px(x as f32);
+        node.top = Val::Px(y as f32);
+        node.width = Val::Px(w as f32);
+        node.height = Val::Px(h as f32);
+    }
+    node.border = UiRect::all(Val::Px(if edge.is_some() { 0.0 } else { 1.0 }));
+    fill.0 = if edge.is_some() {
+        colour(Role::Caution)
+    } else {
+        Color::NONE
+    };
+    node.display = Display::Flex;
+}
+
+/// The entity of `column` among `columns`; a placeholder when it is not spawned (headless, the
+/// preview).
+fn column_entity(
+    columns: &Query<(Entity, &Column, Option<&ComputedNode>)>,
+    column: Column,
+) -> Entity {
+    columns
+        .iter()
+        .find(|(_, c, _)| **c == column)
+        .map_or(Entity::PLACEHOLDER, |(e, _, _)| e)
+}
+
+/// The pane's size in logical pixels once laid out; the model's last size before that.
+fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    match node {
+        Some(n) if n.size().x > 0.0 && n.size().y > 0.0 => (
+            (n.size().x * n.inverse_scale_factor()).round() as u32,
+            (n.size().y * n.inverse_scale_factor()).round() as u32,
+        ),
+        _ => editing.pane,
+    }
+}
+
+/// The layer's input: a pressed control or a choice's arrow; on the plan, the pointer's aim
+/// (`Editor::aim`: the cell under it, or with an edge brush its nearest side) is kept as the
+/// hover, a left click paints the brush there (the cursor goes to the cell) and a drag is one
+/// stroke, a right click picks what is there; and the keys while no screen stands over the
+/// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it
+/// (or takes a pending wall run; Backspace drops the run's last corner), the
+/// digits choose palette entries, V, B, P, N and X the tools (select, brush, run by corners,
+/// freehand run, eraser), `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
+/// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
+/// screens' (`Nav::escape` opens the menu). A click on the plan while a field has the keyboard
+/// takes it from the field: clicking elsewhere is the way out of a field.
+/// The window's input as the frame reads it: the keys, the mouse's buttons and its wheel.
+#[derive(SystemParam)]
+struct Inputs<'w> {
+    keys: Res<'w, ButtonInput<KeyCode>>,
+    mouse: Res<'w, ButtonInput<MouseButton>>,
+    scroll: Res<'w, AccumulatedMouseScroll>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn route(
+    buttons: Query<(&Interaction, &EditorPress), Changed<Interaction>>,
+    arrows: Query<(&Interaction, &Arrow), Changed<Interaction>>,
+    input: Inputs,
+    pane: Query<(&RelativeCursorPosition, &ComputedNode), With<Column>>,
+    interactions: Query<&Interaction>,
+    focus: Option<ResMut<InputFocus>>,
+    fields: Query<(Ref<EditableText>, &EditorPress)>,
+    mut slid: ResMut<Slid>,
+    mut zooming: ResMut<Zooming>,
+    mut packs: ResMut<Packs>,
+    mut editing: ResMut<Editing>,
+    mut screens: ResMut<Screens>,
+    mut commands: Commands,
+    mut view: ResMut<NextState<ViewState>>,
+    mut stood: Local<bool>,
+) {
+    let (keys, mouse, scroll) = (&*input.keys, &*input.mouse, &*input.scroll);
+    let covered = screens.nav.top(None).is_some();
+    // A press on the frame a screen over the editor closes is that screen's (the screens'
+    // router may run first in the frame, so the plan would see the button go down with
+    // nothing over it): the plan takes no button that went down while a screen stood (the
+    // owner's report, 2026-11-07: the picker's Finish dropped the stamp under the pointer, so
+    // the click meant for the plan placed an unlinked portal).
+    let closing = *stood && !covered;
+    *stood = covered;
+    let typing = focus
+        .as_ref()
+        .and_then(|f| f.get())
+        .is_some_and(|e| fields.get(e).is_ok());
+    let data = packs.data.clone();
+    if !covered {
+        // Typed text goes to the open form's field, or the open file (M5.9); the words on
+        // screen are the field's own.
+        // A field reads as changed every frame in the window (Bevy's layout takes it mutably),
+        // so "changed" is not "typed". A field drawn for an older form or file is stale while the
+        // model is `fresh` and the rebuild has not run: its text never flows into the model (the
+        // owner's report, 2026-10-24: the first file's text typed into the second at the pick).
+        // The same while a field's text was set by the model (`refill`: a link's row pressed,
+        // Unlink), until the rebuild draws it anew (W1 step 2c).
+        for (field, press) in &fields {
+            if !field.is_changed() {
+                continue;
+            }
+            match press.0 {
+                ControlId::Edit(EditAct::Field(i)) => {
+                    let text = field.value().to_string();
+                    if editing
+                        .form
+                        .as_ref()
+                        .is_some_and(|f| !f.fresh && !f.refill && f.text(usize::from(i)) != text)
+                    {
+                        editing.typed(i, text);
+                    }
+                }
+                ControlId::Edit(EditAct::FileText) => {
+                    let text = field.value().to_string();
+                    if editing
+                        .file
+                        .as_ref()
+                        .is_some_and(|f| !f.fresh && f.text != text)
+                    {
+                        editing.typed_file(text);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some((ControlId::Edit(EditAct::Field(i)), n)) = slid.0.take() {
+            editing.set_field(i, n);
+        }
+    }
+    let pressed = buttons
+        .iter()
+        .find(|(i, _)| **i == Interaction::Pressed)
+        .map(|(_, p)| (p.0, 0_i8));
+    let stepped = || {
+        arrows
+            .iter()
+            .find(|(i, a)| **i == Interaction::Pressed && matches!(a.0, ControlId::Edit(_)))
+            .map(|(_, a)| (a.0, if a.1 { 1 } else { -1 }))
+    };
+    let mut asked = Asked::Nothing;
+    if !covered
+        && let Some((ControlId::Edit(a), step)) = pressed.or_else(stepped)
+        && live(&editing, &data, a)
+    {
+        asked = act(&mut editing, &mut packs, a, step);
+    }
+    if !covered {
+        let plan = pane.iter().find(|(c, _)| c.cursor_over()).map(|(c, node)| {
+            (
+                c.normalized.unwrap_or_default(),
+                pane_size(Some(node), &editing),
+            )
+        });
+        let over_button = interactions.iter().any(|i| *i != Interaction::None);
+        // Bevy's `normalized` runs from (-0.5, -0.5) at the pane's top left to (0.5, 0.5) at its
+        // bottom right; the plan's pixels run from its top left.
+        let pixel = plan.filter(|_| !over_button).map(|(at, size)| {
+            #[allow(clippy::cast_precision_loss)]
+            ((at.x + 0.5) * size.0 as f32, (at.y + 0.5) * size.1 as f32)
+        });
+        // The wheel over the plan zooms about the pointer (M5.9d): a notch a step, up is in; a
+        // trackpad's pixels add up to a line first. Off the plan the remainder is dropped.
+        match pixel {
+            Some((px, py)) => {
+                if scroll.delta.y != 0.0 {
+                    zooming.0 += match scroll.unit {
+                        MouseScrollUnit::Line => scroll.delta.y,
+                        MouseScrollUnit::Pixel => scroll.delta.y / WHEEL_LINE,
+                    };
+                }
+                while zooming.0 >= 1.0 {
+                    zooming.0 -= 1.0;
+                    editing.zoom_at(1, px, py);
+                }
+                while zooming.0 <= -1.0 {
+                    zooming.0 += 1.0;
+                    editing.zoom_at(-1, px, py);
+                }
+            }
+            None if zooming.0 != 0.0 => zooming.0 = 0.0,
+            None => {}
+        }
+        // The pointer's rules are the model's (`Editor::pointer`): the hover, a click's paint
+        // or pick, a drag's stroke, and the run tools' corners.
+        let press = |button| {
+            if mouse.just_pressed(button) && !closing {
+                Press::Down
+            } else if mouse.pressed(button) {
+                Press::Held
+            } else {
+                Press::Up
+            }
+        };
+        let clicked = editing.pointer(
+            &data,
+            Pointer {
+                pixel,
+                left: press(MouseButton::Left),
+                right_down: mouse.just_pressed(MouseButton::Right) && !closing,
+                middle: press(MouseButton::Middle),
+            },
+        );
+        if clicked
+            && typing
+            && let Some(mut focus) = focus
+        {
+            focus.clear();
+        }
+    }
+    if !covered && !typing {
+        super::editor_keys::keys(keys, &mut editing, &mut packs, &data);
+    }
+    answer(&mut screens.nav, asked);
+    if asked == Asked::Playtest {
+        match start_playtest(&editing, &packs) {
+            Ok(session) => {
+                // The editor is parked whole; the game takes its place until Back to editor.
+                commands.queue(|world: &mut World| {
+                    if let Some(parked) = world.remove_resource::<Editing>() {
+                        world.insert_resource(Playtesting(parked.0));
+                    }
+                });
+                screens.reset(Some(&session.views));
+                screens.nav.edit(false);
+                view.set(ViewState::Explore);
+                commands.insert_resource(session);
+            }
+            Err(why) => editing.message = Some(format!("No playtest: {why}")),
+        }
+    }
+}
+
+/// Redraw a column whose screen changed (its words in place when its shape stands, its nodes
+/// anew otherwise; the field with the keyboard keeps it), and repaint the plan when what it
+/// shows changed.
+#[allow(clippy::too_many_arguments)]
+fn refresh(
+    mut commands: Commands,
+    packs: Res<Packs>,
+    editing: Option<ResMut<Editing>>,
+    mut drawn: ResMut<Drawn>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    capture: Option<Res<super::capture::CaptureSize>>,
+    columns: Query<(Entity, &Column, Option<&ComputedNode>)>,
+    mut plan_nodes: PlanNodes,
+    mut panels: Query<(Entity, &mut ScrollPosition), With<Scrolls>>,
+    parents: Query<&ChildOf>,
+    mut placed: Query<Placed>,
+    focus: Option<Res<InputFocus>>,
+    fields: Query<&EditorPress, With<EditableText>>,
+    mut nodes: Query<&mut Node, IsColumn>,
+) {
+    // `route` runs before this under one condition; when it starts a playtest it takes the
+    // editor away in between (M5.8), and there is nothing to draw this frame.
+    let Some(mut editing) = editing else {
+        return;
+    };
+    let column_of = |panel: Entity| {
+        parents
+            .iter_ancestors(panel)
+            .find_map(|a| columns.get(a).ok().map(|(_, c, _)| *c))
+    };
+    // A panel built last frame takes the scroll of the one it replaced.
+    for (panel, mut at) in &mut panels {
+        if at.is_added()
+            && let Some(column) = column_of(panel)
+            && let Some(i) = drawn.scrolls.iter().position(|(c, _)| *c == column)
+        {
+            at.0.y = drawn.scrolls.swap_remove(i).1;
+        }
+    }
+    let height = super::combat::size(window.single().ok(), capture.as_deref()).1;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bucket = height as u32;
+    let data = &packs.data;
+    let pane_node = columns
+        .iter()
+        .find(|(_, c, _)| **c == Column::Plan)
+        .and_then(|(_, _, n)| n);
+    let pane = pane_size(pane_node, &editing);
+    editing.laid_out(pane);
+    let tools = view::tools(&editing, data);
+    let bar = view::bar(&editing, data);
+    let text = view::text(&editing);
+    let inspector = view::inspector(&editing, data);
+    // The centre shows the plan or the file's text, by the mode (M5.9).
+    let files = editing.mode == crate::editor::files::Mode::Files;
+    for (_, column, _) in &columns {
+        let shown = match column {
+            Column::Bar | Column::Plan => !files,
+            Column::Text => files,
+            _ => continue,
+        };
+        let want = if shown { Display::Flex } else { Display::None };
+        if let Ok(mut node) = nodes.get_mut(column_entity(&columns, *column))
+            && node.display != want
+        {
+            node.display = want;
+        }
+    }
+    let focused = focus
+        .as_ref()
+        .and_then(|f| f.get())
+        .and_then(|e| fields.get(e).ok())
+        .map(|p| p.0);
+    for (entity, column, _) in &columns {
+        let (want, last) = match column {
+            Column::Tools => (&tools, &mut drawn.tools),
+            Column::Bar => (&bar, &mut drawn.bar),
+            Column::Text => (&text, &mut drawn.text),
+            Column::Inspector => (&inspector, &mut drawn.inspector),
+            Column::Plan | Column::Preview => continue,
+        };
+        // A form or a file just opened (or a file reverted) is drawn anew whatever the shape:
+        // the words' sync leaves a field's text alone, since what is typed in it is the model's
+        // already, so a new text from the model needs a new field (the owner's report,
+        // 2026-10-24: the second file opened showed the first's text).
+        let fresh = match column {
+            Column::Inspector => editing.form.as_ref().is_some_and(|f| f.fresh),
+            Column::Text => editing.file.as_ref().is_some_and(|f| f.fresh),
+            _ => false,
+        };
+        // A field's text set by the model (a link's row pressed, Unlink) needs a new field too,
+        // the keyboard staying where it was: the words' sync never rewrites a field.
+        let refill =
+            *column == Column::Inspector && editing.form.as_ref().is_some_and(|f| f.refill);
+        let need = if fresh || refill {
+            Need::Nodes
+        } else {
+            need(last.as_ref(), want, bucket)
+        };
+        if need == Need::Nothing {
+            continue;
+        }
+        *last = Some((want.clone(), bucket));
+        if need == Need::Words {
+            sync(want, &mut placed);
+            continue;
+        }
+        // The field that has the keyboard keeps it through the rebuild when the column still
+        // has it; a form just opened gives it to its first field. (A rebuild for any other
+        // reason leaves the keyboard where the owner put it, which may be nowhere.)
+        let keep = focused
+            .filter(|id| want.control(*id).is_some())
+            .or_else(|| fresh.then(|| first_field(want)).flatten());
+        if *column == Column::Inspector
+            && let Some(form) = &mut editing.form
+        {
+            form.fresh = false;
+            form.refill = false;
+        }
+        if *column == Column::Text
+            && let Some(file) = &mut editing.file
+        {
+            file.fresh = false;
+        }
+        if let Some(y) = panels
+            .iter()
+            .find(|(p, _)| column_of(*p) == Some(*column))
+            .map(|(_, at)| at.0.y)
+        {
+            drawn.scrolls.retain(|(c, _)| c != column);
+            drawn.scrolls.push((*column, y));
+        }
+        commands.entity(entity).despawn_related::<Children>();
+        commands
+            .entity(entity)
+            .with_children(|p| build(p, want, (height, Mark::Editor), keep));
+    }
+    let hover_key = (editing.hover, editing.revision, pane);
+    if drawn.hover != Some(hover_key) {
+        drawn.hover = Some(hover_key);
+        let aim = editing.hover.filter(|_| editing.grid().is_some());
+        for (mut node, mut fill) in &mut plan_nodes.hovers {
+            place_hover(
+                &mut node,
+                &mut fill,
+                aim.map(|t| (editing.view.cell_rect(t.cell), t.edge)),
+            );
+        }
+    }
+    let key = (editing.revision, pane);
+    if drawn.plan == Some(key) {
+        return;
+    }
+    drawn.plan = Some(key);
+    let (def, grid) = (editing.def(), editing.grid());
+    let Some((def, grid)) = def.zip(grid) else {
+        for mut node in &mut plan_nodes.cursor {
+            node.display = Display::None;
+        }
+        return;
+    };
+    let start = (editing.level == def.start_level).then_some(def.start);
+    let marks = plan::marks(&def, data, editing.level);
+    let preview = editing.preview();
+    let selection = editing.selection_outline();
+    let raster = plan::paint(
+        Source {
+            grid,
+            terrains: &def.terrains,
+            size: (def.width, def.height),
+            level: editing.level,
+            resolved: editing.resolved.as_ref(),
+            start,
+            marks: &marks,
+            preview: preview.as_ref(),
+            selection: selection.as_deref(),
+        },
+        editing.view,
+        pane,
+    );
+    if let Some(images) = plan_nodes.images.as_mut()
+        && let Ok((mut image, mut node)) = plan_nodes.picture.single_mut()
+    {
+        #[allow(clippy::cast_precision_loss)]
+        {
+            node.width = Val::Px(raster.width as f32);
+            node.height = Val::Px(raster.height as f32);
+        }
+        image.image = images.add(super::minimap::image(&raster));
+    }
+    let (left, top, side) = editing.view.cell_rect(editing.cursor);
+    for mut node in &mut plan_nodes.cursor {
+        #[allow(clippy::cast_precision_loss)]
+        {
+            node.left = Val::Px(left as f32);
+            node.top = Val::Px(top as f32);
+            node.width = Val::Px(side as f32);
+            node.height = Val::Px(side as f32);
+        }
+        node.display = Display::Flex;
+        node.border = UiRect::all(Val::Px(scaled(2.0, height).max(1.0)));
+    }
+}

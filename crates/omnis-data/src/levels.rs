@@ -485,6 +485,7 @@ mod tests {
             width,
             height: 1,
             start: (0, 0, Facing::East),
+            start_level: Level::GROUND,
             wall: WallSurfaces {
                 front: "wall".into(),
                 left: "wall.left".into(),

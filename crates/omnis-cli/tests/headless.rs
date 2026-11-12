@@ -15,7 +15,7 @@ use omnis_sim::{Command, Op, OpError, Replay, Reply};
 use std::path::{Path, PathBuf};
 
 fn test_pack() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/omnis-sim/tests/packs/test")
 }
 
 fn base_pack() -> PathBuf {
@@ -42,7 +42,10 @@ fn headless_writes_reads_and_reloads() {
     let path = "saves/one.ron";
     assert_eq!(
         game.handle(&Op::SaveWrite { path: path.into() }).unwrap(),
-        Reply::Written { path: path.into() }
+        Reply::Written {
+            path: path.into(),
+            version: None,
+        }
     );
     assert!(dir.join(path).is_file());
     step(&mut game);
@@ -193,7 +196,7 @@ fn schema_dump_sections_parse_with_the_real_types() {
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();
-    assert_eq!(ops.len(), 27);
+    assert_eq!(ops.len(), 48);
 }
 
 /// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.
@@ -224,7 +227,7 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
             source: "level * 10".into(),
         })
         .unwrap();
-    assert!(matches!(reply, Reply::Rule { rule } if rule.source == "level * 10"));
+    assert!(matches!(reply, Reply::Rule { rule, .. } if rule.source == "level * 10"));
     game.handle(&Op::PartyCreate { character: wizard }).unwrap();
     assert_eq!(
         pool(&mut game, 1),
@@ -257,7 +260,7 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
     );
     assert!(matches!(
         game.handle(&Op::RulesGet { slot: "spell_points.pool".into() }).unwrap(),
-        Reply::Rule { rule } if rule.source == "level * 10" && rule.inputs.len() == 4
+        Reply::Rule { rule, .. } if rule.source == "level * 10" && rule.inputs.len() == 4
     ));
     assert_eq!(
         game.handle(&Op::RulesGet {
@@ -267,5 +270,172 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
         OpError::UnknownSlot {
             slot: "nope".into()
         }
+    );
+}
+
+/// A copy of the test pack the editor may write to: `pack.ron` and the directories the loader
+/// reads, under the target directory.
+fn scratch_pack(name: &str) -> PathBuf {
+    fn copy_dir(src: &Path, dst: &Path) {
+        let Ok(entries) = std::fs::read_dir(src) else {
+            return;
+        };
+        std::fs::create_dir_all(dst).unwrap();
+        for entry in entries.map(Result::unwrap) {
+            let to = dst.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir(&entry.path(), &to);
+            } else {
+                std::fs::copy(entry.path(), to).unwrap();
+            }
+        }
+    }
+    let dst = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let _ = std::fs::remove_dir_all(&dst);
+    std::fs::create_dir_all(&dst).unwrap();
+    std::fs::copy(test_pack().join("pack.ron"), dst.join("pack.ron")).unwrap();
+    for dir in ["data", "text", "notes", "migrations"] {
+        copy_dir(&test_pack().join(dir), &dst.join(dir));
+    }
+    dst
+}
+
+/// The version the scratch pack names, and the patch one higher its next save seals at: read
+/// from the pack, not pinned, since the owner's saves through the editor move it (M5.10).
+fn versions(root: &Path) -> (String, String) {
+    let version = omnis_data::seal::status(root).unwrap().version;
+    let (rest, patch) = version.rsplit_once('.').unwrap();
+    let next = format!("{rest}.{}", patch.parse::<u32>().unwrap() + 1);
+    (version, next)
+}
+
+/// The editor's ops through `Headless` (M5.3): open, paint, status, save, reload; a bad text
+/// refused in the loader's words and nothing written; notes written at once; `dispatch` refuses
+/// every editor op as host-only.
+#[test]
+fn headless_edits_a_pack_and_reloads_it() {
+    let scratch = scratch_pack("headless-editor");
+    let (shipped, next) = versions(&scratch);
+    let mut game = Headless::new(vec![base_pack(), scratch.clone()], 1).unwrap();
+    let status = |game: &mut Headless| match game.handle(&Op::EditorStatus).unwrap() {
+        Reply::Editor { editor } => editor,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(status(&mut game).map, None);
+    match game
+        .handle(&Op::EditorOpen {
+            map: "test:map:town".into(),
+        })
+        .unwrap()
+    {
+        Reply::Editor { editor } => {
+            assert_eq!(editor.map.as_deref(), Some("test:map:town"));
+            assert_eq!((editor.width, editor.height), (12, 5));
+            assert!(!editor.dirty);
+            assert_eq!(editor.errors, Vec::<String>::new());
+        }
+        other => panic!("{other:?}"),
+    }
+    game.handle(&Op::EditorPaint {
+        level: omnis_sim::omnis_core::Level::GROUND,
+        x: 1,
+        y: 1,
+        brush: omnis_data::edit::Brush::Edge {
+            side: omnis_sim::omnis_core::Facing::East,
+            kind: omnis_data::edit::EdgeKind::Door,
+        },
+        stroke: false,
+    })
+    .unwrap();
+    let after = status(&mut game);
+    assert!(after.dirty);
+    assert_eq!(after.undo, 1);
+    match game.handle(&Op::EditorSave).unwrap() {
+        Reply::Written { path, version } => {
+            assert_eq!(path, "data/maps/town.ron");
+            assert_eq!(version.as_deref(), Some(next.as_str()));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(!status(&mut game).dirty);
+    // The world runs on the packs as loaded until they are reloaded.
+    assert_eq!(game.data.fingerprints[1].version, shipped);
+    game.handle(&Op::PackReload { migrate: false }).unwrap();
+    assert_eq!(game.data.fingerprints[1].version, next);
+    let town = game.data.registry.maps.get("test:map:town").unwrap();
+    assert!(
+        game.data.maps[&town].def.layout[3].contains(':'),
+        "the door is in the loaded map: {}",
+        game.data.maps[&town].def.layout[3]
+    );
+    // A text the loader would refuse: its words, and nothing written.
+    let text = match game
+        .handle(&Op::EditorRead {
+            path: "data/maps/meadow.ron".into(),
+        })
+        .unwrap()
+    {
+        Reply::File { text, .. } => text,
+        other => panic!("{other:?}"),
+    };
+    let broken = text.replacen("width: ", "widt: ", 1);
+    match game
+        .handle(&Op::EditorCheck {
+            path: "data/maps/meadow.ron".into(),
+            text: broken.clone(),
+        })
+        .unwrap()
+    {
+        Reply::Checked { errors } => {
+            assert_eq!(errors.len(), 1);
+            assert!(errors[0].contains("parse error"), "{errors:?}");
+        }
+        other => panic!("{other:?}"),
+    }
+    match game.handle(&Op::EditorWrite {
+        path: "data/maps/meadow.ron".into(),
+        text: broken,
+    }) {
+        Err(OpError::Invalid { errors }) => assert_eq!(errors.len(), 1),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_to_string(scratch.join("data/maps/meadow.ron")).unwrap(),
+        text
+    );
+    // Notes: written at once, no reseal.
+    let sealed = std::fs::read_to_string(scratch.join("pack.ron")).unwrap();
+    game.handle(&Op::EditorNoteSet {
+        key: "test:map:town/0/1,1".into(),
+        text: Some("The inn's front room.".into()),
+    })
+    .unwrap();
+    match game.handle(&Op::EditorNotes { prefix: None }).unwrap() {
+        Reply::Notes { keys, orphans } => {
+            assert!(keys.contains(&"test:map:town/0/1,1".to_owned()), "{keys:?}");
+            assert!(orphans.is_empty());
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_to_string(scratch.join("pack.ron")).unwrap(),
+        sealed
+    );
+    // Bounds and the simulation's refusal.
+    assert!(matches!(
+        game.handle(&Op::EditorRead {
+            path: "../pack.ron".into()
+        }),
+        Err(OpError::Failed { .. })
+    ));
+    assert!(matches!(
+        game.handle(&Op::EditorNote {
+            key: "k".repeat(4097)
+        }),
+        Err(OpError::TooLong { .. })
+    ));
+    assert_eq!(
+        omnis_sim::dispatch(&mut game.world, &game.data, &Op::EditorStatus),
+        Err(OpError::HostOnly)
     );
 }

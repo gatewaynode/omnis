@@ -8,7 +8,7 @@ use omnis_data::{
     PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
 use omnis_sim::api::Change;
-use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
+use omnis_sim::omnis_core::{Clock, EraId, Facing, Level, MapId, Position};
 use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest};
 use omnis_sim::world::SAVE_SCHEMA;
 use omnis_sim::{Command, Entry, Logged, Op, PARTY, Replay};
@@ -65,9 +65,23 @@ const MAP: &str = r#"(
         "|.:#|",
         "+-+-+",
     ],
-    portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East, marker: Some("stairs"))],
+    portals: [(x: 1, y: 0, id: "cellar-stairs", link: Some("start-stairs"), facing: East, marker: Some("stairs"))],
     encounters: [(id: "goblins", x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
     random: Some((chance_percent: 4, entries: [(weight: 1, stacks: [("example:monster:goblin", (count: 1, sides: 4, modifier: 1))], disposition: Hostile)])),
+)"#;
+
+/// What `editor.new` takes (M5.3): a map's shape before its first tile is painted.
+const NEW_MAP: &str = r#"(
+    id: "example:map:cellar",
+    name: "example:text:map.cellar.name",
+    kind: Dungeon,
+    tileset: "example:tileset:stone",
+    width: 4,
+    height: 3,
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    door_open: Some("door.open"),
+    terrain: (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, opaque: false, color: (110, 90, 70), visibility_depth: 4, step_minutes: 1),
 )"#;
 
 const RACE: &str = r#"(
@@ -225,10 +239,10 @@ const RULES: &str = r#"(
     schema: 1,
     id: "example:rules:casting",
     slots: {
-        "spell_points.pool": (inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"], expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)"),
+        "spell_points.pool": (priority: 0, inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"], expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)"),
     },
-    values: {"component_threshold": 5},
-    tables: {"point_cost": [0, 1, 2, 3, 4, 5, 7, 9]},
+    values: {"component_threshold": (priority: 0, value: 5)},
+    tables: {"point_cost": (priority: 0, rows: [0, 1, 2, 3, 4, 5, 7, 9])},
 )"#;
 
 const REGION: &str = r#"(
@@ -482,6 +496,81 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         Op::RulesSet {
             slot: "spell_points.pool".into(),
             source: "level * 10".into(),
+        },
+        Op::EditorStatus,
+        Op::EditorMaps,
+        Op::EditorOpen {
+            map: "example:map:start".into(),
+        },
+        Op::EditorNew {
+            map: parse::<omnis_data::edit::NewMap>(NEW_MAP)?,
+        },
+        Op::EditorPaint {
+            level: Level::GROUND,
+            x: 1,
+            y: 0,
+            brush: omnis_data::edit::Brush::Edge {
+                side: Facing::West,
+                kind: omnis_data::edit::EdgeKind::Door,
+            },
+            stroke: false,
+        },
+        Op::EditorPlace {
+            place: omnis_data::edit::Place::Start {
+                level: Level::GROUND,
+                x: 0,
+                y: 0,
+                facing: Facing::East,
+            },
+        },
+        Op::EditorEdit {
+            edit: omnis_data::edit::Edit::Resize {
+                width: 3,
+                height: 1,
+            },
+        },
+        Op::EditorUndo,
+        Op::EditorRedo,
+        Op::EditorSave,
+        Op::EditorFiles,
+        Op::EditorRead {
+            path: "data/maps/start.ron".into(),
+        },
+        Op::EditorCheck {
+            path: "data/maps/start.ron".into(),
+            text: MAP.into(),
+        },
+        Op::EditorWrite {
+            path: "notes/start.ron".into(),
+            text: "(schema: 1, entries: {})".into(),
+        },
+        Op::EditorNote {
+            key: "example:map:start/0/1,0".into(),
+        },
+        Op::EditorNoteSet {
+            key: "example:map:start/0/1,0".into(),
+            text: Some("The rock the corridor ends at.".into()),
+        },
+        Op::EditorNotes {
+            prefix: Some("example:map:start".into()),
+        },
+        Op::DataKinds,
+        Op::DataList {
+            kind: Some("item".into()),
+            prefix: Some("base:".into()),
+            matching: Some("sword".into()),
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: Some(20),
+        },
+        Op::DataGet {
+            id: "base:item:mace".into(),
+            lang: None,
+        },
+        Op::DataText {
+            keys: vec!["base:text:item.mace.name".into()],
+            lang: Some("en".into()),
         },
     ];
     section(out, &format!("save (schema {SAVE_SCHEMA})"), &save)?;

@@ -262,7 +262,7 @@ pub(crate) fn landing(
         .filter(|dest| {
             data.maps
                 .get(&dest.map)
-                .is_some_and(|m| m.cell(dest.level, dest.x, dest.y).is_some())
+                .is_some_and(|m| m.enterable(dest.level, dest.x, dest.y))
         });
     Ok(Landing {
         to: pos.at(x, y),

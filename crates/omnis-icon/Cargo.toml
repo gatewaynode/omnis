@@ -1,0 +1,17 @@
+[package]
+name = "omnis-icon"
+description = "The Lucide icon set compiled in and drawn from its SVG strokes, with no dependencies"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+build = "build.rs"
+autotests = false
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]

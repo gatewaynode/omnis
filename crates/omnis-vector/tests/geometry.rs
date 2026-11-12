@@ -192,14 +192,18 @@ fn world(data: &Data) -> SimWorld {
 fn on_the_flat_maps_the_lines_are_what_they_were() {
     let data = data();
     let world = world(&data);
-    for (&id, m) in &data.maps {
-        let now = extract(
+    for (id, m) in crate::common::flat_maps(&data) {
+        // The portal and activity marks (2026-10-24) are new lines, not the flat reference's.
+        let now: Vec<Segment> = extract(
             m,
             id,
             omnis_sim::omnis_core::Level::GROUND,
             &world,
             &Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND),
-        );
+        )
+        .into_iter()
+        .filter(|s| !matches!(s.kind, SegKind::Portal | SegKind::Activity))
+        .collect();
         assert_eq!(now, flat::extract_flat(m, id, &world), "{}", m.def.id);
     }
 }
@@ -342,4 +346,84 @@ fn a_wall_stands_on_the_ground_and_tops_the_higher_side() {
         .collect();
     let ys: Vec<_> = wall.iter().map(|s| (s.a[1], s.b[1])).collect();
     assert_eq!(ys, [(1.5, 1.5), (2.5, 2.5)], "foot, then top");
+}
+
+/// Every segment of `kind` lies within one of `cells` (in x and z), and each cell has some.
+fn only_on(segments: &[Segment], kind: SegKind, cells: &[(u16, u16)]) {
+    let marks: Vec<&Segment> = segments.iter().filter(|s| s.kind == kind).collect();
+    assert!(!marks.is_empty(), "{kind:?} marks drawn");
+    for s in &marks {
+        let inside = |p: [f32; 3]| {
+            cells.iter().any(|&(x, y)| {
+                let (x0, z0) = (f32::from(x), f32::from(y));
+                p[0] >= x0 - 1e-3
+                    && p[0] <= x0 + 1.0 + 1e-3
+                    && p[2] >= z0 - 1e-3
+                    && p[2] <= z0 + 1.0 + 1e-3
+            })
+        };
+        assert!(
+            inside(s.a) && inside(s.b),
+            "{kind:?} segment off its cell: {s:?}"
+        );
+    }
+    for &(x, y) in cells {
+        assert!(
+            marks.iter().any(|s| s.a[0] >= f32::from(x)
+                && s.a[0] <= f32::from(x) + 1.0
+                && s.a[2] >= f32::from(y)
+                && s.a[2] <= f32::from(y) + 1.0),
+            "{kind:?} on ({x}, {y})"
+        );
+    }
+}
+
+/// The town's portal is marked on its floor with a rectangle and a circle, and each service's
+/// site with the activities' placeholder smiley (owner, 2026-10-24); nothing else carries them.
+#[test]
+fn portals_and_sites_are_marked_on_the_floor() {
+    let data = data();
+    let world = world(&data);
+    let id = map(&data, "test:map:town");
+    let town = &data.maps[&id];
+    let level = omnis_sim::omnis_core::Level::GROUND;
+    // The scene's own lines: the activities' icons are the scene's, drawn with the data.
+    let segments = omnis_vector::scene::Scene::build(&data, id, level, &world).own;
+    only_on(&segments, SegKind::Portal, &[(11, 2)]);
+    let sites: Vec<(u16, u16)> = town.def.sites.iter().map(|s| (s.x, s.y)).collect();
+    only_on(&segments, SegKind::Activity, &sites);
+    // Each site carries its service's kind's icon, line for line (the inn a bed, the smith an
+    // anvil: different icons), none the placeholder.
+    let expected: usize = town
+        .sites
+        .iter()
+        .map(|s| {
+            let kind = data
+                .services
+                .get(&s.service)
+                .map(|d| d.kind)
+                .expect("a known service");
+            omnis_vector::icons::service(kind).segments(1.0).count()
+        })
+        .sum();
+    assert!(expected > 10 * sites.len(), "{expected}");
+    assert_eq!(
+        segments
+            .iter()
+            .filter(|s| s.kind == SegKind::Activity)
+            .count(),
+        expected
+    );
+    assert_ne!(
+        omnis_vector::icons::service(omnis_sim::omnis_data::ServiceKind::Inn).name,
+        omnis_vector::icons::service(omnis_sim::omnis_data::ServiceKind::Smith).name
+    );
+    // The portal's mark is a ring of four and a circle of sixteen: twenty lines.
+    assert_eq!(
+        segments
+            .iter()
+            .filter(|s| s.kind == SegKind::Portal)
+            .count(),
+        20
+    );
 }

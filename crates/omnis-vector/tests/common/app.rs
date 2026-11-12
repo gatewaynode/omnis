@@ -2,7 +2,8 @@
 //! input a window would send.
 
 use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
+use bevy::input::touch::TouchPhase;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
@@ -13,6 +14,7 @@ use omnis_vector::pose::Pose;
 use omnis_vector::shell::ShellPlugin;
 use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
+use omnis_vector::shell::editor::{Editing, EditorPlugin};
 use omnis_vector::shell::fonts::FontsPlugin;
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::screen::ScreenPlugin;
@@ -90,11 +92,11 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
     )
 }
 
-/// The command line the tests run with: the shipped packs.
+/// The command line the tests run with: the base pack and the frozen fixture.
 pub fn config() -> Config {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     Config {
-        packs: vec![root.join("base"), root.join("test")],
+        packs: vec![root.join("packs/base"), root.join(super::FIXTURE)],
         // Never the player's quick save: a test that saves names its own file.
         save: ".omnis/test-saves/none.ron".to_owned(),
         // Never the player's settings: a test that applies names its own file.
@@ -118,11 +120,21 @@ pub fn shell(config: Config, in_game: bool) -> App {
         CombatPlugin,
         SettingsPlugin,
         FontsPlugin,
+        EditorPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,
-    )))
-    .insert_resource(Packs::load(&config).expect("the shipped packs load"));
+    )));
+    let packs = Packs::load(&config).expect("the packs load");
+    if let Some(map) = &config.editor {
+        let mut editor =
+            omnis_vector::editor::Editor::new(config.packs.clone()).expect("the editor opens");
+        if let Some(id) = map {
+            editor.open(id, &packs.data).expect("the map opens");
+        }
+        app.insert_resource(Editing(editor));
+    }
+    app.insert_resource(packs);
     if in_game {
         app.insert_resource(Session::start(&config).expect("the shipped packs start a session"));
     }
@@ -222,6 +234,19 @@ pub fn tap(app: &mut App, code: KeyCode) {
     app.update();
 }
 
+/// The mouse wheel turned by `y` (notches with `MouseScrollUnit::Line`, pixels with `Pixel`;
+/// up is positive), then a frame.
+pub fn wheel(app: &mut App, y: f32, unit: MouseScrollUnit) {
+    app.world_mut().write_message(MouseWheel {
+        unit,
+        x: 0.0,
+        y,
+        window: Entity::PLACEHOLDER,
+        phase: TouchPhase::Moved,
+    });
+    app.update();
+}
+
 /// The screen on top of a running game.
 pub fn top(app: &App) -> Option<omnis_vector::screen::ScreenId> {
     let session = app.world().resource::<Session>();
@@ -229,4 +254,151 @@ pub fn top(app: &App) -> Option<omnis_vector::screen::ScreenId> {
         .resource::<omnis_vector::shell::screen::Screens>()
         .nav
         .top(Some(&session.views))
+}
+
+/// `app` with the window's keyboard path to a text field: focus, dispatch and Bevy's text
+/// input, and a primary window to send the keys from.
+pub fn keyboard_on(mut app: App) -> (App, Entity) {
+    use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
+    app.add_plugins((
+        bevy::asset::AssetPlugin::default(),
+        InputFocusPlugin,
+        InputDispatchPlugin,
+        bevy::text::TextPlugin,
+        bevy::ui_widgets::EditableTextInputPlugin,
+    ))
+    .add_message::<bevy::window::Ime>()
+    .add_message::<bevy::picking::events::Pointer<bevy::picking::events::Release>>()
+    .init_resource::<bevy::ui::UiScale>();
+    let window = app
+        .world_mut()
+        .spawn((Window::default(), bevy::window::PrimaryWindow))
+        .id();
+    (app, window)
+}
+
+/// Type `text` on the keyboard, one key at a time, to whatever has focus.
+pub fn keyboard(app: &mut App, window: Entity, text: &str) {
+    use bevy::input::ButtonState;
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    for c in text.chars() {
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: KeyCode::KeyA,
+                logical_key: Key::Character(c.to_string().into()),
+                state,
+                text: Some(c.to_string().into()),
+                repeat: false,
+                window,
+            });
+            app.update();
+        }
+    }
+}
+
+/// Run `app` under the window's condition for text fields: Bevy's layout takes every
+/// `EditableText` mutably every frame there, so every field reads as changed every frame whether
+/// or not anything was typed (lesson 2026-10-24). Headless nothing touches a field, so a route that
+/// reads changed fields is tested with this churn on.
+pub fn churn_fields(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        |mut fields: Query<&mut bevy::text::EditableText>| {
+            for mut field in &mut fields {
+                field.set_changed();
+            }
+        },
+    );
+}
+
+/// The window's physical size and scale: a Retina-like window, so logical and physical pixels
+/// differ.
+pub const UI_PHYSICAL: (u32, u32) = (2400, 1400);
+pub const UI_SCALE: f32 = 2.0;
+
+/// Without a renderer no system fills the camera's target: this stands in for it, so the UI
+/// lays out to the window.
+fn target_info(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut cameras: Query<&mut bevy::camera::Camera>,
+) {
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    for mut camera in &mut cameras {
+        camera.computed.target_info = Some(bevy::camera::RenderTargetInfo {
+            physical_size: window.physical_size(),
+            scale_factor: window.scale_factor(),
+        });
+    }
+}
+
+/// The shell in the editor with the town open, under Bevy's UI layout and focus (no renderer),
+/// with a window and a camera; the window's entity. Shared by the pointer and layout tests.
+pub fn ui_editor_app() -> (App, Entity) {
+    let config = Config {
+        editor: Some(Some("test:map:town".to_owned())),
+        ..config()
+    };
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        InputPlugin,
+        StatesPlugin,
+        bevy::window::WindowPlugin {
+            primary_window: None,
+            primary_cursor_options: None,
+            exit_condition: bevy::window::ExitCondition::DontExit,
+            close_when_requested: false,
+        },
+        bevy::asset::AssetPlugin::default(),
+        bevy::text::TextPlugin,
+        bevy::camera::CameraPlugin,
+        bevy::picking::DefaultPickingPlugins,
+        bevy::ui::UiPlugin,
+    ));
+    // The assets those plugins' systems read and no plugin here provides.
+    app.init_asset::<Image>()
+        .init_asset::<bevy::image::TextureAtlasLayout>()
+        .init_asset::<bevy::mesh::Mesh>()
+        .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
+    app.add_plugins((
+        ShellPlugin,
+        MovementPlugin,
+        ControlsPlugin,
+        ScreenPlugin,
+        CombatPlugin,
+        SettingsPlugin,
+        FontsPlugin,
+        EditorPlugin,
+    ))
+    .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        16,
+    )))
+    .add_systems(PostUpdate, target_info.before(bevy::ui::UiSystems::Prepare));
+    let packs = Packs::load(&config).expect("the packs load");
+    let mut editor =
+        omnis_vector::editor::Editor::new(config.packs.clone()).expect("the editor opens");
+    editor
+        .open("test:map:town", &packs.data)
+        .expect("the town opens");
+    app.insert_resource(Editing(editor));
+    app.insert_resource(packs);
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                resolution: bevy::window::WindowResolution::new(UI_PHYSICAL.0, UI_PHYSICAL.1)
+                    .with_scale_factor_override(UI_SCALE),
+                ..default()
+            },
+            bevy::window::PrimaryWindow,
+        ))
+        .id();
+    app.world_mut()
+        .spawn((bevy::camera::Camera2d, bevy::ui::IsDefaultUiCamera));
+    for _ in 0..4 {
+        app.update();
+    }
+    (app, window)
 }

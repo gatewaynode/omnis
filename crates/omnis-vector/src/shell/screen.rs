@@ -13,11 +13,10 @@ use super::controls::Corner;
 use super::hud::Hud;
 use super::minimap::Minimap;
 pub use super::screen_draw::{
-    Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
+    Arrow, EditorPress, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
 };
 use super::screen_draw::{
-    LabelOf, Mark, MessageText, SCROLL_FOOT, SpanAt, TitleText, bars, build, shown_label,
-    text_field, thumbs, wheel, width,
+    Mark, Placed, SCROLL_FOOT, bars, build, sync, text_field, thumbs, wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::settings::{Current, Fitted};
@@ -87,9 +86,10 @@ pub struct ScreenLayer;
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
 pub struct Beside(pub f32);
 
-/// A slider moved since the router last looked: the number it now asks for.
+/// A slider moved since the router last looked: the number it now asks for. With no screen up
+/// it is the editor's (`shell/editor.rs` takes it), else nobody's.
 #[derive(Resource, Debug, Default)]
-struct Slid(Option<(ControlId, i64)>);
+pub(super) struct Slid(pub(super) Option<(ControlId, i64)>);
 
 /// The renderer and the router.
 pub struct ScreenPlugin;
@@ -117,6 +117,8 @@ impl Plugin for ScreenPlugin {
                     thumbs,
                     bars,
                     wheel,
+                    super::document::size_documents,
+                    super::document::follow_caret,
                     chrome,
                 )
                     .chain()
@@ -193,13 +195,16 @@ fn make_room(beside: Res<Beside>, mut layer: Query<&mut Node, With<ScreenLayer>>
     }
 }
 
-/// Open the screen the command line asked for (`--screen`).
+/// Open the screen the command line asked for (`--screen`), or the editor it asked for
+/// (`--editor`, the `Editing` resource inserted before the app runs).
 fn open_start(
     start: Option<Res<StartScreen>>,
     session: Option<Res<Session>>,
+    editing: Option<Res<super::editor::Editing>>,
     mut screens: ResMut<Screens>,
 ) {
     let game = session.as_deref().map(|s| &s.views);
+    screens.nav.edit(editing.is_some());
     screens.reset(game);
     match start.as_deref() {
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
@@ -245,6 +250,8 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),
         fits: crate::settings::SCALE_MAX,
+        editing: None,
+        playtest: false,
     }
 }
 
@@ -255,13 +262,16 @@ fn slot(path: &str) -> Slot<'_> {
     }
 }
 
-/// The context with or without a game, with the settings as applied.
+/// The context with or without a game, with the settings as applied, the editor when it is
+/// open, and whether the game is the editor's playtest (M5.8).
 #[must_use]
 pub fn ctx_with<'a>(
     session: Option<&'a Session>,
     packs: &'a Packs,
     prefs: crate::settings::Prefs,
     fits: u16,
+    editing: Option<&'a super::editor::Editing>,
+    playtest: bool,
 ) -> Ctx<'a> {
     let ctx = session.map_or_else(
         || Ctx {
@@ -270,10 +280,29 @@ pub fn ctx_with<'a>(
             save: slot(&packs.config.save),
             prefs,
             fits,
+            editing: None,
+            playtest: false,
         },
         ctx,
     );
-    Ctx { prefs, fits, ..ctx }
+    let editing = editing.map(|e| crate::screen::EditingCtx {
+        open: e.status.map.is_some(),
+        dirty: e.status.dirty,
+        errors: &e.status.errors,
+        files: &e.files,
+        file: e.file.as_ref().map(|f| (f.rel.as_str(), f.dirty())),
+        pick: e.picking.as_ref(),
+        history: e.history(),
+        rules_filter: &e.rules_filter,
+        pack: e.pack(),
+    });
+    Ctx {
+        prefs,
+        fits,
+        editing,
+        playtest,
+        ..ctx
+    }
 }
 
 /// A seed for a game whose seed was left blank: the clock's nanoseconds, mixed.
@@ -289,7 +318,9 @@ fn entropy() -> u64 {
 #[derive(SystemParam)]
 struct Host<'w, 's> {
     commands: Commands<'w, 's>,
-    packs: Res<'w, Packs>,
+    packs: ResMut<'w, Packs>,
+    editing: Option<ResMut<'w, super::editor::Editing>>,
+    playtesting: Option<Res<'w, super::editor::Playtesting>>,
     exit: MessageWriter<'w, AppExit>,
     view: ResMut<'w, NextState<ViewState>>,
     current: ResMut<'w, Current>,
@@ -354,16 +385,21 @@ fn route(
             .forms
             .shown(screens.nav.top(game), screens.nav.base(game));
     }
-    let slid = used.slid.0.take();
     let Some(top) = screens.nav.top(session.as_deref().map(|s| &s.views)) else {
+        if host.editing.is_none() {
+            used.slid.0 = None;
+        }
         return;
     };
+    let slid = used.slid.0.take();
     let effect = {
         let ctx = ctx_with(
             session.as_deref(),
             &host.packs,
             host.current.0,
             host.fitted.0,
+            host.editing.as_deref(),
+            host.playtesting.is_some(),
         );
         let input = Input { used: &used, slid };
         applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
@@ -405,7 +441,7 @@ fn applied(
     let typed = || {
         used.fields.iter().find_map(|(_, field, p)| {
             let Some(Control {
-                kind: Kind::Text { value, .. },
+                kind: Kind::Text { value, .. } | Kind::Document { value, .. },
                 ..
             }) = screen.control(p.0)
             else {
@@ -429,16 +465,26 @@ fn applied(
         Ok(effect) => Some(effect),
         Err(_) if matches!(payload, Payload::Text(_)) => {
             // Text the form refused: the field shows what the form holds again.
-            if let Some(Control {
-                kind: Kind::Text { value, max },
-                ..
-            }) = screen.control(id)
-            {
-                for (entity, _, p) in &used.fields {
-                    if p.0 == id {
-                        commands.entity(entity).insert(text_field(value, *max));
+            match screen.control(id).map(|c| &c.kind) {
+                Some(Kind::Text { value, max, lines }) => {
+                    for (entity, _, p) in &used.fields {
+                        if p.0 == id {
+                            commands
+                                .entity(entity)
+                                .insert(text_field(value, *max, *lines));
+                        }
                     }
                 }
+                Some(Kind::Document { value, max }) => {
+                    for (entity, _, p) in &used.fields {
+                        if p.0 == id {
+                            commands
+                                .entity(entity)
+                                .insert(super::document::document_field(value, *max));
+                        }
+                    }
+                }
+                _ => {}
             }
             None
         }
@@ -524,6 +570,10 @@ fn carry_out(
         }
         Effect::ToTitle | Effect::ToNewGame => {
             host.commands.remove_resource::<Session>();
+            host.commands.remove_resource::<super::editor::Editing>();
+            host.commands
+                .remove_resource::<super::editor::Playtesting>();
+            screens.nav.edit(false);
             host.view.set(ViewState::Explore);
             screens.reset(None);
             if effect == Effect::ToNewGame {
@@ -531,6 +581,50 @@ fn carry_out(
             }
         }
         Effect::Host(op) => host_op(op, host, session, screens),
+        Effect::OpenEditor => match crate::editor::Editor::new(host.packs.config.packs.clone()) {
+            Ok(editor) => {
+                host.commands.remove_resource::<Session>();
+                host.view.set(ViewState::Explore);
+                host.commands
+                    .insert_resource(super::editor::Editing(editor));
+                screens.nav.edit(true);
+                screens.reset(None);
+            }
+            Err(e) => report(screens, Err(format!("Could not open the editor: {e}"))),
+        },
+        // A playtest ends: the game goes, the parked editor comes back as it was left (M5.8).
+        Effect::ToEditor => {
+            host.commands.remove_resource::<Session>();
+            host.commands.queue(|world: &mut World| {
+                if let Some(parked) = world.remove_resource::<super::editor::Playtesting>() {
+                    world.insert_resource(super::editor::Editing(parked.0));
+                }
+            });
+            screens.nav.edit(true);
+            host.view.set(ViewState::Explore);
+            screens.reset(None);
+        }
+        Effect::Editor(act, payload) => {
+            if let Some(editing) = host.editing.as_deref_mut() {
+                // A modal's field or slider sets the model outright; a press or an arrow is the
+                // act, stepped.
+                let asked = match payload {
+                    Payload::Text(text) => {
+                        editing.typed_in(act, text);
+                        crate::editor::Asked::Nothing
+                    }
+                    Payload::Set(n) => {
+                        editing.set_in(act, n);
+                        crate::editor::Asked::Nothing
+                    }
+                    Payload::Press => super::editor::act(editing, &mut host.packs, act, 0),
+                    Payload::Left => super::editor::act(editing, &mut host.packs, act, -1),
+                    Payload::Right => super::editor::act(editing, &mut host.packs, act, 1),
+                };
+                super::editor::answer(&mut screens.nav, asked);
+                screens.forms.message = editing.message.clone().map(Span::body);
+            }
+        }
         Effect::Settings(prefs) => {
             host.current.0 = prefs;
             let path = &host.packs.config.settings;
@@ -684,16 +778,6 @@ fn host_op(
     }
 }
 
-/// A screen's words on screen: the heading, a span, a control's label or the outcome, by marker.
-type Placed = (
-    &'static mut Text,
-    &'static mut TextColor,
-    Option<&'static TitleText>,
-    Option<&'static SpanAt>,
-    Option<&'static LabelOf>,
-    Option<&'static MessageText>,
-);
-
 /// Draw the top screen: rebuilt when its shape, its outcome line or the window height changed,
 /// its words rewritten in place when only they did.
 #[allow(clippy::too_many_arguments)]
@@ -712,6 +796,8 @@ fn paint(
     sliders: Query<(Entity, &SliderOf, &SliderValue)>,
     focus: Option<Res<InputFocus>>,
     fields: Query<&Pressable, With<EditableText>>,
+    editing: Option<Res<super::editor::Editing>>,
+    playtesting: Option<Res<super::editor::Playtesting>>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -733,7 +819,14 @@ fn paint(
         }
         return;
     };
-    let ctx = ctx_with(session.as_deref(), &packs, current.0, fitted.0);
+    let ctx = ctx_with(
+        session.as_deref(),
+        &packs,
+        current.0,
+        fitted.0,
+        editing.as_deref(),
+        playtesting.is_some(),
+    );
     let screen = screen::content(top, &ctx, &screens.forms);
     let height = size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -778,46 +871,6 @@ fn paint(
         }
     }
     screens.drawn = Some((screen, bucket));
-}
-
-/// The words and role a placed text should show now, or `None` when the screen has no such text.
-fn wanted(
-    screen: &Screen,
-    title: Option<&TitleText>,
-    span: Option<&SpanAt>,
-    label: Option<&LabelOf>,
-    message: Option<&MessageText>,
-) -> Option<(String, Role)> {
-    if title.is_some() {
-        return Some((screen.title.text.clone(), screen.title.role));
-    }
-    if let Some(at) = span {
-        let span = screen.panels.get(at.0)?.rows.get(at.1)?.span(at.2)?;
-        return Some((span.text.clone(), span.role));
-    }
-    if let Some(of) = label {
-        let c = screen.control(of.0)?;
-        let role = if c.why_not.is_some() {
-            Role::Dim
-        } else {
-            Role::Interface
-        };
-        return Some((shown_label(&screen.keys, c), role));
-    }
-    message?;
-    screen.message.as_ref().map(|m| (m.text.clone(), m.role))
-}
-
-/// Rewrite the words of a screen whose shape is unchanged.
-fn sync(screen: &Screen, placed: &mut Query<Placed>) {
-    for (mut text, mut tint, title, span, label, message) in placed.iter_mut() {
-        if let Some((words, role)) = wanted(screen, title, span, label, message) {
-            if text.0 != words {
-                text.0 = words;
-            }
-            tint.0 = colour(role);
-        }
-    }
 }
 
 /// Set each slider to the number its control holds, so a slider follows the arrows and a move

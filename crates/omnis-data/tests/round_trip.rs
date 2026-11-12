@@ -40,7 +40,8 @@ fn a_rewritten_pack_loads_identically() {
         write_ron(&dir.join(format!("data/spells/s{i}.ron")), spell).unwrap();
     }
     // Regions keep only their resolved form; the files go across as written.
-    let regions = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/test/data/regions");
+    let regions = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/omnis-sim/tests/packs/test/data/regions");
     for entry in std::fs::read_dir(&regions).unwrap() {
         let path = entry.unwrap().path();
         let to = dir.join("data/regions").join(path.file_name().unwrap());
@@ -75,4 +76,17 @@ fn a_rewritten_pack_loads_identically() {
 
     let read: MapDef = read_ron(&dir.join("data/maps/m0.ron"), Path::new("m0")).unwrap();
     assert_eq!(read, data.maps.values().next().unwrap().def);
+}
+
+/// The pack hash, the world fingerprint and the world id are taken over pretty RON, so its lines
+/// end with LF on every platform. ron's own default is CRLF on Windows: on macOS and Linux this
+/// holds by default and the assertion bites on the Windows job, where the golden replays would
+/// otherwise fail with their fingerprints.
+#[test]
+fn pretty_ron_ends_its_lines_with_lf_on_every_platform() {
+    let data = common::load_test_packs();
+    let map = data.maps.values().next().unwrap();
+    let text = to_string(&map.def).unwrap();
+    assert!(text.lines().count() > 1, "pretty: one line a field");
+    assert!(!text.contains('\r'), "{}", map.def.id);
 }

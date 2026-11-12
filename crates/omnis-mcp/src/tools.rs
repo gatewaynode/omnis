@@ -3,6 +3,8 @@
 
 use crate::schema::{Field, object};
 use omnis_cli::omnis_sim::Command;
+use omnis_cli::omnis_sim::omnis_core::Level;
+use omnis_cli::omnis_sim::omnis_data::edit::{Brush, Edit, NewMap, Place};
 use omnis_cli::omnis_sim::omnis_rules::Draft;
 use omnis_cli::omnis_sim::ops::ShotTarget;
 use serde_json::{Value, json};
@@ -37,7 +39,242 @@ fn tool(name: &'static str, op: &'static str, description: &'static str, fields:
 pub fn tools() -> Vec<Tool> {
     let mut all = game_tools();
     all.extend(party_tools());
+    all.extend(editor_tools());
+    all.extend(data_tools());
     all
+}
+
+/// The language of a `data.*` answer.
+fn lang() -> Field {
+    Field::new::<Option<String>>(
+        "lang",
+        false,
+        "Language code of the words, one of data_kinds' languages; en when absent. A key with no text in it gives null, never the key.",
+    )
+}
+
+/// What the loaded packs define: kinds, listings, one definition, text.
+fn data_tools() -> Vec<Tool> {
+    let filter = |name: &'static str, description: &'static str| {
+        Field::new::<Option<String>>(name, false, description)
+    };
+    vec![
+        tool(
+            "data_kinds",
+            "data.kinds",
+            "The kinds of definition the loaded packs hold (item, monster, spell, map, object, ...), each with how many are loaded, and the languages of their text. Call it first to see what there is. Needs no game, like every data tool; these read everything loaded, whatever the party has met (the author's view).",
+            &[],
+        ),
+        tool(
+            "data_list",
+            "data.list",
+            "List loaded definitions, in kind then id order: each row has id, kind, name (a text key, or null), words (the name's text by its key), pack (the pack that supplied it) and replaces (packs it overrode). Every filter given must hold. refers_to answers 'what uses this': everything that names an id anywhere in it (the classes, services and loot tables that name an item; the maps that place a monster). A page holds at most limit rows; pass the reply's cursor back for the next, until it is null.",
+            &[
+                filter(
+                    "kind",
+                    "Only this kind, a word from data_kinds such as monster. A kind this engine lacks lists nothing.",
+                ),
+                filter(
+                    "prefix",
+                    "Only ids starting with this, such as base: or test:map:.",
+                ),
+                filter(
+                    "matching",
+                    "Only definitions whose id or name text holds this, whatever the case, such as rat.",
+                ),
+                filter(
+                    "refers_to",
+                    "Only definitions that name this id anywhere in them, such as base:item:dagger.",
+                ),
+                lang(),
+                filter("cursor", "The cursor of the page before, to go on from it."),
+                Field::new::<Option<usize>>(
+                    "limit",
+                    false,
+                    "Rows at most: 100 when absent, never over 500.",
+                ),
+            ],
+        ),
+        tool(
+            "data_get",
+            "data.get",
+            "One definition by id: kind, def (the definition exactly as its pack file wrote it; its fields follow the pack format, which can gain fields), name, words (the text of every text key in it), refers (every loaded id and flag it names), pack and replaces. A map's def is the whole map and can be large. Any id a view, an event or another definition carries can be passed.",
+            &[
+                Field::new::<String>("id", true, "pack:kind:name, such as base:monster:goblin."),
+                lang(),
+            ],
+        ),
+        tool(
+            "data_text",
+            "data.text",
+            "The text of text keys, as views carry them in name and label fields (base:text:item.mace.name): words maps each known key to its text (null where the language has none), unknown lists keys no language file has. Text may hold {placeholders} the game fills in play.",
+            &[
+                Field::new::<Vec<String>>("keys", true, "Text keys, at most 256."),
+                lang(),
+            ],
+        ),
+    ]
+}
+
+/// A root-relative `.ron` path inside the edited pack.
+fn pack_path() -> Field {
+    Field::new::<String>(
+        "path",
+        true,
+        "Root-relative .ron path inside the edited pack, such as data/maps/town.ron or text/en/maps.ron.",
+    )
+}
+
+/// A note's key.
+fn note_key() -> Field {
+    Field::new::<String>(
+        "key",
+        true,
+        "A content id (base:item:mace, test:map:town), or one followed by / and a path inside it: a cell test:map:town/0/3,1 (level, then x,y), a level /level/-1, a placement /chest.1, a terrain /terrain/r.",
+    )
+}
+
+/// The editor's tools (M5.3): every one a host op over the last pack loaded.
+fn editor_tools() -> Vec<Tool> {
+    vec![
+        tool(
+            "editor_status",
+            "editor.status",
+            "The editor's state: the pack root, the open map's id, file, size, levels and terrains, whether it differs from its file, the undo and redo depths, and the loader's words for anything that would stop it loading (empty when it would load).",
+            &[],
+        ),
+        tool(
+            "editor_maps",
+            "editor.maps",
+            "The edited pack's map files, each with the id it declares, or why it does not read.",
+            &[],
+        ),
+        tool(
+            "editor_open",
+            "editor.open",
+            "Open a map of the edited pack by id. Unsaved changes to the map open before are dropped.",
+            &[Field::new::<String>("map", true, "pack:map:name")],
+        ),
+        tool(
+            "editor_new",
+            "editor.new",
+            "Start a new map in the edited pack: its id must be <pack>:map:<name> and data/maps/<name>.ron must not exist. Every tile is the first terrain, walls round it, the start at (0, 0) facing East. Open and unsaved; name it in a region file before saving.",
+            &[Field::new::<NewMap>("map", true, "The map's shape.")],
+        ),
+        tool(
+            "editor_paint",
+            "editor.paint",
+            "Paint one tile or edge of the open map: a terrain by glyph (a stair up or down needs its rise), an edge (Open, Wall, Door, Ramp; the boundary stays a wall), a height in eighths above the level's base, or Clear for no ground. With stroke true the paint joins the step the last paint opened, so a drag undoes as one.",
+            &[
+                Field::new::<Level>(
+                    "level",
+                    false,
+                    "The level; 0, the map's own, when left out.",
+                ),
+                Field::new::<u16>("x", true, "Column."),
+                Field::new::<u16>("y", true, "Row."),
+                Field::new::<Brush>("brush", true, "What to paint."),
+                Field::new::<bool>(
+                    "stroke",
+                    false,
+                    "Join the open stroke; a new undo step when left out.",
+                ),
+            ],
+        ),
+        tool(
+            "editor_place",
+            "editor.place",
+            "Put a placement on the open map, replacing one with the same key (a portal, site or pile by its tile; an encounter, object or lore by id; a rest event by terrain and rest kind; the start; the random table), or Remove one by target.",
+            &[Field::new::<Place>(
+                "place",
+                true,
+                "The placement, or Remove with its target.",
+            )],
+        ),
+        tool(
+            "editor_edit",
+            "editor.edit",
+            "Change the open map's structure: Resize (the top-left kept, what falls outside dropped), Map fields, LevelAdd (all no ground) / LevelSet / LevelRemove (with everything on it), TerrainAdd / TerrainSet (a rename carries its rest events; a join change while in use is refused) / TerrainRemove (while unused), or a stair's Rise.",
+            &[Field::new::<Edit>("edit", true, "The change.")],
+        ),
+        tool(
+            "editor_undo",
+            "editor.undo",
+            "Back one step of the open map.",
+            &[],
+        ),
+        tool(
+            "editor_redo",
+            "editor.redo",
+            "Forward one step of the open map.",
+            &[],
+        ),
+        tool(
+            "editor_save",
+            "editor.save",
+            "Write the open map to its file and reseal the pack at its next patch version, so the game loads it; refused with the loader's words, and nothing written, while the map would not load. The running world sees the pack after pack_reload.",
+            &[],
+        ),
+        tool(
+            "editor_files",
+            "editor.files",
+            "Every file of the edited pack the loader reads: pack.ron and the .ron files under data/, text/, notes/ and migrations/.",
+            &[],
+        ),
+        tool(
+            "editor_read",
+            "editor.read",
+            "A pack file's text.",
+            &[pack_path()],
+        ),
+        tool(
+            "editor_check",
+            "editor.check",
+            "What the loader would say of a text as the file at a path, by directory (a map is resolved against the loaded packs); nothing is written. Empty means it loads.",
+            &[
+                pack_path(),
+                Field::new::<String>("text", true, "The whole file, at most 4 MiB."),
+            ],
+        ),
+        tool(
+            "editor_write",
+            "editor.write",
+            "Write a text as a pack file, exactly as typed, once the loader's check passes (refused with its words otherwise, nothing written); then reseal the pack at its next patch version, unless the file is a note, which the seal does not cover.",
+            &[
+                pack_path(),
+                Field::new::<String>("text", true, "The whole file, at most 4 MiB."),
+            ],
+        ),
+        tool(
+            "editor_note",
+            "editor.note",
+            "The author's note on a key, if there is one. Notes are the game master's: the game never reads them.",
+            &[note_key()],
+        ),
+        tool(
+            "editor_note_set",
+            "editor.note_set",
+            "Write the author's note on a key (at most 4 KiB), or take it away by leaving text out. Written at once to notes/<map name>.ron for a map's keys, notes/<kind>.ron otherwise; never sealed. A key whose target is not built yet is allowed.",
+            &[
+                note_key(),
+                Field::new::<Option<String>>(
+                    "text",
+                    false,
+                    "The note; leave out to take the note away.",
+                ),
+            ],
+        ),
+        tool(
+            "editor_notes",
+            "editor.notes",
+            "The keys that carry notes, those starting with a prefix when given (a map id lists the map's), and the orphans among all notes: keys whose target is nowhere in the loaded packs nor in the open map.",
+            &[Field::new::<Option<String>>(
+                "prefix",
+                false,
+                "Only keys starting with this.",
+            )],
+        ),
+    ]
 }
 
 /// The screenshot tool: what the game's window shows.
@@ -260,13 +497,13 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "rules_list",
             "rules.list",
-            "Every rule slot with its inputs and source, plus the rule values and tables.",
+            "Every rule slot with its inputs and source, the rule values and tables, and in origins where each came from: the rules file, its pack, its priority and the definitions it beat.",
             &[],
         ),
         tool(
             "rules_get",
             "rules.get",
-            "One rule slot's inputs and source.",
+            "One rule slot's inputs and source, with its origin: the rules file that defined it, its pack, its priority and the definitions it beat.",
             &[Field::new::<String>(
                 "slot",
                 true,
@@ -356,6 +593,56 @@ mod tests {
                 "rules_set",
                 json!({"slot": "spell_points.pool", "source": "level * 10"}),
             ),
+            ("editor_status", json!({})),
+            ("editor_maps", json!({})),
+            ("editor_open", json!({"map": "test:map:town"})),
+            (
+                "editor_new",
+                json!({"map": {"id": "test:map:hamlet", "name": "test:text:map.town.name", "kind": "Town", "tileset": "test:tileset:outdoor", "width": 4, "height": 3, "wall": {"front": "hedge", "left": "hedge.left", "right": "hedge.right"}, "door": "gate", "terrain": {"glyph": "r", "name": "street", "floor": "road", "passable": true, "visibility_depth": 12, "step_minutes": 1}}}),
+            ),
+            (
+                "editor_paint",
+                json!({"level": 0, "x": 1, "y": 1, "brush": {"Edge": {"side": "East", "kind": "Door"}}, "stroke": false}),
+            ),
+            (
+                "editor_place",
+                json!({"place": {"Site": {"x": 1, "y": 1, "service": "base:service:inn"}}}),
+            ),
+            (
+                "editor_edit",
+                json!({"edit": {"Resize": {"width": 12, "height": 6}}}),
+            ),
+            ("editor_undo", json!({})),
+            ("editor_redo", json!({})),
+            ("editor_save", json!({})),
+            ("editor_files", json!({})),
+            ("editor_read", json!({"path": "data/maps/town.ron"})),
+            (
+                "editor_check",
+                json!({"path": "data/maps/town.ron", "text": "(schema: 1)"}),
+            ),
+            (
+                "editor_write",
+                json!({"path": "notes/town.ron", "text": "(schema: 1, entries: {})"}),
+            ),
+            ("editor_note", json!({"key": "test:map:town/0/1,1"})),
+            (
+                "editor_note_set",
+                json!({"key": "test:map:town/0/1,1", "text": "The inn's front room."}),
+            ),
+            ("editor_notes", json!({"prefix": "test:map:town"})),
+            ("data_kinds", json!({})),
+            (
+                "data_list",
+                json!({"kind": "item", "prefix": "base:", "matching": "sword",
+                    "refers_to": "base:item:dagger", "lang": "en", "cursor": "base:item:mace",
+                    "limit": 20}),
+            ),
+            ("data_get", json!({"id": "base:item:mace", "lang": "en"})),
+            (
+                "data_text",
+                json!({"keys": ["base:text:item.mace.name"], "lang": "en"}),
+            ),
         ];
         assert_eq!(tools().len(), examples.len());
         for (name, arguments) in examples {
@@ -385,6 +672,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 27);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 48);
     }
 }

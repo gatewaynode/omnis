@@ -1,8 +1,13 @@
 //! The `omnis` binary (package `omnis-vector`):
 //! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions|verbs|inventory]`
 //! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH] [--timing]]`,
+//! `[--editor [MAP-ID]]` (start in the editor, M5.4),
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
+//!
+//! On Windows the binary is a GUI process (no console window; 2026-11-08, Windows CI), so what it
+//! says before a window is up goes to `.omnis/last-error.txt` as well as stderr (`shell::failure`).
+#![windows_subsystem = "windows"]
 
 use bevy::app::ScheduleRunnerPlugin;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
@@ -18,10 +23,12 @@ use omnis_vector::shell::{
     cinema::CinemaPlugin,
     combat::{CombatPlugin, CombatViewPlugin},
     controls::ControlsPlugin,
+    editor::{Editing, EditorPlugin},
     fonts::FontsPlugin,
     hud::HudPlugin,
     minimap::MinimapPlugin,
     movement::MovementPlugin,
+    preview::PreviewPlugin,
     render::RenderPlugin,
     screen::ScreenPlugin,
     settings::{Current, SettingsPlugin},
@@ -29,20 +36,27 @@ use omnis_vector::shell::{
 use omnis_vector::sim::game_settings;
 use std::time::Duration;
 
+/// Say `line` on stderr and keep it under `.omnis/` for a platform with no console (Windows).
+fn said(line: &str) {
+    eprintln!("omnis: {line}");
+    // The line was said; the file is a courtesy, so a failure to write it is not a second one.
+    let _ = omnis_vector::shell::failure::record(std::path::Path::new("."), line);
+}
+
+/// A start that fails: its reason said and kept, the exit code an error's.
+fn fail(reason: &str) -> AppExit {
+    said(reason);
+    AppExit::error()
+}
+
 fn main() -> AppExit {
     let config = match parse(std::env::args().skip(1)) {
         Ok(config) => config,
-        Err(e) => {
-            eprintln!("omnis: {e}");
-            return AppExit::error();
-        }
+        Err(e) => return fail(&e.to_string()),
     };
     let packs = match Packs::load(&config) {
         Ok(packs) => packs,
-        Err(e) => {
-            eprintln!("omnis: {e}");
-            return AppExit::error();
-        }
+        Err(e) => return fail(&e.to_string()),
     };
     let session = if config.starts_in_game() {
         // Party creation starts with no one; every other start takes the fixed party.
@@ -54,10 +68,7 @@ fn main() -> AppExit {
         let settings = game_settings(Settings::default());
         match Session::with_party(&packs, config.seed, settings, &drafts) {
             Ok(session) => Some(session),
-            Err(e) => {
-                eprintln!("omnis: {e}");
-                return AppExit::error();
-            }
+            Err(e) => return fail(&e.to_string()),
         }
     } else {
         None
@@ -119,9 +130,17 @@ fn main() -> AppExit {
     if let Some(session) = session {
         app.insert_resource(session);
     }
+    if let Some(map) = &config.editor {
+        match open_editor(&packs, map.as_deref()) {
+            Ok(editing) => {
+                app.insert_resource(editing);
+            }
+            Err(e) => return fail(&e.to_string()),
+        }
+    }
     let (prefs, note) = omnis_vector::settings::read(std::path::Path::new("."), &config.settings);
     if let Some(note) = note {
-        eprintln!("omnis: {note}; the defaults are used");
+        said(&format!("{note}; the defaults are used"));
     }
     app.insert_resource(Current(prefs));
     if let Some(screen) = config.screen {
@@ -146,5 +165,19 @@ fn main() -> AppExit {
         CombatViewPlugin,
         CapturePlugin,
     ));
+    // The editor and its preview (M5.4, M5.7); a tuple of plugins holds fifteen at most.
+    app.add_plugins((EditorPlugin, PreviewPlugin));
     app.run()
+}
+
+/// The editor over the loaded packs, with `map` open when one is named.
+fn open_editor(packs: &Packs, map: Option<&str>) -> Result<Editing, String> {
+    let mut editor = omnis_vector::editor::Editor::new(packs.config.packs.clone())
+        .map_err(|e| format!("the editor cannot open the pack: {e}"))?;
+    if let Some(id) = map {
+        editor
+            .open(id, &packs.data)
+            .map_err(|e| format!("the editor cannot open {id}: {e}"))?;
+    }
+    Ok(Editing(editor))
 }

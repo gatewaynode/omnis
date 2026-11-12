@@ -13,7 +13,7 @@ use crate::monster::Monster;
 use crate::object::{ObjectKind, check_objects};
 use crate::region::RegionDef;
 use crate::registry::Interner;
-use crate::rules::RulesFile;
+use crate::rules::{self, RulesFile};
 use crate::service::ServiceDef;
 use crate::spell::Spell;
 use crate::tileset::Tileset;
@@ -77,7 +77,10 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     check_references(&raw, errors);
     check_monster_spells(&raw, errors);
     check_text_keys(&raw, data, errors);
-    data.rules = build_rules(&raw.rules, errors);
+    (data.rules, data.standings) = rules::merge(&raw.rules, &data.sources, errors);
+    data.rule_files = (raw.rules.into_iter())
+        .map(|(id, (_, file))| (id, file))
+        .collect();
     check_component_threshold(&raw.spells, &data.rules, errors);
     check_objects(&raw.objects, &raw.items, data, errors);
     data.races = intern(raw.races, &mut data.registry.races);
@@ -286,23 +289,4 @@ fn check_component_threshold(spells: &Files<Spell>, rules: &Rules, errors: &mut 
             ));
         }
     }
-}
-
-/// One rule set from every rules file, in id order; a compile error names the file and slot.
-fn build_rules(files: &Files<RulesFile>, errors: &mut Vec<DataError>) -> Rules {
-    let mut rules = Rules::new();
-    for (file, def) in files.values() {
-        for (name, value) in &def.values {
-            rules.insert_value(name, *value);
-        }
-        for (name, table) in &def.tables {
-            rules.insert_table(name, table.clone());
-        }
-        for (name, slot) in &def.slots {
-            if let Err(error) = rules.add_slot(name, slot.inputs.clone(), &slot.expr) {
-                errors.push(DataError::new(file, format!("slot '{name}': {error}")));
-            }
-        }
-    }
-    rules
 }

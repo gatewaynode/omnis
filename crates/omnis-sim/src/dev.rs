@@ -128,6 +128,18 @@ pub enum DevCommand {
     },
     /// Outside a fight: fold the world now (M8.5 7e), as a safe point past the threshold does.
     Fold,
+    /// Outside a fight and an encounter: the party lives `minutes` where it stands, as a step
+    /// or a rest spends them (its age, its shared time at the region's company, its date, timed
+    /// effects), with nothing else of a rest. One to `DevCommand::MAX_PASS`.
+    Pass {
+        /// How many minutes.
+        minutes: u32,
+    },
+}
+
+impl DevCommand {
+    /// The most minutes one `Pass` lives: a year of 360 days.
+    pub const MAX_PASS: u32 = 360 * 1440;
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -215,6 +227,15 @@ pub(crate) fn apply(
                 return Err(Rejection::WrongMode);
             }
             caused.push(crate::save::fold(world, data));
+        }
+        DevCommand::Pass { minutes } => {
+            if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
+                return Err(Rejection::WrongMode);
+            }
+            if *minutes == 0 || *minutes > DevCommand::MAX_PASS {
+                return Err(Rejection::OutOfRange);
+            }
+            crate::apply::advance(world, data, *minutes, &mut caused);
         }
     }
     events.push(echo);

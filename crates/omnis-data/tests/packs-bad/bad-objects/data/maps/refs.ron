@@ -16,6 +16,8 @@
         "|g g g g _|",
         "+-+-+-+-+-+",
     ],
+    // The way back to land.ron, behind the landing its portal makes on (0, 0).
+    portals: [(x: 0, y: 1, id: "refs-out", facing: North, marker: Some("signpost"))],
     objects: [
         (id: "ghost", kind: "bado:object:none", x: 0, y: 1),
         (id: "upstairs", kind: "bado:object:pebble", level: 3, x: 1, y: 1),

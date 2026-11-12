@@ -12,7 +12,7 @@ use omnis_sim::{
 use std::path::PathBuf;
 
 pub fn test_pack() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/omnis-sim/tests/packs/test")
 }
 
 pub fn base_pack() -> PathBuf {
@@ -37,7 +37,7 @@ pub fn new_world(data: &Data, seed: u64, settings: Settings) -> World {
     let (x, y, facing) = data.maps[&map].def.start;
     world.position = Position {
         map,
-        level: omnis_core::Level::GROUND,
+        level: data.maps[&map].def.start_level,
         x,
         y,
         facing,
@@ -165,7 +165,11 @@ pub fn encounter(
 /// From the meadow start to the rats at (3, 8) of the dungeon: up the road through the
 /// portal, down the first room, left to the door, through it, and three tiles in.
 pub fn walk_to_the_rats() -> Vec<Command> {
-    let mut commands = vec![Command::Step(Direction::Forward); 16];
+    // Eleven steps up the road and down the stairs, arriving facing east (away from the way
+    // back up); a right turn faces south, into the dungeon.
+    let mut commands = vec![Command::Step(Direction::Forward); 11];
+    commands.push(Command::Turn(Rotation::Right));
+    commands.extend(vec![Command::Step(Direction::Forward); 5]);
     commands.extend([
         Command::Turn(Rotation::Left),
         Command::Step(Direction::Forward),

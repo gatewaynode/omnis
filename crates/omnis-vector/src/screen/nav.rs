@@ -2,7 +2,8 @@
 //! overlays the player opened on top of it. After every change the overlays are checked against
 //! the world, so one the world no longer allows closes (the party moved, a fight began, the game
 //! ended). A new game is created member by member before it is played: until Begin, its base is
-//! party creation.
+//! party creation. While the editor is open (M5.4) there is no game and no base: the editor's
+//! layer is the base, as the fight screen is, and Esc opens its menu.
 
 use super::ScreenId;
 use crate::sim::Views;
@@ -30,6 +31,8 @@ pub struct Nav {
     stack: Vec<ScreenId>,
     /// The game is a new one whose party is being created; Begin ends it.
     creating: bool,
+    /// The editor is open, with no game (M5.4).
+    editing: bool,
 }
 
 impl Nav {
@@ -40,7 +43,11 @@ impl Nav {
     #[must_use]
     pub fn base(&self, game: Option<&Views>) -> Option<ScreenId> {
         let Some(views) = game else {
-            return Some(ScreenId::Title);
+            return if self.editing {
+                None
+            } else {
+                Some(ScreenId::Title)
+            };
         };
         if views.combat.is_some() {
             None
@@ -60,7 +67,17 @@ impl Nav {
     pub fn allowed(&self, id: ScreenId, game: Option<&Views>) -> bool {
         let base = self.base(game);
         match (id, game) {
-            (ScreenId::NewGame, None) => true,
+            (ScreenId::NewGame, None) => !self.editing,
+            // Over the editor only.
+            (
+                ScreenId::EditorMenu
+                | ScreenId::EditorFiles
+                | ScreenId::EditorPick
+                | ScreenId::EditorProps
+                | ScreenId::EditorHistory
+                | ScreenId::EditorRules,
+                None,
+            ) => self.editing,
             // Wherever Load is: the title, the pause, the fallen party's screen.
             (ScreenId::LoadReport, _) => true,
             // From the title, or from the pause wherever it is allowed.
@@ -99,6 +116,17 @@ impl Nav {
         self.creating
     }
 
+    /// Whether the editor is open.
+    #[must_use]
+    pub fn editing(&self) -> bool {
+        self.editing
+    }
+
+    /// The editor opened (`true`) or closed: with no game, its layer is the base.
+    pub fn edit(&mut self, editing: bool) {
+        self.editing = editing;
+    }
+
     /// The party is made: play begins.
     pub fn begin(&mut self) {
         self.creating = false;
@@ -131,6 +159,12 @@ impl Nav {
                     | ScreenId::Debug
                     | ScreenId::Log
                     | ScreenId::LoadReport
+                    | ScreenId::EditorMenu
+                    | ScreenId::EditorFiles
+                    | ScreenId::EditorPick
+                    | ScreenId::EditorProps
+                    | ScreenId::EditorHistory
+                    | ScreenId::EditorRules
             )
         )
     }
@@ -199,6 +233,10 @@ impl Nav {
             return Escape::Closed;
         }
         let Some(views) = game else {
+            if self.allowed(ScreenId::EditorMenu, None) {
+                self.stack.push(ScreenId::EditorMenu);
+                return Escape::Paused;
+            }
             return Escape::Nothing;
         };
         if views.combat.is_some() && !fight_at_root {

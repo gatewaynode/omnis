@@ -5,12 +5,18 @@ pub mod capture;
 pub mod cinema;
 pub mod combat;
 pub mod controls;
+pub mod document;
+pub mod editor;
+pub mod editor_keys;
+pub mod failure;
 pub mod fonts;
 pub mod host;
 pub mod hud;
+pub mod icons;
 pub mod minimap;
 pub mod movement;
 pub mod notice;
+pub mod preview;
 pub mod render;
 pub mod retold;
 pub mod roster;
@@ -78,6 +84,7 @@ impl Plugin for ShellPlugin {
         .configure_sets(
             Update,
             VectorSet::Draw.run_if(resource_exists::<session::Session>),
-        );
+        )
+        .add_plugins(icons::IconsPlugin);
     }
 }

@@ -1,0 +1,1 @@
+(schema: 1, id: "ways:region:w", name: "ways:text:region", kind: Wild, company: 100, stability: 800, rule: "time.wild", couplings: [], maps: ["ways:map:stand", "ways:map:foot", "ways:map:up", "ways:map:far"])

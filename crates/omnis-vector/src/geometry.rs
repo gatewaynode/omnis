@@ -7,9 +7,9 @@
 
 use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
-use crate::sim::SimWorld;
+use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
-use omnis_sim::omnis_data::{Join, MapData};
+use omnis_sim::omnis_data::{Data, Join, MapData};
 use std::collections::BTreeMap;
 
 /// What a segment belongs to; the renderer picks the colour from it.
@@ -25,6 +25,12 @@ pub enum SegKind {
     Floor,
     /// Impassable open terrain (water), crossed on the floor.
     Barrier,
+    /// A portal's mark on the floor: a rectangle with a circle in it (owner, 2026-10-24); a door
+    /// keeps its frame and cross.
+    Portal,
+    /// An activity's placeholder mark on the floor, a smiley face (owner, 2026-10-24): a town
+    /// service's site today, the things that take the party out of its stride later.
+    Activity,
     /// The ceiling grid.
     Ceiling,
     /// A cliff's rock face: hatching between the two rims.
@@ -87,7 +93,7 @@ pub fn extract(
     map: &MapData,
     map_id: MapId,
     level: Level,
-    world: &SimWorld,
+    world: &dyn Occupancy,
     ground: &Ground,
 ) -> Vec<Segment> {
     let mut out = Vec::new();
@@ -112,6 +118,9 @@ pub fn extract(
                 h,
             );
             rims(&mut out, ground, (x, y), patch, terrain.color);
+            if map.portal_at(level, x, y).is_some() {
+                portal(&mut out, (x, y), patch, terrain.color);
+            }
             if let Some(join) = terrain.join {
                 let beyond = |up: bool| {
                     map.beyond(level, up)
@@ -148,7 +157,7 @@ pub(crate) fn edges(
     map: &MapData,
     map_id: MapId,
     level: Level,
-    world: &SimWorld,
+    world: &dyn Occupancy,
 ) -> BTreeMap<EdgeKey, EdgeLook> {
     let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
     for y in 0..map.def.height {
@@ -398,6 +407,112 @@ fn cells(
         line(out, [x0, c[NW], z0], [x1, c[SE], z1], SegKind::Barrier, rgb);
         line(out, [x1, c[NE], z0], [x0, c[SW], z1], SegKind::Barrier, rgb);
     }
+}
+
+/// The floor's height at `(u, v)` across the cell (0 to 1 each) of `p`, between its corners.
+fn floor_at(p: Patch, u: f32, v: f32) -> f32 {
+    let c = p.corners;
+    let north = c[NW] + (c[NE] - c[NW]) * u;
+    let south = c[SW] + (c[SE] - c[SW]) * u;
+    north + (south - north) * v
+}
+
+/// A closed ring of `kind` on cell `(x, y)`'s floor through the points `(u, v)` given.
+fn ring(
+    out: &mut Vec<Segment>,
+    (x, y): (u16, u16),
+    p: Patch,
+    points: &[(f32, f32)],
+    kind: SegKind,
+    rgb: (u8, u8, u8),
+) {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    let at = |(u, v): (f32, f32)| [x0 + u, floor_at(p, u, v), z0 + v];
+    for (i, from) in points.iter().enumerate() {
+        let to = points[(i + 1) % points.len()];
+        line(out, at(*from), at(to), kind, rgb);
+    }
+}
+
+/// The points of a circle of `radius` about `(cu, cv)` in `sides` segments.
+fn circle((cu, cv): (f32, f32), radius: f32, sides: usize) -> Vec<(f32, f32)> {
+    (0..sides)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let a = core::f32::consts::TAU * i as f32 / sides as f32;
+            (cu + radius * a.cos(), cv + radius * a.sin())
+        })
+        .collect()
+}
+
+/// A portal's mark on the floor of `(x, y)`: a rectangle a fifth in from each side with a
+/// circle in the middle, at the floor's heights.
+fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+    let i = 0.2;
+    ring(
+        out,
+        cell,
+        p,
+        &[(i, i), (1.0 - i, i), (1.0 - i, 1.0 - i), (i, 1.0 - i)],
+        SegKind::Portal,
+        rgb,
+    );
+    ring(
+        out,
+        cell,
+        p,
+        &circle((0.5, 0.5), 0.25, 16),
+        SegKind::Portal,
+        rgb,
+    );
+}
+
+/// An icon of the set on the floor of `(x, y)` (owner, 2026-10-24): its strokes scaled into the
+/// cell inside `ICON_MARGIN`, at the floor's heights.
+fn icon_on_floor(
+    out: &mut Vec<Segment>,
+    cell: (u16, u16),
+    p: Patch,
+    icon: &omnis_icon::Icon,
+    kind: SegKind,
+    rgb: (u8, u8, u8),
+) {
+    let (x0, z0) = (f32::from(cell.0), f32::from(cell.1));
+    let inner = 1.0 - 2.0 * ICON_MARGIN;
+    let at = |q: [f32; 2]| {
+        let (u, v) = (ICON_MARGIN + q[0], ICON_MARGIN + q[1]);
+        [x0 + u, floor_at(p, u, v), z0 + v]
+    };
+    for [a, b] in icon.segments(inner) {
+        line(out, at(a), at(b), kind, rgb);
+    }
+}
+
+/// The margin an icon leaves inside its cell, as a share of the cell's side.
+const ICON_MARGIN: f32 = 0.15;
+
+/// The activities' icons on the floor of `level` (owner, 2026-10-24: a service's site drawn as
+/// its kind's icon, the placeholder for a service `data` lacks), each inside its cell at the
+/// floor's heights.
+#[must_use]
+pub fn activities(data: &Data, map: &MapData, level: Level, ground: &Ground) -> Vec<Segment> {
+    let mut out = Vec::new();
+    for site in map.sites.iter().filter(|s| s.level == level) {
+        let Some(cell) = map.cell(level, site.x, site.y) else {
+            continue;
+        };
+        let kind = data.services.get(&site.service).map(|s| s.kind);
+        let patch = ground.patch(site.x, site.y).unwrap_or_default();
+        icon_on_floor(
+            &mut out,
+            (site.x, site.y),
+            patch,
+            crate::icons::activity_of(kind),
+            SegKind::Activity,
+            map.terrain(cell).color,
+        );
+    }
+    out
 }
 
 /// The south and east sides of a cell whose neighbour there meets it at other heights: the

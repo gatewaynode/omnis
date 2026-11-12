@@ -1,5 +1,8 @@
 The world of Omnis, Toel, is both new and old, the players begin as members of the latest wave of settlers who have arrived or are decended from people who travelled across massive portals that occassionally open spanning worlds.  Omnis is a vast place filled with danger and riches, a tempting world to migrate to with opportunity everywhere.  
 
+# Broad Strokes
+These are framing sections ment to explain large parts of the world in an introductory manner.
+
 ## About Time
 Strange magical forces are present everywhere with the world virtually humming with reality twisting forces.  Even time itself is constantly twisting and changing by the dynamic forces only coverging briefly between folk as they interact with one another.  So much so that the standard greatings are time relative questions like:
 
@@ -22,3 +25,15 @@ While the collection of power and wealth attracts the bold, a phenomena known as
 Toel is sometimes referred to as the ladder to godhood due to its abundance of magic and how the general instability also makes it a flexible place to seek ascension.  This has generally attracted more evil and power hungry risk takers than people of good intentions over the ages.  Civilizations rise and fall commonly to the follies of ascension, people of more noble intent and commoners just trying to get by are often left scrambling and scrapping across an often war ravaged landscape.  Toel is also a place of enourmous beauty and serinity in the calm between the storms, it's lanscape littered with monuments to powerful individuals and civilizations and magic embued plants and wildlife.
 
 The stories of the people of Toel are often shot through with adventure and heroism.  The struggle for life and prosperity amonst the sscension struggles makes for a strong and determined common folk.
+
+### Arcane Backwash
+The world thrums with magic, the very stability of reality is often a fragile facade over powerful currents.  Magic ripples underneath reality like raindrops on a pond.  Most of the time these ripples are like a gentle wind on a pond, easily managed, at other times they are like choppy waters in a terrible storm that challenge all beings.  Most of Toel sits at a fragile balance between a stable reality and magical chaos that can be tipped into chaos through excessive magic use or the opposite.  The tension of forces leaves stable parts of the world carefully balanced and the use of unbalanced magic in said parts can create disturbances that sometimes gather like floatsam, or sometimes like altering waves.  The effects of such disturbances leave traces like sedimentary wash layers in the surrounds, and sometimes little areas of strong adulteration.
+
+Across the whole world societies and ecosystems have evolved or developed to counteract the effects of arcane backwash.  Various groups of have formed to clean and rebalance areas effected by heavy magic use.  Most magic schools teach restraint, ways to minimize cascading effects and ways to clean up unbalanced magic use.  Animals and ecosystems have evolved to maintain their living spaces, sometimes even agressively responding to unbalanced magic.
+
+## Magic Profusion
+In Toel magic strongly permeates everything and everyone, the people and animals have adapated or are quickly changed by this profusion of magic.  
+- People are cant fluent, almost everyone can cast detect magic and usually knows a cantrip or two.
+- Rare people are born with permanent spells, these are known as boons and are usually beneficial (for dark reasons).
+- Inanimate objects regularly become enchanted with magical attributes, sometimes beneficial to their purpose, other times quite the opposite.
+- Mundane animals often adapt to use magic themselves, such as the notorious *phase mice* and their "natural" predators *null cats*.

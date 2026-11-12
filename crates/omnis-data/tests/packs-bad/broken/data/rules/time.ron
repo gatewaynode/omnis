@@ -3,10 +3,10 @@
     schema: 1,
     id: "broken:rules:time",
     slots: {
-        "time.odd": (inputs: ["age"], expr: "age"),
+        "time.odd": (priority: 1, inputs: ["age"], expr: "age"),
     },
     values: {
-        "days_per_year": 0,
-        "night_to": 1440,
+        "days_per_year": (priority: 1, value: 0),
+        "night_to": (priority: 1, value: 1440),
     },
 )

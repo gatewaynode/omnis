@@ -1,0 +1,15 @@
+// One grass cell wide, two rows, with an upper floor over the south row alone. The start is on
+// the upper floor over the north row, where it has no ground (W1 step 3). No portals: the map is
+// unfinished, not unreached.
+(
+    schema: 1, id: "ways:map:up", name: "ways:text:up", kind: Outdoor, tileset: "test:tileset:outdoor",
+    width: 1, height: 2, start: (0, 0, East), start_level: 1,
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"), door: "gate", door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+    ],
+    layout: ["+-+", "|g|", "+ +", "|g|", "+-+"],
+    levels: [
+        (level: 1, name: "ways:text:up.floor", base: 8, layout: ["+-+", "|_|", "+ +", "|g|", "+-+"]),
+    ],
+)

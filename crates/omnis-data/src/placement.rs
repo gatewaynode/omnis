@@ -339,15 +339,13 @@ pub(crate) fn resolve(
 
 /// Every cell whose centre a placement blocks in its starting state, with the placement's id.
 pub(crate) fn blocked_centres(
-    placed: &Placed,
+    objects: &[ResolvedPlacement],
+    object_cells: &BTreeMap<(Level, u16, u16), Vec<u16>>,
     kinds: &BTreeMap<ObjectKindId, ObjectKind>,
 ) -> BTreeMap<(Level, u16, u16), String> {
     let mut out = BTreeMap::new();
-    for (&(level, x, y), list) in &placed.object_cells {
-        for p in list
-            .iter()
-            .filter_map(|&i| placed.objects.get(usize::from(i)))
-        {
+    for (&(level, x, y), list) in object_cells {
+        for p in list.iter().filter_map(|&i| objects.get(usize::from(i))) {
             let Some(kind) = kinds.get(&p.kind) else {
                 continue;
             };
@@ -564,7 +562,7 @@ pub(crate) fn check_beings(
 /// join (a stair, a ladder, a hole), every site and every fixed encounter, by level.
 fn arrivals(def: &MapDef, levels: &[LevelData]) -> BTreeMap<Level, Vec<(u16, u16)>> {
     let mut out: BTreeMap<Level, Vec<(u16, u16)>> = BTreeMap::new();
-    out.entry(Level::GROUND)
+    out.entry(def.start_level)
         .or_default()
         .push((def.start.0, def.start.1));
     for level in levels {

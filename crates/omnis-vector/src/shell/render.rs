@@ -22,14 +22,14 @@ use omnis_sim::omnis_core::{Level, MapId};
 /// Cells beyond the visibility depth before a line has faded out completely.
 const FOG_EXTRA: f32 = 2.0;
 /// Line width in logical pixels.
-const LINE_WIDTH: f32 = 2.0;
+pub(super) const LINE_WIDTH: f32 = 2.0;
 /// How far the lines are drawn toward the camera, so a wall's own edges and the floor grid are
 /// not hidden by the face they lie on: the gizmos' bias, a power of the depth (presentation-
 /// ARCHITECTURE.md §8.2). Tuned on the captures.
-const LINE_DEPTH_BIAS: f32 = -0.002;
+pub(super) const LINE_DEPTH_BIAS: f32 = -0.002;
 /// Vertical field of view, radians: about 55°, which gives roughly 90° across 16:9 and 128°
 /// across 32:9.
-const FOV: f32 = 0.96;
+pub(super) const FOV: f32 = 0.96;
 
 /// The party's level of the current map with its neighbours, rebuilt when the map or the level
 /// changes or a door moves.
@@ -203,7 +203,7 @@ pub fn rotation(yaw: f32, pitch: f32) -> Quat {
 
 /// Line colour by kind: walls bright green, doors amber, solid and impassable terrain in the
 /// terrain's colour, the floor and ceiling grids dim. Values above 1.0 bloom.
-fn colour(segment: &Segment) -> (f32, f32, f32) {
+pub(super) fn colour(segment: &Segment) -> (f32, f32, f32) {
     let (r, g, b) = segment.rgb;
     let t = |k: f32| {
         (
@@ -215,6 +215,10 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
     match segment.kind {
         SegKind::Wall => (0.15, 3.0, 0.5),
         SegKind::Door => (3.2, 1.6, 0.2),
+        // A portal's floor mark in the doors' amber (owner, 2026-10-24); an activity's
+        // placeholder smiley in a plain gold until it has a look of its own.
+        SegKind::Portal => (3.2, 1.6, 0.2),
+        SegKind::Activity => (2.6, 2.3, 0.5),
         SegKind::Block => t(3.0),
         SegKind::Barrier => t(2.5),
         SegKind::Floor => t(0.6),
@@ -236,7 +240,26 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
 
 /// A crest's line, where the ground turns away from the eye. Provisional until the colour roles
 /// (M8.5 step 5): brighter than the floor grid, so a rise's top shows against the sky.
-const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
+pub(super) const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
+
+/// Where the fog of a sight of `sight` cells ends: `FOG_EXTRA` beyond it.
+pub(super) fn fog_end(sight: f32) -> f32 {
+    sight + FOG_EXTRA
+}
+
+/// How bright a line whose middle lies `distance` from the eye is under a sight of `sight`
+/// cells: full to half the fog's end, fading to nothing at the end, none beyond.
+pub(super) fn fade(distance: f32, sight: f32) -> Option<f32> {
+    let end = fog_end(sight);
+    let start = end * 0.5;
+    if distance >= end {
+        None
+    } else if distance <= start {
+        Some(1.0)
+    } else {
+        Some(1.0 - (distance - start) / (end - start))
+    }
+}
 
 fn draw(
     session: Res<Session>,
@@ -246,20 +269,12 @@ fn draw(
     mut gizmos: Gizmos,
 ) {
     let pose = session.pose;
-    let depth = session.views.sight;
-    let end = f32::from(depth) + FOG_EXTRA;
-    let start = end * 0.5;
+    let depth = f32::from(session.views.sight);
+    let end = fog_end(depth);
     let grid = current.0.grid;
     let fade = |a: [f32; 3], b: [f32; 3]| {
         let mid = ((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5);
-        let distance = (mid.0 - pose.x).hypot(mid.1 - pose.z);
-        if distance >= end {
-            None
-        } else if distance <= start {
-            Some(1.0)
-        } else {
-            Some(1.0 - (distance - start) / (end - start))
-        }
+        fade((mid.0 - pose.x).hypot(mid.1 - pose.z), depth)
     };
     let mut line = |a: [f32; 3], b: [f32; 3], (r, g, b_): (f32, f32, f32), dim: f32| {
         let Some(fade) = fade(a, b) else { return };

@@ -117,7 +117,12 @@ fn quarter_wall() -> u16 {
     2
 }
 
-/// A tile trigger that moves the party to another map or tile when stepped on.
+/// A tile trigger that moves the party to another map or tile when stepped on (the entrances
+/// and exits enhancement, W1 step 2, the owner's direction of 2026-11-01). A portal is paired
+/// with another by a **link**, stated by either side: going through one lands the party on the
+/// cell ahead of the other, facing the other's way, so the way back always stands directly
+/// behind the landing. A portal nothing links to is **unlinked**: saved, drawn in the editor,
+/// and a plain tile in play until it is linked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Portal {
     /// The trigger tile's level.
@@ -127,21 +132,44 @@ pub struct Portal {
     pub x: u16,
     /// Trigger tile row.
     pub y: u16,
-    /// Destination map id.
-    pub to_map: String,
-    /// Destination level.
+    /// The portal's id, unique across every loaded map: freehand text, 1 to [`Portal::ID_MAX`]
+    /// printable ASCII characters with no space at either end.
+    pub id: String,
+    /// The id of the portal this one leads to, when this side states the link (the other side
+    /// may instead; both may, agreeing).
     #[serde(default)]
-    pub to_level: Level,
-    /// Destination column.
-    pub to_x: u16,
-    /// Destination row.
-    pub to_y: u16,
-    /// Facing on arrival.
-    pub to_facing: Facing,
+    pub link: Option<String>,
+    /// The way the party faces coming out of this portal: it arrives on the cell ahead of it,
+    /// facing this way.
+    pub facing: Facing,
     /// Tileset `Object` surface standing on the trigger tile, so the way on can be seen.
     /// Required; `None` is only so a file without one gets a named error.
     #[serde(default)]
     pub marker: Option<String>,
+}
+
+impl Portal {
+    /// The most characters a portal id has.
+    pub const ID_MAX: usize = 32;
+
+    /// Why `id` is not a portal id, if it is not: empty, or not 1 to 32 printable ASCII
+    /// characters without a space at either end.
+    #[must_use]
+    pub fn id_fault(id: &str) -> Option<&'static str> {
+        if id.is_empty() {
+            return Some("has no id");
+        }
+        let printable = id.chars().all(|c| c.is_ascii_graphic() || c == ' ');
+        (id.len() > Self::ID_MAX || !printable || id.trim() != id)
+            .then_some("has an id that is not 1 to 32 printable ASCII characters")
+    }
+
+    /// The cell the party comes out onto: ahead of the portal, facing its way. `None` off the
+    /// map's left or top edge (the right and bottom are the map's to check).
+    #[must_use]
+    pub fn landing(&self) -> Option<(u16, u16)> {
+        self.facing.ahead_of((self.x, self.y))
+    }
 }
 
 /// The three surfaces a wall needs, one per viewing angle.
@@ -174,6 +202,9 @@ pub struct MapDef {
     pub height: u16,
     /// Where a new party appears: column, row, facing.
     pub start: (u16, u16, Facing),
+    /// The level the start is on; the ground when left out (W1 step 3, 2026-11-07).
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub start_level: Level,
     /// Tileset surfaces for walls on this map.
     pub wall: WallSurfaces,
     /// Tileset surface for closed doors on this map.
@@ -329,13 +360,30 @@ impl MapDef {
                     ),
                 ));
             }
+            if let Some(fault) = Portal::id_fault(&portal.id) {
+                errors.push(DataError::new(
+                    file,
+                    format!("portal at ({}, {}) {fault}", portal.x, portal.y),
+                ));
+            }
+        }
+        for (i, a) in self.portals.iter().enumerate() {
+            for b in &self.portals[i + 1..] {
+                if a.id == b.id {
+                    errors.push(DataError::new(
+                        file,
+                        format!(
+                            "portals at ({}, {}) and ({}, {}) share the id '{}'",
+                            a.x, a.y, b.x, b.y, a.id
+                        ),
+                    ));
+                }
+            }
         }
         let has =
             |level: Level| level.is_ground() || self.levels.iter().any(|l| Level(l.level) == level);
-        let placed = self
-            .portals
-            .iter()
-            .map(|p| ("portal", p.level, p.x, p.y))
+        let placed = std::iter::once(("start", self.start_level, sx, sy))
+            .chain(self.portals.iter().map(|p| ("portal", p.level, p.x, p.y)))
             .chain(
                 self.encounters
                     .iter()
@@ -379,6 +427,7 @@ mod tests {
             width: 2,
             height: 2,
             start: (0, 0, Facing::East),
+            start_level: Level::GROUND,
             wall: WallSurfaces {
                 front: "wall".into(),
                 left: "wall.left".into(),

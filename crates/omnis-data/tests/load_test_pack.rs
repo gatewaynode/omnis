@@ -193,7 +193,7 @@ fn portals_and_tileset_slots_resolve() {
     let down = meadow.portal_at(Level::GROUND, 16, 5).expect("entrance");
     assert_eq!(
         (down.to_map, down.to_x, down.to_y, down.to_facing),
-        (dungeon_id, 1, 0, Facing::South)
+        (dungeon_id, 1, 0, Facing::East)
     );
     assert_eq!(
         dungeon.encounters.len(),
@@ -225,7 +225,7 @@ fn portals_and_tileset_slots_resolve() {
         .expect("the way down");
     assert_eq!(
         (deeper.to_map, deeper.to_x, deeper.to_y, deeper.to_facing),
-        (depths_id, 1, 0, Facing::South)
+        (depths_id, 1, 0, Facing::East)
     );
     let depths = &data.maps[&depths_id];
     let back = depths.portal_at(Level::GROUND, 0, 0).expect("the way up");
@@ -233,8 +233,15 @@ fn portals_and_tileset_slots_resolve() {
         (back.to_map, back.to_x, back.to_y, back.to_facing),
         (dungeon_id, 22, 23, Facing::West)
     );
-    assert_eq!(depths.encounters.len(), 5);
-    assert!(depths.encounters.iter().all(|e| e.once));
+    // Five of M7b's, each once; the rest are the owner's, drawn in the editor (2026-10-31)
+    // under the stamp's minted ids and its default, not once.
+    assert_eq!(depths.encounters.len(), 8);
+    assert!(
+        depths
+            .encounters
+            .iter()
+            .all(|e| e.once || e.id.starts_with("encounter_"))
+    );
     // Bob the Rat King's throne room (M7c), east of the four rooms: two rat stacks in front.
     assert_eq!(depths.def.width, 18);
     let rat = data

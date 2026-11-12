@@ -73,6 +73,10 @@ fn every_error_in_a_broken_pack_is_reported() {
         "level 2: layout has 1 rows; a 1-tile-high map needs 3",
         "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
         "map 'broken:map:levels' belongs to no region",
+        // notes/bad.ron (M5.1): checked on load, never hashed into the seal
+        "note key 'Not a key' is not a content id, or one followed by '/' and a path",
+        "note key 'broken:map:glyph/' is not a content id, or one followed by '/' and a path",
+        "note 'broken:map:glyph/0/1,1' is over the size limit",
         // data/maps/stairs.ron (M8.5 step 1c)
         "the stair entry at (1, 0) is not on a stair",
         "the stair up at (0, 0) has no entry in `stairs` saying which way it rises",
@@ -100,9 +104,11 @@ fn every_error_in_a_broken_pack_is_reported() {
         "terrain ceiling surface 'floor' is a Floor surface, not Ceiling",
         "terrain block surface 'sky' is a Ceiling surface, not Block",
         "open door surface 'floor' is a Floor surface, not DoorFrame",
+        // glyph.ron's portal is linked from refs.ron's 'refs-b', whose cell ahead is off its map
+        "portal 'glyph-out' at (5, 5) lands ahead of 'refs-b' on 'broken:map:refs', outside the map",
         "name text key 'broken:text:map.refs.name' is not defined in any language",
-        "portal at (0, 0) leads to unknown map 'broken:map:nowhere'",
-        "portal at (0, 0) lands outside map 'broken:map:glyph'",
+        "portal 'refs-a' at (0, 0) links to 'nowhere', which no loaded map has",
+        "portal 'refs-b' at (0, 0) lands ahead of 'glyph-out' on 'broken:map:glyph', outside the map",
         "portal marker surface 'floor' is a Floor surface, not Object",
         "portal marker surface 'nowhere' is not in tileset 'broken:tileset:bad'",
         "encounter 0 monster 'broken:monster:none' is not defined by any loaded pack",
@@ -418,4 +424,57 @@ fn every_placement_error_is_reported() {
         "portal at (0, 0) lands on (0, 0), where object 'squat' blocks the centre",
     ];
     assert_same(&got, &expected);
+}
+
+/// The entrances and exits enhancement (W1, 2026-11-01; step 2, links): a linked portal lands
+/// ahead of its partner where the party can stand and no portal stands; a link names a portal
+/// some loaded map has, not itself, not one that links to a third, and no portal has two
+/// claimants; an id is one across the loaded maps; every map of the pack that sets the entry is
+/// reached from it once it has a linked portal; a start stands too. The test pack's maps belong
+/// to another pack and are not asked to be reached.
+#[test]
+fn every_entrance_error_is_reported() {
+    let [base, test] = common::test_packs();
+    let got = match load_packs(&[&base, &test, &common::bad_pack("bad-ways")]) {
+        Ok(_) => panic!("bad-ways loaded"),
+        Err(report) => report.messages(),
+    };
+    let expected = [
+        // data/maps/stand.ron
+        "start (2, 0) is on no ground",
+        "portal 'a' at (0, 0) links to 'gone', which no loaded map has",
+        "portal 'b' at (0, 0) lands ahead of 'c' on 'ways:map:stand' at (2, 0), where there is no ground",
+        "portal 'c' at (3, 0) lands ahead of 'b' on 'ways:map:stand' at (1, 0), which the party cannot enter",
+        "portal 'd' links to 'e', which links to 'f'",
+        "portal 'e' at (5, 0) is linked with both 'f' on 'ways:map:stand' and 'd' on 'ways:map:stand'",
+        "portal 'f' at (6, 0) lands ahead of 'e' on 'ways:map:stand' at (4, 0), where a portal stands",
+        "portal 'i' at (8, 0) lands ahead of 'h' on 'ways:map:stand', outside the map",
+        "portal 'g' at (9, 0) links to itself",
+        "portal id 'dup' is also on 'ways:map:foot'",
+        // data/maps/foot.ron
+        "start (0, 0) is on a tile the party cannot enter",
+        "portal id 'dup' is also on 'ways:map:stand'",
+        // data/maps/up.ron (W1 step 3: the start on an upper floor, over no ground)
+        "start (0, 0) on level 1 is on no ground",
+        // data/maps/far.ron (the start on a level the map does not have)
+        "start at (0, 0) is on level 3, which the map does not have",
+    ];
+    assert_same(&got, &expected);
+}
+
+/// Reachability is asked of a world whose links are sound (an erring link would cut off every
+/// map beyond it and say so for each): the `bad-reach` corpus has that one fault alone.
+#[test]
+fn a_map_nothing_leads_to_is_the_one_error_of_a_sound_world() {
+    let [base, test] = common::test_packs();
+    let got = match load_packs(&[&base, &test, &common::bad_pack("bad-reach")]) {
+        Ok(_) => panic!("bad-reach loaded"),
+        Err(report) => report.messages(),
+    };
+    assert_eq!(
+        got,
+        [
+            "map 'reach:map:foot' cannot be reached from the entry map 'reach:map:stand' through portals"
+        ]
+    );
 }

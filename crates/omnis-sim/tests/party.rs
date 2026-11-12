@@ -412,7 +412,7 @@ fn the_ops_expose_the_party_and_the_rules() {
     let get =
         |world: &mut World, slot: &str| dispatch(world, &data, &Op::RulesGet { slot: slot.into() });
     assert!(
-        matches!(get(&mut world, "spell_points.pool").unwrap(), Reply::Rule { rule } if rule.inputs.len() == 4 && rule.source.starts_with("max("))
+        matches!(get(&mut world, "spell_points.pool").unwrap(), Reply::Rule { rule, .. } if rule.inputs.len() == 4 && rule.source.starts_with("max("))
     );
     assert_eq!(
         get(&mut world, "nope").unwrap_err(),

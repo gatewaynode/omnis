@@ -7,7 +7,8 @@ use omnis_cli::Headless;
 use omnis_cli::omnis_sim::api::{examine, save_files};
 use omnis_cli::omnis_sim::omnis_core::{Facing, Position};
 use omnis_cli::omnis_sim::omnis_data::Disposition;
-use omnis_cli::omnis_sim::ops::{PROTOCOL, SlotView};
+use omnis_cli::omnis_sim::omnis_data::rules::{Beaten, RuleKind};
+use omnis_cli::omnis_sim::ops::{PROTOCOL, RuleOrigin, SlotView};
 use omnis_cli::omnis_sim::{
     Command, EncounterSource, EncounterState, Mode, Op, Reply, Stack, ops::client_path,
 };
@@ -55,14 +56,28 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Value { .. } => "value",
         Reply::Done { .. } => "done",
         Reply::Check { .. } => "check",
+        Reply::Editor { .. } => "editor",
+        Reply::Maps { .. } => "maps",
+        Reply::Files { .. } => "files",
+        Reply::File { .. } => "file",
+        Reply::Checked { .. } => "checked",
+        Reply::Note { .. } => "note",
+        Reply::Notes { .. } => "notes",
+        Reply::Kinds { .. } => "kinds",
+        Reply::Definitions { .. } => "definitions",
+        Reply::Definition { .. } => "definition",
+        Reply::Words { .. } => "words",
     }
 }
 
-const EVERY: usize = 20;
+const EVERY: usize = 31;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
-    let packs = vec![repo().join("packs/base"), repo().join("packs/test")];
+    let packs = vec![
+        repo().join("packs/base"),
+        repo().join("crates/omnis-sim/tests/packs/test"),
+    ];
     let mut game = Headless::new(packs, 1).unwrap();
     let ask = |game: &mut Headless, op: Op| game.handle(&op).unwrap();
     let mut replies = vec![
@@ -112,7 +127,37 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         // The host ops need files; their replies are built as the hosts build them.
         Reply::Written {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
+            version: None,
         },
+        // The editor's, read-only on the shipped pack (M5.3): nothing is written.
+        ask(
+            &mut game,
+            Op::EditorOpen {
+                map: "test:map:town".into(),
+            },
+        ),
+        ask(&mut game, Op::EditorMaps),
+        ask(&mut game, Op::EditorFiles),
+        ask(
+            &mut game,
+            Op::EditorRead {
+                path: "data/maps/town.ron".into(),
+            },
+        ),
+        ask(
+            &mut game,
+            Op::EditorCheck {
+                path: "data/maps/town.ron".into(),
+                text: "(schema: 1)".into(),
+            },
+        ),
+        ask(
+            &mut game,
+            Op::EditorNote {
+                key: "test:map:town".into(),
+            },
+        ),
+        ask(&mut game, Op::EditorNotes { prefix: None }),
         check(&game),
         Reply::Rule {
             rule: SlotView {
@@ -120,6 +165,18 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
                 inputs: vec!["level".into()],
                 source: "level".into(),
             },
+            origin: Some(RuleOrigin {
+                kind: RuleKind::Slot,
+                name: "x".into(),
+                file: "test:rules:x".into(),
+                pack: "test".into(),
+                priority: 100,
+                overrides: vec![Beaten {
+                    file: "base:rules:x".into(),
+                    pack: "base".into(),
+                    priority: 0,
+                }],
+            }),
         },
     ];
     let town = game.data.registry.maps.get("test:map:town").unwrap();
@@ -155,6 +212,39 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         retreat: game.world.position,
     });
     replies.push(ask(&mut game, Op::CombatGet));
+    replies.push(ask(&mut game, Op::DataKinds));
+    replies.push(ask(
+        &mut game,
+        Op::DataList {
+            kind: Some("monster".into()),
+            prefix: None,
+            matching: None,
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: Some(2),
+        },
+    ));
+    // A map is the largest definition and a region the one written again from the loaded one.
+    for id in ["test:map:town", "test:region:dungeon", "base:class:wizard"] {
+        replies.push(ask(
+            &mut game,
+            Op::DataGet {
+                id: id.into(),
+                lang: None,
+            },
+        ));
+    }
+    replies.push(ask(
+        &mut game,
+        Op::DataText {
+            keys: vec![
+                "base:text:item.mace.name".into(),
+                "base:text:no.such".into(),
+            ],
+            lang: None,
+        },
+    ));
 
     let mut seen = BTreeSet::new();
     for reply in &replies {
@@ -203,4 +293,87 @@ fn migrate_is_optional_on_the_wire() {
     let applied: Op =
         serde_json::from_str(r#"{"op":"pack.reload","args":{"migrate":true}}"#).unwrap();
     assert_eq!(applied, Op::PackReload { migrate: true });
+}
+
+/// `data.get` on the wire (W1): the envelope's fields beside `def`, the definition as its pack
+/// wrote it, and `kind` the word the id carries. A client reads it back as the same reply.
+#[test]
+fn a_definition_is_an_envelope_around_the_definition_as_written() {
+    let packs = vec![
+        repo().join("packs/base"),
+        repo().join("crates/omnis-sim/tests/packs/test"),
+    ];
+    let mut game = Headless::new(packs, 1).unwrap();
+    let reply = game
+        .handle(&Op::DataGet {
+            id: "base:item:mace".into(),
+            lang: None,
+        })
+        .unwrap();
+    let json = serde_json::to_value(&reply).unwrap();
+    assert_eq!(json["reply"], "definition");
+    let view = &json["definition"];
+    let fields: Vec<&str> = view
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        fields,
+        [
+            "def", "id", "kind", "name", "pack", "refers", "replaces", "words"
+        ]
+    );
+    assert_eq!(view["id"], "base:item:mace");
+    assert_eq!(view["kind"], "item");
+    assert_eq!(view["name"], "base:text:item.mace.name");
+    assert_eq!(view["words"]["base:text:item.mace.name"], "Mace");
+    assert_eq!(view["pack"], "base");
+    assert_eq!(view["refers"], serde_json::json!([]));
+    assert_eq!(view["replaces"], serde_json::json!([]));
+    // `def` is the file's own shape: its id, its schema, its fields as the pack format has them.
+    assert_eq!(view["def"]["id"], "base:item:mace");
+    assert_eq!(view["def"]["schema"], 1);
+    assert_eq!(view["def"]["cost_cp"], 500);
+    assert_eq!(serde_json::from_value::<Reply>(json).unwrap(), reply);
+    // A map's `def` carries its terrains, the rows a viewport tile's `terrain` counts.
+    let town = game
+        .handle(&Op::DataGet {
+            id: "test:map:town".into(),
+            lang: None,
+        })
+        .unwrap();
+    let json = serde_json::to_value(&town).unwrap();
+    assert_eq!(json["definition"]["kind"], "map");
+    assert!(
+        !json["definition"]["def"]["terrains"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(serde_json::from_value::<Reply>(json).unwrap(), town);
+    // A row of a listing is the same envelope without the definition.
+    let page = game
+        .handle(&Op::DataList {
+            kind: Some("item".into()),
+            prefix: Some("base:item:mace".into()),
+            matching: None,
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: None,
+        })
+        .unwrap();
+    let json = serde_json::to_value(&page).unwrap();
+    assert!(json["cursor"].is_null());
+    let row = &json["definitions"][0];
+    let fields: Vec<&str> = row
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(fields, ["id", "kind", "name", "pack", "replaces", "words"]);
+    assert_eq!(row["words"]["base:text:item.mace.name"], "Mace");
 }

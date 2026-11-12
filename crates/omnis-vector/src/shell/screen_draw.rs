@@ -1,10 +1,12 @@
 //! A screen's nodes (presentation-ARCHITECTURE §6.4): the heading, the panels side by side, each
 //! row's text and controls, and the outcome line, drawn in the style's roles and sizes. A button
 //! is a bordered box; a choice its name between two arrows; a number its name, arrows and a
-//! slider; a text field an underlined editable line. The markers here let the router find what
+//! slider; a text field an underlined editable line; an icon a square box with its image
+//! (`shell/icons.rs` draws and keeps the images). The markers here let the router find what
 //! was used and the renderer rewrite words in place. Headless-safe.
 
-use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen};
+use super::icons::{self, IconOf, NeedsIcon};
+use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::input_focus::AutoFocus;
@@ -33,6 +35,11 @@ pub struct Side(pub ControlId);
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FightPress(pub ControlId);
 
+/// A control of the editor's layer (M5.4): pressing it uses the editor's control, never the
+/// top screen's.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditorPress(pub ControlId);
+
 /// Which router a panel's controls go to, and so how its nodes are marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mark {
@@ -42,6 +49,44 @@ pub(super) enum Mark {
     Side,
     /// The fight's: `FightPress`, redrawn whole when it changes.
     Fight,
+    /// The editor's columns: `EditorPress` (its text fields too), and the markers their words
+    /// are rewritten in place by (M5.6: a form's field keeps its caret while the words around
+    /// it change).
+    Editor,
+}
+
+impl Mark {
+    /// Whether the words drawn under this mark carry the markers to be rewritten in place.
+    const fn rewrites(self) -> bool {
+        matches!(self, Mark::Screen | Mark::Editor)
+    }
+}
+
+/// How a screen's nodes are spawned: for which screen (none for rows that are no screen's, the
+/// party column's), at what window height, marked for which router, and the field that keeps
+/// the keyboard.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Spawn {
+    pub(super) id: Option<ScreenId>,
+    pub(super) height: f32,
+    pub(super) mark: Mark,
+    pub(super) keep: Option<ControlId>,
+}
+
+impl Spawn {
+    /// The screen marker of a word rewritten in place, when this mark rewrites.
+    fn rewriting(self) -> Option<OfScreen> {
+        self.id.filter(|_| self.mark.rewrites()).map(OfScreen)
+    }
+}
+
+/// The words of control `id` (a choice's option, a number's value, a button's label), marked to
+/// be rewritten in place when the mark rewrites.
+fn labelled<B: Bundle>(b: &mut ChildSpawnerCommands, bundle: B, id: ControlId, spawn: Spawn) {
+    let mut current = b.spawn(bundle);
+    if let Some(of) = spawn.rewriting() {
+        current.insert((LabelOf(id), of));
+    }
 }
 
 /// A number's slider: moving it sets the number.
@@ -64,12 +109,28 @@ pub(super) struct TitleText;
 #[derive(Component)]
 pub(super) struct MessageText;
 
+/// Which screen a marked word belongs to: `sync` rewrites one screen's words and leaves the
+/// others' (the editor's columns stand beside each other, each a screen of its own).
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct OfScreen(pub(super) ScreenId);
+
+/// A screen's words on screen: the heading, a span, a control's label or the outcome, by marker.
+pub(super) type Placed = (
+    &'static mut Text,
+    &'static mut TextColor,
+    Option<&'static TitleText>,
+    Option<&'static SpanAt>,
+    Option<&'static LabelOf>,
+    Option<&'static MessageText>,
+    Option<&'static OfScreen>,
+);
+
 /// A screen's panel: its rows scroll when the screen is taller than the window.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Scrolls;
 
 /// How far one line of a mouse wheel scrolls a panel, in logical pixels.
-const WHEEL_LINE: f32 = 40.0;
+pub(super) const WHEEL_LINE: f32 = 40.0;
 
 /// `role`'s colour.
 #[must_use]
@@ -85,10 +146,15 @@ pub fn shade(i: usize) -> Color {
     Color::srgb(r, g, b)
 }
 
-/// The editable line of a text field holding `value`, taking at most `max` characters.
-pub(super) fn text_field(value: &str, max: usize) -> EditableText {
+/// The editable text of a field holding `value`, taking at most `max` characters, on `lines`
+/// lines: one is a line, more take Enter as a line break and show that many lines.
+pub(super) fn text_field(value: &str, max: usize, lines: u8) -> EditableText {
     let mut field = EditableText::new(value);
     field.max_characters = Some(max);
+    if lines > 1 {
+        field.allow_newlines = true;
+        field.visible_lines = Some(f32::from(lines));
+    }
     field
 }
 
@@ -109,7 +175,9 @@ pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> Strin
     match &control.kind {
         Kind::Choice { options, at } => return options.get(*at).cloned().unwrap_or_default(),
         Kind::Number { value, .. } => return value.to_string(),
-        Kind::Button | Kind::Text { .. } => {}
+        Kind::Icon { name, .. } => return (*name).to_owned(),
+        Kind::Swatch { glyph, .. } => return glyph.to_string(),
+        Kind::Button | Kind::Text { .. } | Kind::Document { .. } => {}
     }
     match &control.why_not {
         Some(why) => format!("{}: {why}", control.label),
@@ -137,23 +205,144 @@ pub(super) fn words(
     )
 }
 
+/// The least width of a control's box: 150 for every screen, and 120 under the editor's mark,
+/// the one exception: its tools column is 330 px and holds its buttons two to a row (the
+/// owner's column, 2026-10-25).
+fn least_width(mark: Mark) -> f32 {
+    match mark {
+        Mark::Editor => 120.0,
+        Mark::Screen | Mark::Side | Mark::Fight => 150.0,
+    }
+}
+
+/// A control's box node.
+fn boxed_node(height: f32, mark: Mark) -> Node {
+    Node {
+        min_width: Val::Px(scaled(least_width(mark), height)),
+        // At least this tall; a long reason wraps inside the box rather than out of it.
+        min_height: Val::Px(scaled(34.0, height)),
+        padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
+        border: UiRect::all(Val::Px(1.0)),
+        column_gap: Val::Px(scaled(10.0, height)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
 /// A bordered box, as every control is drawn.
-fn boxed(role: Role, height: f32) -> impl Bundle {
+fn boxed(role: Role, height: f32, mark: Mark) -> impl Bundle {
     (
+        boxed_node(height, mark),
+        BorderColor::all(colour(role)),
+        BackgroundColor(shade(0)),
+    )
+}
+
+/// The marker of `mark`'s router on a pressable node.
+fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
+    match mark {
+        Mark::Screen => entity.insert(Pressable(id)),
+        Mark::Side => entity.insert(Side(id)),
+        Mark::Fight => entity.insert(FightPress(id)),
+        Mark::Editor => entity.insert(EditorPress(id)),
+    };
+}
+
+/// The square box of an icon or a swatch: framed twice as thick when chosen, pressable unless
+/// dim (no `Button` then).
+fn square<'a>(
+    parent: &'a mut ChildSpawnerCommands,
+    c: &Control,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) -> EntityCommands<'a> {
+    let side = scaled(44.0, spawn.height);
+    let mut entity = parent.spawn((
         Node {
-            min_width: Val::Px(scaled(150.0, height)),
-            // At least this tall; a long reason wraps inside the box rather than out of it.
-            min_height: Val::Px(scaled(34.0, height)),
-            padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
-            border: UiRect::all(Val::Px(1.0)),
-            column_gap: Val::Px(scaled(10.0, height)),
+            width: Val::Px(side),
+            height: Val::Px(side),
+            flex_shrink: 0.0,
+            border: UiRect::all(Val::Px(if chosen { 2.0 } else { 1.0 })),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..default()
         },
         BorderColor::all(colour(role)),
         BackgroundColor(shade(0)),
-    )
+    ));
+    pressed_by(&mut entity, spawn.mark, c.id);
+    if c.why_not.is_none() {
+        entity.insert(Button);
+    }
+    entity
+}
+
+/// A swatch control's nodes: the square box holding a filled square of the colour and the glyph
+/// over it, black on a light colour and white on a dark one (the text readers print the glyph
+/// under its `[button]`).
+fn swatch_node(
+    parent: &mut ChildSpawnerCommands,
+    c: &Control,
+    (r, g, b): (u8, u8, u8),
+    glyph: char,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) {
+    let height = spawn.height;
+    let inner = scaled(28.0, height);
+    let light = u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114 > 128 * 1000;
+    let ink = if light { Color::BLACK } else { Color::WHITE };
+    square(parent, c, chosen, role, spawn).with_children(|box_| {
+        box_.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(inner),
+                height: Val::Px(inner),
+                ..default()
+            },
+            BackgroundColor(Color::srgb_u8(r, g, b)),
+        ));
+        let mut words = words(&glyph.to_string(), Role::Interface, Size::Small, height);
+        words.2 = TextColor(ink);
+        box_.spawn(words);
+    });
+}
+
+/// An icon control's nodes: the square box holding the icon's image (asked for through
+/// `NeedsIcon`, white when chosen, else the role's colour) named by `IconOf` for the text
+/// readers.
+fn icon_node(
+    parent: &mut ChildSpawnerCommands,
+    c: &Control,
+    name: &'static str,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) {
+    let height = spawn.height;
+    let mut entity = square(parent, c, chosen, role, spawn);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let px = scaled(28.0, height).round().max(1.0) as u32;
+    let colour = if chosen {
+        icons::CHOSEN
+    } else {
+        icons::tint(role)
+    };
+    entity.with_children(|b| {
+        #[allow(clippy::cast_precision_loss)]
+        b.spawn((
+            Node {
+                width: Val::Px(px as f32),
+                height: Val::Px(px as f32),
+                ..default()
+            },
+            IconOf(name),
+            NeedsIcon { name, px, colour },
+        ));
+    });
 }
 
 /// A choice's or a number's arrow: a small pressable box.
@@ -257,75 +446,92 @@ pub(super) fn thumbs(
 /// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
-/// editable line, which takes the keyboard when drawn unless `keep` names another field: the
-/// field that had it when the screen was drawn anew keeps it.
+/// editable line, which takes the keyboard when drawn if `keep` names it, or names nothing and
+/// the field is the top screen's: the field that had it when the screen was drawn anew keeps it.
 fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
     c: &Control,
     tint: Option<Role>,
-    (height, mark): (f32, Mark),
-    keep: Option<ControlId>,
+    spawn: Spawn,
 ) {
+    let Spawn {
+        height, mark, keep, ..
+    } = spawn;
     let role = if c.why_not.is_some() {
         Role::Dim
     } else {
         tint.unwrap_or(Role::Interface)
     };
     match &c.kind {
+        Kind::Icon { name, chosen } => icon_node(parent, c, name, *chosen, role, spawn),
+        Kind::Swatch { rgb, glyph, chosen } => {
+            swatch_node(parent, c, *rgb, *glyph, *chosen, role, spawn);
+        }
         Kind::Button => {
-            let mut entity = parent.spawn(boxed(role, height));
-            match mark {
-                Mark::Screen => entity.insert(Pressable(c.id)),
-                Mark::Side => entity.insert(Side(c.id)),
-                Mark::Fight => entity.insert(FightPress(c.id)),
-            };
+            let mut entity = parent.spawn(boxed(role, height, mark));
+            pressed_by(&mut entity, mark, c.id);
             if c.why_not.is_none() {
                 entity.insert(Button);
             }
             entity.with_children(|b| {
-                let label = words(&shown_label(keys, c), role, Size::Body, height);
-                match mark {
-                    Mark::Screen => b.spawn((LabelOf(c.id), label)),
-                    Mark::Side | Mark::Fight => b.spawn(label),
-                };
+                labelled(
+                    b,
+                    words(&shown_label(keys, c), role, Size::Body, height),
+                    c.id,
+                    spawn,
+                );
             });
         }
         Kind::Choice { .. } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
+            parent.spawn(boxed(role, height, mark)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
-                let mut current = b.spawn(words(&shown_label(keys, c), role, Size::Body, height));
-                if mark == Mark::Screen {
-                    current.insert(LabelOf(c.id));
-                }
+                labelled(
+                    b,
+                    words(&shown_label(keys, c), role, Size::Body, height),
+                    c.id,
+                    spawn,
+                );
                 arrow(b, c.id, true, height);
             });
         }
         Kind::Number { value, min, max } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
+            parent.spawn(boxed(role, height, mark)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
                 slider(b, c.id, *value, (*min, *max), height);
-                let mut current = b.spawn((
-                    words(&shown_label(keys, c), role, Size::Body, height),
-                    Node {
-                        min_width: Val::Px(scaled(22.0, height)),
-                        ..default()
-                    },
-                ));
-                if mark == Mark::Screen {
-                    current.insert(LabelOf(c.id));
-                }
+                labelled(
+                    b,
+                    (
+                        words(&shown_label(keys, c), role, Size::Body, height),
+                        Node {
+                            min_width: Val::Px(scaled(22.0, height)),
+                            ..default()
+                        },
+                    ),
+                    c.id,
+                    spawn,
+                );
                 arrow(b, c.id, true, height);
             });
         }
-        Kind::Text { value, max } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
+        Kind::Text { value, max, lines } => {
+            let mut boxed = parent.spawn(boxed(role, height, mark));
+            if *lines > 1 {
+                boxed.insert(Node {
+                    flex_grow: 1.0,
+                    width: Val::Percent(100.0),
+                    align_items: AlignItems::FlexStart,
+                    ..boxed_node(height, mark)
+                });
+            }
+            boxed.with_children(|b| {
+                if !c.label.is_empty() {
+                    b.spawn(words(&c.label, role, Size::Body, height));
+                }
                 let mut field = b.spawn((
-                    Pressable(c.id),
-                    text_field(value, *max),
+                    text_field(value, *max, *lines),
                     TextFont {
                         font_size: FontSize::Px(Size::Body.px(height)),
                         ..default()
@@ -333,15 +539,50 @@ fn control_node(
                     TextColor(colour(Role::Interface)),
                     // Without a style no cursor is drawn; Bevy's default is too dark to see here.
                     cursor_style(),
-                    // Underlined, so an empty field still shows where to type.
+                    // Underlined, so an empty field still shows where to type; a field of
+                    // several lines takes its row's width (a note across the inspector, a
+                    // file's text across the centre, M5.9).
                     Node {
                         min_width: Val::Px(scaled(260.0, height)),
+                        width: if *lines > 1 {
+                            Val::Percent(100.0)
+                        } else {
+                            Val::Auto
+                        },
+                        flex_grow: if *lines > 1 { 1.0 } else { 0.0 },
                         border: UiRect::bottom(Val::Px(1.0)),
                         ..default()
                     },
                     BorderColor::all(colour(Role::Dim)),
                 ));
-                if keep.is_none_or(|kept| kept == c.id) {
+                // Typed text goes to the router the control does.
+                match mark {
+                    Mark::Editor => field.insert(EditorPress(c.id)),
+                    Mark::Screen | Mark::Side | Mark::Fight => field.insert(Pressable(c.id)),
+                };
+                // The top screen's own field takes the keyboard when none is named; the
+                // editor's columns give it only to the field named (a rebuild for any other
+                // reason leaves it where it was, which may be nowhere).
+                let takes = match keep {
+                    Some(kept) => kept == c.id,
+                    None => mark != Mark::Editor,
+                };
+                if takes {
+                    field.insert(AutoFocus);
+                }
+            });
+        }
+        Kind::Document { value, max } => {
+            let takes = match keep {
+                Some(kept) => kept == c.id,
+                None => mark != Mark::Editor,
+            };
+            super::document::spawn(parent, value, *max, height, |field| {
+                match mark {
+                    Mark::Editor => field.insert(EditorPress(c.id)),
+                    Mark::Screen | Mark::Side | Mark::Fight => field.insert(Pressable(c.id)),
+                };
+                if takes {
                     field.insert(AutoFocus);
                 }
             });
@@ -358,21 +599,38 @@ pub(super) fn width(screen: &Screen, height: f32) -> f32 {
 }
 
 /// A panel's rows under `column`, one line each: its text, its controls, the text after them.
-/// The top screen's spans carry `SpanAt` so their words can be rewritten in place.
+/// Under a mark that rewrites, the spans carry `SpanAt` so their words can be rewritten in place.
 pub(super) fn rows(
     column: &mut ChildSpawnerCommands,
     p: usize,
     panel: &Panel,
     keys: &[(Key, ControlId)],
-    (height, mark): (f32, Mark),
-    keep: Option<ControlId>,
+    spawn: Spawn,
 ) {
-    let gap = Val::Px(scaled(6.0, height));
+    let gap = Val::Px(scaled(6.0, spawn.height));
     for (r, row) in panel.rows.iter().enumerate() {
+        // A document's row takes the panel's remaining height (the document scrolls inside it)
+        // and so is the one row allowed to be shorter than its content; every other row keeps
+        // its content's height and a crowded panel scrolls (a zero minimum on all rows let them
+        // shrink into one another; the owner, 2026-10-25).
+        let fills = row
+            .controls
+            .iter()
+            .any(|c| matches!(c.kind, Kind::Document { .. }));
         column
             .spawn(Node {
-                flex_wrap: FlexWrap::Wrap,
-                align_items: AlignItems::Center,
+                flex_wrap: if fills {
+                    FlexWrap::NoWrap
+                } else {
+                    FlexWrap::Wrap
+                },
+                align_items: if fills {
+                    AlignItems::Stretch
+                } else {
+                    AlignItems::Center
+                },
+                flex_grow: if fills { 1.0 } else { 0.0 },
+                min_height: if fills { Val::Px(0.0) } else { Val::Auto },
                 column_gap: gap,
                 row_gap: gap,
                 ..default()
@@ -380,31 +638,75 @@ pub(super) fn rows(
             .with_children(|line| {
                 let before = row.spans.len();
                 for (s, span) in row.spans.iter().enumerate() {
-                    span_node(line, (p, r, s), span, height, mark);
+                    span_node(line, (p, r, s), span, spawn);
                 }
                 for c in &row.controls {
-                    control_node(line, keys, c, row.tint, (height, mark), keep);
+                    control_node(line, keys, c, row.tint, spawn);
                 }
                 for (s, span) in row.after.iter().enumerate() {
-                    span_node(line, (p, r, before + s), span, height, mark);
+                    span_node(line, (p, r, before + s), span, spawn);
                 }
             });
     }
 }
 
-/// A span's words; the top screen's carry where they are, to be rewritten in place.
+/// A span's words; under a mark that rewrites they carry where they are, to be rewritten in
+/// place.
 fn span_node(
     line: &mut ChildSpawnerCommands,
     (p, r, s): (usize, usize, usize),
     span: &crate::screen::Span,
-    height: f32,
-    mark: Mark,
+    spawn: Spawn,
 ) {
-    let text = words(&span.text, span.role, span.size, height);
-    match mark {
-        Mark::Screen => line.spawn((SpanAt(p, r, s), text)),
-        Mark::Side | Mark::Fight => line.spawn(text),
-    };
+    let text = words(&span.text, span.role, span.size, spawn.height);
+    let mut node = line.spawn(text);
+    if let Some(of) = spawn.rewriting() {
+        node.insert((SpanAt(p, r, s), of));
+    }
+}
+
+/// The words and role a placed text should show now, or `None` when the screen has no such text.
+fn wanted(
+    screen: &Screen,
+    title: Option<&TitleText>,
+    span: Option<&SpanAt>,
+    label: Option<&LabelOf>,
+    message: Option<&MessageText>,
+) -> Option<(String, Role)> {
+    if title.is_some() {
+        return Some((screen.title.text.clone(), screen.title.role));
+    }
+    if let Some(at) = span {
+        let span = screen.panels.get(at.0)?.rows.get(at.1)?.span(at.2)?;
+        return Some((span.text.clone(), span.role));
+    }
+    if let Some(of) = label {
+        let c = screen.control(of.0)?;
+        let role = if c.why_not.is_some() {
+            Role::Dim
+        } else {
+            Role::Interface
+        };
+        return Some((shown_label(&screen.keys, c), role));
+    }
+    message?;
+    screen.message.as_ref().map(|m| (m.text.clone(), m.role))
+}
+
+/// Rewrite the words of `screen`, whose shape is unchanged, in place; the words of other
+/// screens standing beside it are left alone.
+pub(super) fn sync(screen: &Screen, placed: &mut Query<Placed>) {
+    for (mut text, mut tint, title, span, label, message, of) in placed.iter_mut() {
+        if of.is_some_and(|of| of.0 != screen.id) {
+            continue;
+        }
+        if let Some((words, role)) = wanted(screen, title, span, label, message) {
+            if text.0 != words {
+                text.0 = words;
+            }
+            tint.0 = colour(role);
+        }
+    }
 }
 
 /// Where a wheel's `dy` takes a panel scrolled to `at` whose rows run `max` past its foot: from
@@ -418,28 +720,43 @@ pub fn wheeled(at: f32, dy: f32, max: f32) -> f32 {
 /// A scroll position past any foot: the layout shows the panel's foot (the full log's lines).
 pub const SCROLL_FOOT: f32 = f32::MAX;
 
-/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out.
+/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out; its
+/// sideways motion, or Shift with it, scrolls a document across (M5.9c).
 pub(super) fn wheel(
     scroll: Res<AccumulatedMouseScroll>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut panels: Query<(&RelativeCursorPosition, &ComputedNode, &mut ScrollPosition), With<Scrolls>>,
 ) {
-    let dy = match scroll.unit {
-        MouseScrollUnit::Line => scroll.delta.y * WHEEL_LINE,
-        MouseScrollUnit::Pixel => scroll.delta.y,
+    let unit = match scroll.unit {
+        MouseScrollUnit::Line => WHEEL_LINE,
+        MouseScrollUnit::Pixel => 1.0,
     };
-    if dy == 0.0 {
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let (dx, dy) = if shift {
+        (scroll.delta.y * unit, 0.0)
+    } else {
+        (scroll.delta.x * unit, scroll.delta.y * unit)
+    };
+    if dx == 0.0 && dy == 0.0 {
         return;
     }
     for (cursor, node, mut at) in &mut panels {
         if cursor.cursor_over() {
-            // How far the rows run past the foot, in logical pixels; unbounded until laid out.
-            let max = if node.size.y > 0.0 {
-                ((node.content_size.y - node.size.y) * node.inverse_scale_factor).max(0.0)
-            } else {
-                f32::INFINITY
+            // How far the content runs past the area, in logical pixels; unbounded until laid out.
+            let past = |content: f32, size: f32| {
+                if size > 0.0 {
+                    ((content - size) * node.inverse_scale_factor).max(0.0)
+                } else {
+                    f32::INFINITY
+                }
             };
-            // Wheel up (a positive delta) shows what is above.
-            at.0.y = wheeled(at.0.y, dy, max);
+            // Wheel up (a positive delta) shows what is above; wheel left what is to the left.
+            if dy != 0.0 {
+                at.0.y = wheeled(at.0.y, dy, past(node.content_size.y, node.size.y));
+            }
+            if dx != 0.0 {
+                at.0.x = wheeled(at.0.x, dx, past(node.content_size.x, node.size.x));
+            }
         }
     }
 }
@@ -479,7 +796,10 @@ pub(super) fn bars(
             continue;
         };
         // Half a pixel of slack, so rounding never shows a bar with nothing to scroll.
-        let over = area.content_size().y > area.size().y + 0.5;
+        let over = match bar.orientation {
+            ControlOrientation::Vertical => area.content_size().y > area.size().y + 0.5,
+            ControlOrientation::Horizontal => area.content_size().x > area.size().x + 0.5,
+        };
         shown.set_if_neq(if over {
             Visibility::Visible
         } else {
@@ -499,18 +819,24 @@ fn grow(screen: &Screen, panel: usize) -> (f32, Val) {
 }
 
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
-/// The top screen's words carry the markers they are rewritten in place by. `keep` is the field
-/// that had the keyboard, which keeps it.
+/// Under a mark that rewrites, the words carry the markers they are rewritten in place by
+/// (`sync`). `keep` is the field that had the keyboard, which keeps it.
 pub(super) fn build(
     parent: &mut ChildSpawnerCommands,
     screen: &Screen,
     (height, mark): (f32, Mark),
     keep: Option<ControlId>,
 ) {
+    let spawn = Spawn {
+        id: Some(screen.id),
+        height,
+        mark,
+        keep,
+    };
     let t = &screen.title;
     let mut title = parent.spawn(words(&t.text, t.role, t.size, height));
-    if mark == Mark::Screen {
-        title.insert(TitleText);
+    if let Some(of) = spawn.rewriting() {
+        title.insert((TitleText, of));
     }
     parent
         .spawn(Node {
@@ -549,7 +875,7 @@ pub(super) fn build(
                                 RelativeCursorPosition::default(),
                             ))
                             .with_children(|column| {
-                                rows(column, p, panel, &screen.keys, (height, mark), keep);
+                                rows(column, p, panel, &screen.keys, spawn);
                             })
                             .id();
                         scrollbar(pane, rows_at, height);
@@ -558,8 +884,8 @@ pub(super) fn build(
         });
     if let Some(m) = &screen.message {
         let mut message = parent.spawn(words(&m.text, m.role, m.size, height));
-        if mark == Mark::Screen {
-            message.insert(MessageText);
+        if let Some(of) = spawn.rewriting() {
+            message.insert((MessageText, of));
         }
     }
 }

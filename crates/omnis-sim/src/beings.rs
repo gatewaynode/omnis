@@ -115,6 +115,17 @@ pub fn on_level(world: &World, data: &Data, map: MapId, level: Level) -> Vec<Bei
         .collect()
 }
 
+/// Every group of `level` of `map` with a stand, as the map places it, for an editor's preview
+/// (M5.7): nothing cleared, nothing met. The map need not be among `data`'s. In file order.
+#[must_use]
+pub fn standing_as_placed(data: &Data, map: &omnis_data::MapData, level: Level) -> Vec<BeingView> {
+    map.encounters
+        .iter()
+        .filter(|e| e.level == level)
+        .filter_map(|e| view(data, e, e.stand.as_ref()?))
+        .collect()
+}
+
 /// The groups standing in reach: in the party's cell or the one it faces across an open edge,
 /// on its level, in file order.
 pub(crate) fn reached(world: &World, data: &Data) -> Vec<BeingView> {

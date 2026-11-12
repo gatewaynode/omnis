@@ -6,7 +6,6 @@ use crate::SCHEMA;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
-use crate::encounter;
 use crate::error::{DataError, LoadReport};
 use crate::flag::{FlagDef, FlagScope};
 use crate::item::Item;
@@ -15,20 +14,19 @@ use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
 use crate::loot::LootTable;
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::MapDef;
-use crate::map_data::{MapData, ResolvedPortal};
+use crate::map_data::{self, MapData, ResolvedPortal};
 use crate::migration::{self, Migration, Migrations, PackMigration};
 use crate::monster::Monster;
+use crate::notes::NotesFile;
 use crate::object::ObjectKind;
-use crate::placement;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
-use crate::rest_event;
 use crate::ron_io::{from_str, read_text};
-use crate::rules::RulesFile;
-use crate::service::{self, ServiceDef};
+use crate::rules::{RulesFile, Standings};
+use crate::service::ServiceDef;
 use crate::spell::Spell;
 use crate::text::TextFile;
-use crate::tileset::{SlotKind, Tileset};
+use crate::tileset::Tileset;
 use omnis_core::{
     BackgroundId, Calendar, ClassId, ConditionId, FlagId, ItemId, Level, LootTableId, MapId,
     MonsterId, ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
@@ -85,6 +83,10 @@ pub struct Data {
     pub services: BTreeMap<ServiceId, ServiceDef>,
     /// The compiled rule set from every `data/rules` file.
     pub rules: Rules,
+    /// Where each slot, value and table of `rules` came from, and what it beat.
+    pub standings: Standings,
+    /// The rules files as written, by id.
+    pub rule_files: BTreeMap<String, RulesFile>,
     /// Regions by id.
     pub regions: BTreeMap<RegionId, Region>,
     /// Object kinds by id.
@@ -95,6 +97,9 @@ pub struct Data {
     pub flags: BTreeMap<FlagId, FlagDef>,
     /// Each pack's migrations, by pack id, in file order (M8.5 7h6).
     pub migrations: Migrations,
+    /// The packs that wrote each definition, by its id, in load order: the last supplied the one
+    /// loaded, the others were replaced by it (the catalogue's `pack` and `replaces`).
+    pub sources: BTreeMap<String, Vec<String>>,
 }
 
 impl Data {
@@ -152,6 +157,8 @@ struct Raw {
     content: RawContent,
     /// Every pack's migrations, checked against the loaded packs once all are read.
     migrations: Vec<(PathBuf, String, PackMigration)>,
+    /// The packs that wrote each definition, in load order.
+    sources: BTreeMap<String, Vec<String>>,
 }
 
 /// Load packs from `roots`, in order. A pack's dependencies must appear earlier in the list.
@@ -210,30 +217,9 @@ fn load_one(
         Ok(text) => hasher.add(manifest_rel, &text),
         Err(e) => errors.push(e),
     }
-    if !is_pack_id(&manifest.id) {
-        errors.push(DataError::new(
-            root.join(manifest_rel),
-            format!("pack id '{}' is not [a-z0-9_-]+", manifest.id),
-        ));
-    }
-    for field in [&manifest.version, &manifest.name, &manifest.license] {
-        if field.is_empty() || !string_fits(field) {
-            errors.push(DataError::new(
-                root.join(manifest_rel),
-                "version, name, and license must be non-empty and within the size limit",
-            ));
-            break;
-        }
-    }
-    for dep in &manifest.depends {
-        if !data.packs.iter().any(|p| &p.id == dep) {
-            errors.push(DataError::new(
-                root.join(manifest_rel),
-                format!("depends on '{dep}', which is not loaded before this pack"),
-            ));
-        }
-    }
+    check_manifest(&manifest, &root.join(manifest_rel), &data.packs, errors);
     let pack = manifest.id.clone();
+    let mut supplied = Vec::new();
 
     gather(
         root,
@@ -242,6 +228,7 @@ fn load_one(
         &mut hasher,
         errors,
         &mut raw.tilesets,
+        &mut supplied,
     );
     for rel in list_ron(root, Path::new("data/maps"), errors) {
         let Some(map) = read_checked::<MapDef>(root, &rel, &mut hasher, errors) else {
@@ -251,9 +238,16 @@ fn load_one(
         check_id(&map.id, "map", &file, errors);
         map.validate(&file, errors);
         let levels = levels::parse(&map, &file, errors).unwrap_or_default();
+        supplied.push(map.id.clone());
         raw.maps.insert(map.id.clone(), (file, map, levels));
     }
-    gather_content(root, &mut hasher, errors, &mut raw.content);
+    gather_content(root, &mut hasher, errors, &mut raw.content, &mut supplied);
+    for id in supplied {
+        let packs = raw.sources.entry(id).or_default();
+        if packs.last() != Some(&pack) {
+            packs.push(pack.clone());
+        }
+    }
     for lang in list_dirs(root, Path::new("text"), errors) {
         let lang_name = lang
             .file_name()
@@ -265,21 +259,16 @@ fn load_one(
                 continue;
             };
             let file = root.join(&rel);
-            if text.entries.len() > MAX_COLLECTION {
-                errors.push(DataError::new(&file, "too many entries"));
-                continue;
-            }
             let table = raw.text.entry(lang_name.clone()).or_default();
-            for (key, value) in text.entries {
-                check_id(&key, "text", &file, errors);
-                if !string_fits(&value) {
-                    errors.push(DataError::new(
-                        &file,
-                        format!("text '{key}' is over the size limit"),
-                    ));
-                }
-                table.insert(key, value);
-            }
+            check_text_file(text, &file, table, errors);
+        }
+    }
+    // Author notes are checked like any file but never hashed: they never change play (M5.1).
+    for rel in list_ron(root, Path::new("notes"), errors) {
+        if let Some(notes) =
+            read_checked::<NotesFile>(root, &rel, &mut PackHasher::default(), errors)
+        {
+            notes.validate(&root.join(&rel), errors);
         }
     }
     let mut migrations = Vec::new();
@@ -360,6 +349,62 @@ impl PackHasher {
     }
 }
 
+/// The manifest's own fields: the id's shape, the strings that must be there and fit, and the
+/// dependencies, each a pack loaded before this one.
+pub(crate) fn check_manifest(
+    manifest: &PackManifest,
+    file: &Path,
+    loaded: &[PackManifest],
+    errors: &mut Vec<DataError>,
+) {
+    if !is_pack_id(&manifest.id) {
+        errors.push(DataError::new(
+            file,
+            format!("pack id '{}' is not [a-z0-9_-]+", manifest.id),
+        ));
+    }
+    for field in [&manifest.version, &manifest.name, &manifest.license] {
+        if field.is_empty() || !string_fits(field) {
+            errors.push(DataError::new(
+                file,
+                "version, name, and license must be non-empty and within the size limit",
+            ));
+            break;
+        }
+    }
+    for dep in &manifest.depends {
+        if !loaded.iter().any(|p| &p.id == dep) {
+            errors.push(DataError::new(
+                file,
+                format!("depends on '{dep}', which is not loaded before this pack"),
+            ));
+        }
+    }
+}
+
+/// One text file's entries into `table`: their count, each key's shape, each value's size.
+pub(crate) fn check_text_file(
+    text: TextFile,
+    file: &Path,
+    table: &mut BTreeMap<String, String>,
+    errors: &mut Vec<DataError>,
+) {
+    if text.entries.len() > MAX_COLLECTION {
+        errors.push(DataError::new(file, "too many entries"));
+        return;
+    }
+    for (key, value) in text.entries {
+        check_id(&key, "text", file, errors);
+        if !string_fits(&value) {
+            errors.push(DataError::new(
+                file,
+                format!("text '{key}' is over the size limit"),
+            ));
+        }
+        table.insert(key, value);
+    }
+}
+
 /// Read, hash, parse, and check the schema of one file. `None` means an error was recorded.
 fn read_checked<T: DeserializeOwned + HasSchema>(
     root: &Path,
@@ -368,7 +413,7 @@ fn read_checked<T: DeserializeOwned + HasSchema>(
     errors: &mut Vec<DataError>,
 ) -> Option<T> {
     let display = root.join(rel);
-    let text = match read_text(&root.join(rel), &display) {
+    let text = match read_text(&display, &display) {
         Ok(t) => t,
         Err(e) => {
             errors.push(e);
@@ -376,7 +421,17 @@ fn read_checked<T: DeserializeOwned + HasSchema>(
         }
     };
     hasher.add(rel, &text);
-    let value: T = match from_str(&text, &display) {
+    parse_checked(&text, &display, errors)
+}
+
+/// Parse `text` as `T` and check its schema; `display` names the file in errors. `None` means
+/// an error was recorded. The loader's files and the editor's typed text both pass here.
+pub(crate) fn parse_checked<T: DeserializeOwned + HasSchema>(
+    text: &str,
+    display: &Path,
+    errors: &mut Vec<DataError>,
+) -> Option<T> {
+    let value: T = match from_str(text, display) {
         Ok(v) => v,
         Err(e) => {
             errors.push(e);
@@ -398,7 +453,7 @@ fn read_checked<T: DeserializeOwned + HasSchema>(
 }
 
 /// Read, check, and validate every `.ron` file of one content type under `root/dir`, keyed
-/// by id so a later pack overrides an earlier one.
+/// by id so a later pack overrides an earlier one. `supplied` gains each id this pack wrote.
 fn gather<T: DeserializeOwned + HasSchema + Content>(
     root: &Path,
     dir: &str,
@@ -406,6 +461,7 @@ fn gather<T: DeserializeOwned + HasSchema + Content>(
     hasher: &mut PackHasher,
     errors: &mut Vec<DataError>,
     out: &mut Files<T>,
+    supplied: &mut Vec<String>,
 ) {
     for rel in list_ron(root, Path::new(dir), errors) {
         let Some(value) = read_checked::<T>(root, &rel, hasher, errors) else {
@@ -414,6 +470,7 @@ fn gather<T: DeserializeOwned + HasSchema + Content>(
         let file = root.join(&rel);
         check_id(value.id(), kind, &file, errors);
         value.validate(&file, errors);
+        supplied.push(value.id().to_owned());
         out.insert(value.id().to_owned(), (file, value));
     }
 }
@@ -424,6 +481,7 @@ fn gather_content(
     hasher: &mut PackHasher,
     errors: &mut Vec<DataError>,
     content: &mut RawContent,
+    supplied: &mut Vec<String>,
 ) {
     gather(
         root,
@@ -432,6 +490,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.races,
+        supplied,
     );
     gather(
         root,
@@ -440,6 +499,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.classes,
+        supplied,
     );
     gather(
         root,
@@ -448,6 +508,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.backgrounds,
+        supplied,
     );
     gather(
         root,
@@ -456,6 +517,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.items,
+        supplied,
     );
     gather(
         root,
@@ -464,6 +526,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.conditions,
+        supplied,
     );
     gather(
         root,
@@ -472,6 +535,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.spells,
+        supplied,
     );
     gather(
         root,
@@ -480,6 +544,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.monsters,
+        supplied,
     );
     gather(
         root,
@@ -488,6 +553,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.rules,
+        supplied,
     );
     gather(
         root,
@@ -496,6 +562,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.services,
+        supplied,
     );
     gather(
         root,
@@ -504,6 +571,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.regions,
+        supplied,
     );
     gather(
         root,
@@ -512,8 +580,17 @@ fn gather_content(
         hasher,
         errors,
         &mut content.objects,
+        supplied,
     );
-    gather(root, "data/loot", "loot", hasher, errors, &mut content.loot);
+    gather(
+        root,
+        "data/loot",
+        "loot",
+        hasher,
+        errors,
+        &mut content.loot,
+        supplied,
+    );
     gather(
         root,
         "data/flags",
@@ -521,10 +598,11 @@ fn gather_content(
         hasher,
         errors,
         &mut content.flags,
+        supplied,
     );
 }
 
-trait HasSchema {
+pub(crate) trait HasSchema {
     fn schema(&self) -> u32;
 }
 macro_rules! has_schema {
@@ -541,6 +619,7 @@ has_schema!(
     Tileset,
     MapDef,
     TextFile,
+    NotesFile,
     Race,
     Class,
     Background,
@@ -557,7 +636,7 @@ has_schema!(
     Migration,
 );
 
-fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
+pub(crate) fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
     if !is_content_id(id) {
         errors.push(DataError::new(
             file,
@@ -613,6 +692,7 @@ fn list_entries(
 /// Intern ids and check every cross-reference. Runs once after all packs are read.
 fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     let before = errors.len();
+    data.sources = std::mem::take(&mut raw.sources);
     let region_files = std::mem::take(&mut raw.content.regions);
     for (id, (_, tileset)) in raw.tilesets {
         let tid = data.registry.tilesets.intern(&id);
@@ -643,102 +723,53 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     );
     data.regions = regions;
     check_calendar(&data.rules, errors);
+    let targets = RawTargets {
+        ids: &map_ids,
+        maps: &raw.maps,
+        owners: &owners,
+    };
     let mut centres = BTreeMap::new();
     let mut landings = Vec::new();
     for (id, (file, def, levels)) in &raw.maps {
-        let Some(tileset_id) = data.registry.tilesets.get(&def.tileset) else {
-            errors.push(DataError::new(
-                file,
-                format!(
-                    "tileset '{}' is not defined by any loaded pack",
-                    def.tileset
-                ),
-            ));
+        let map_id = map_ids[id.as_str()];
+        let Some(resolved) =
+            map_data::resolve_one(map_id, file, def, levels, data, &targets, errors)
+        else {
             continue;
         };
-        check_surfaces(def, &data.tilesets[&tileset_id], file, errors);
-        let name = match data.registry.text.get(&def.name) {
-            Some(key) => key,
-            None => {
-                errors.push(DataError::new(
-                    file,
-                    format!(
-                        "name text key '{}' is not defined in any language",
-                        def.name
-                    ),
-                ));
-                TextKey(0)
-            }
-        };
-        for level in levels.iter().filter(|l| !l.name.is_empty()) {
-            if data.registry.text.get(&level.name).is_none() {
-                errors.push(DataError::new(
-                    file,
-                    format!(
-                        "level {} name text key '{}' is not defined in any language",
-                        level.level, level.name
-                    ),
-                ));
-            }
-        }
-        let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
-        let (encounters, random) = encounter::resolve(
-            &def.encounters,
-            def.random.as_ref(),
-            file,
-            &data.registry.monsters,
-            errors,
-        );
-        let sites = service::resolve_sites(def, levels, &data.registry.services, file, errors);
-        let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
-        let lookup = placement::Lookup {
-            registry: &data.registry,
-            kinds: &data.objects,
-        };
-        let placed = placement::resolve(def, levels, &lookup, file, errors);
-        placement::check_beings(def, levels, &encounters, &data.monsters, file, errors);
-        centres.insert(
-            map_ids[id.as_str()],
-            placement::blocked_centres(&placed, &data.objects),
-        );
-        landings.push((file.clone(), portals.clone()));
-        let region = owners.get(&map_ids[id.as_str()]).copied();
-        if region.is_none() {
-            errors.push(DataError::new(
-                file,
-                format!("map '{id}' belongs to no region"),
-            ));
-        }
+        centres.insert(map_id, resolved.centres);
+        landings.push((file.clone(), resolved.map.portals.clone()));
         if errors.len() == before {
-            data.maps.insert(
-                map_ids[id.as_str()],
-                MapData {
-                    def: def.clone(),
-                    levels: levels.clone(),
-                    tileset: tileset_id,
-                    name,
-                    portals,
-                    encounters,
-                    random,
-                    sites,
-                    region: region.unwrap_or(RegionId(0)),
-                    rest_events,
-                    objects: placed.objects,
-                    object_cells: placed.object_cells,
-                    ground: placed.ground,
-                    lore: placed.lore,
-                },
-            );
+            data.maps.insert(map_id, resolved.map);
         }
     }
     check_landings(&landings, &centres, errors);
-    if let Some(entry) = data.packs.iter().rev().find_map(|p| p.entry.as_deref()) {
+    if let Some(pack) = data.packs.iter().rev().find(|p| p.entry.is_some()) {
+        let entry = pack.entry.as_deref().unwrap_or_default();
         match data.registry.maps.get(entry) {
             Some(id) => data.entry = Some(id),
             None => errors.push(DataError::new(
                 "pack.ron",
                 format!("entry map '{entry}' is not defined by any loaded pack"),
             )),
+        }
+        // The entrances and exits enhancement (W1): the world pack's maps are all reached, asked
+        // only of a world whose links are sound (an erring link would cut off every map beyond).
+        let maps = map_data::MapTargets::maps(&targets);
+        let sound = errors.len() == before;
+        for missing in map_data::unreached(&maps, entry, &pack.id)
+            .into_iter()
+            .filter(|_| sound)
+        {
+            let file = raw
+                .maps
+                .get(&missing)
+                .map(|(f, _, _)| f.clone())
+                .unwrap_or_default();
+            errors.push(DataError::new(
+                file,
+                map_data::unreached_message(&missing, entry),
+            ));
         }
     }
     if errors.len() == before {
@@ -752,6 +783,32 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     }
 }
 
+/// What the files read answer about the other maps while they resolve.
+struct RawTargets<'a> {
+    ids: &'a BTreeMap<&'a str, MapId>,
+    maps: &'a BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
+    owners: &'a BTreeMap<MapId, RegionId>,
+}
+
+impl map_data::MapTargets for RawTargets<'_> {
+    fn maps(&self) -> Vec<map_data::Target<'_>> {
+        self.maps
+            .iter()
+            .filter_map(|(id, (_, def, levels))| {
+                Some(map_data::Target {
+                    id: *self.ids.get(id.as_str())?,
+                    def,
+                    levels,
+                })
+            })
+            .collect()
+    }
+
+    fn owner(&self, map: MapId) -> Option<RegionId> {
+        self.owners.get(&map).copied()
+    }
+}
+
 /// No portal lands the party where an object stands across the centre of the cell.
 fn check_landings(
     portals: &[(PathBuf, Vec<ResolvedPortal>)],
@@ -760,15 +817,10 @@ fn check_landings(
 ) {
     for (file, list) in portals {
         for portal in list {
-            let at = (portal.to_level, portal.to_x, portal.to_y);
-            if let Some(object) = centres.get(&portal.to_map).and_then(|c| c.get(&at)) {
-                errors.push(DataError::new(
-                    file,
-                    format!(
-                        "portal at ({}, {}) lands on ({}, {}), where object '{object}' blocks the centre",
-                        portal.x, portal.y, at.1, at.2
-                    ),
-                ));
+            if let Some(map) = centres.get(&portal.to_map)
+                && let Some(message) = map_data::landing_message(portal, map)
+            {
+                errors.push(DataError::new(file, message));
             }
         }
     }
@@ -795,102 +847,4 @@ fn check_calendar(rules: &Rules, errors: &mut Vec<DataError>) {
             ));
         }
     }
-}
-
-/// Every surface a map names must exist in its tileset with the right kind.
-fn check_surfaces(def: &MapDef, tileset: &Tileset, file: &Path, errors: &mut Vec<DataError>) {
-    let mut surface = |name: &str, kind: SlotKind, what: &str| match tileset.surfaces.get(name) {
-        None => errors.push(DataError::new(
-            file,
-            format!(
-                "{what} surface '{name}' is not in tileset '{}'",
-                def.tileset
-            ),
-        )),
-        Some(s) if s.kind != kind => errors.push(DataError::new(
-            file,
-            format!(
-                "{what} surface '{name}' is a {:?} surface, not {kind:?}",
-                s.kind
-            ),
-        )),
-        Some(_) => {}
-    };
-    surface(&def.wall.front, SlotKind::WallFront, "wall front");
-    surface(&def.wall.left, SlotKind::WallLeft, "wall left");
-    surface(&def.wall.right, SlotKind::WallRight, "wall right");
-    surface(&def.door, SlotKind::Door, "door");
-    if let Some(open) = &def.door_open {
-        surface(open, SlotKind::DoorFrame, "open door");
-    }
-    for terrain in &def.terrains {
-        surface(&terrain.floor, SlotKind::Floor, "terrain floor");
-        if let Some(ceiling) = &terrain.ceiling {
-            surface(ceiling, SlotKind::Ceiling, "terrain ceiling");
-        }
-        if let Some(block) = &terrain.block {
-            surface(block, SlotKind::Block, "terrain block");
-        }
-    }
-    for marker in def.portals.iter().filter_map(|p| p.marker.as_deref()) {
-        surface(marker, SlotKind::Object, "portal marker");
-    }
-}
-
-/// Portals must lead to a known map and land inside it.
-fn resolve_portals(
-    def: &MapDef,
-    file: &Path,
-    map_ids: &BTreeMap<&str, MapId>,
-    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
-    errors: &mut Vec<DataError>,
-) -> Vec<ResolvedPortal> {
-    let mut portals = Vec::with_capacity(def.portals.len());
-    for portal in &def.portals {
-        let Some(&to_map) = map_ids.get(portal.to_map.as_str()) else {
-            errors.push(DataError::new(
-                file,
-                format!(
-                    "portal at ({}, {}) leads to unknown map '{}'",
-                    portal.x, portal.y, portal.to_map
-                ),
-            ));
-            continue;
-        };
-        let (_, target, _) = &maps[&portal.to_map];
-        let has_level = portal.to_level.is_ground()
-            || target
-                .levels
-                .iter()
-                .any(|l| Level(l.level) == portal.to_level);
-        if !has_level {
-            errors.push(DataError::new(
-                file,
-                format!(
-                    "portal at ({}, {}) lands on level {}, which map '{}' does not have",
-                    portal.x, portal.y, portal.to_level, portal.to_map
-                ),
-            ));
-        }
-        if portal.to_x >= target.width || portal.to_y >= target.height {
-            errors.push(DataError::new(
-                file,
-                format!(
-                    "portal at ({}, {}) lands outside map '{}'",
-                    portal.x, portal.y, portal.to_map
-                ),
-            ));
-        }
-        portals.push(ResolvedPortal {
-            level: portal.level,
-            x: portal.x,
-            y: portal.y,
-            to_map,
-            to_level: portal.to_level,
-            to_x: portal.to_x,
-            to_y: portal.to_y,
-            to_facing: portal.to_facing,
-        });
-    }
-    portals
 }

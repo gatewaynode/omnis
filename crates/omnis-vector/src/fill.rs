@@ -14,7 +14,7 @@ use crate::geometry::{
     span, splits, stair_at,
 };
 use crate::ground::{Ground, NE, NW, Patch, SE, SW};
-use crate::sim::SimWorld;
+use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
 use omnis_sim::omnis_data::{Join, MapData};
 
@@ -28,7 +28,7 @@ pub fn fills(
     map: &MapData,
     map_id: MapId,
     level: Level,
-    world: &SimWorld,
+    world: &dyn Occupancy,
     ground: &Ground,
 ) -> Vec<Tri> {
     let mut out = Vec::new();

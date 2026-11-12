@@ -3,6 +3,6 @@
     schema: 1,
     id: "objects:rules:objects",
     slots: {
-        "objects.crowd": (inputs: ["party_size"], expr: "party_size >= 2"),
+        "objects.crowd": (priority: 0, inputs: ["party_size"], expr: "party_size >= 2"),
     },
 )

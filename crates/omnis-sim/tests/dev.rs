@@ -67,6 +67,7 @@ fn every_edit() -> Vec<DevCommand> {
             facing: Facing::South,
         },
         DevCommand::Fold,
+        DevCommand::Pass { minutes: 5 },
     ]
 }
 
@@ -792,4 +793,87 @@ fn a_dev_world_says_so_in_its_save_and_its_replays() {
         replay::run(&data, 1, Settings::default(), &commands),
         Err(replay::ReplayError::Rejected { index: 1 })
     );
+}
+
+#[test]
+fn pass_lives_the_minutes_where_the_party_stands_and_nothing_else() {
+    let data = data();
+    let mut world = dev_world(&data);
+    party_of(&mut world, &data, 2);
+    let pass = |minutes| Command::Dev(DevCommand::Pass { minutes });
+    let (age, shared, date) = (
+        world.party_clock().elapsed,
+        world.party_time.shared_milli,
+        world.party_time.date,
+    );
+    let (turn, food, position) = (world.turn, world.party.food, world.position);
+    let members = world.party.members.clone();
+
+    // The shared time counts at the company of the region the party stands in.
+    let company = i64::from(data.regions[&data.maps[&world.position.map].region].company);
+    assert!(company > 0);
+    let events = apply(&mut world, &data, pass(90)).unwrap();
+    assert_eq!(
+        events[..2],
+        [
+            Event::Dev {
+                command: DevCommand::Pass { minutes: 90 },
+            },
+            Event::TimeAdvanced {
+                holder: "party:0".into(),
+                minutes: 90,
+                day_rolled: false,
+            },
+        ]
+    );
+    assert_eq!(world.party_clock().elapsed, age + 90);
+    assert_eq!(world.party_time.shared_milli, shared + 90 * company);
+    assert_eq!(world.party_time.date, date + 90);
+    assert_eq!(world.turn, turn + 1);
+    assert_eq!(
+        (world.party.food, world.position, &world.party.members),
+        (food, position, &members),
+        "no food eaten, no step taken, nobody healed"
+    );
+    assert!(matches!(world.mode, Mode::Explore));
+
+    // A day and more rolls the day; the most one command lives is a year of 360 days.
+    let events = apply(&mut world, &data, pass(1440)).unwrap();
+    assert!(events.contains(&Event::TimeAdvanced {
+        holder: "party:0".into(),
+        minutes: 1440,
+        day_rolled: true,
+    }));
+    assert_eq!(DevCommand::MAX_PASS, 360 * 1440);
+    apply(&mut world, &data, pass(DevCommand::MAX_PASS)).unwrap();
+    assert_eq!(
+        world.party_clock().elapsed,
+        age + 90 + 1440 + i64::from(DevCommand::MAX_PASS)
+    );
+
+    let before = world.clone();
+    for minutes in [0, DevCommand::MAX_PASS + 1, u32::MAX] {
+        assert_eq!(
+            apply(&mut world, &data, pass(minutes)),
+            Err(Rejection::OutOfRange),
+            "{minutes}"
+        );
+    }
+    assert_eq!(world, before);
+}
+
+#[test]
+fn pass_is_refused_in_a_fight() {
+    let data = data();
+    let mut world = fight(&data, 2, &[("giant_rat", 2)]);
+    let before = world.clone();
+    assert_eq!(
+        apply(
+            &mut world,
+            &data,
+            Command::Dev(DevCommand::Pass { minutes: 10 })
+        ),
+        Err(Rejection::WrongMode)
+    );
+    assert_eq!(world, before);
 }

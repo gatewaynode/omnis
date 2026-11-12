@@ -25,7 +25,7 @@ fn patch(ground: &Ground, x: u16, y: u16) -> omnis_vector::ground::Patch {
 #[test]
 fn the_shipped_maps_are_flat() {
     let data = data();
-    for m in data.maps.values() {
+    for (_, m) in crate::common::flat_maps(&data) {
         let ground = Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND);
         for y in 0..m.def.height {
             for x in 0..m.def.width {
@@ -159,7 +159,7 @@ fn touches(lines: &[([f32; 3], [f32; 3])], p: [f32; 3]) -> bool {
 #[test]
 fn flat_ground_has_no_crest() {
     let data = data();
-    for m in data.maps.values() {
+    for (_, m) in crate::common::flat_maps(&data) {
         let ground = Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND);
         let eye = [1.5, 0.5, 1.5];
         assert!(crests(&ground, eye).is_empty(), "{}", m.def.id);

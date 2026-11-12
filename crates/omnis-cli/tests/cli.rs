@@ -6,6 +6,9 @@ use omnis_sim::parse_script;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// The frozen fixture the tests load beside the base pack (never the owner's pack under `packs/`).
+const FIXTURE: &str = "crates/omnis-sim/tests/packs/test";
+
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -33,14 +36,18 @@ fn cli(args: &[&str]) -> (bool, String, String) {
 
 #[test]
 fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
-    let (ok, out, _) = cli(&["validate", "packs/base", "packs/test"]);
+    let (ok, out, _) = cli(&[
+        "validate",
+        "packs/base",
+        "crates/omnis-sim/tests/packs/test",
+    ]);
     assert!(ok);
     assert!(out.starts_with("ok: 2 packs, 4 maps, 2 tilesets"), "{out}");
     assert!(
         out.ends_with("36 rule slots, 7 services, 0 objects\n"),
         "{out}"
     );
-    let (ok, _, err) = cli(&["validate", "packs/test"]);
+    let (ok, _, err) = cli(&["validate", "crates/omnis-sim/tests/packs/test"]);
     assert!(!ok);
     assert!(
         err.contains("depends on 'base', which is not loaded before this pack"),
@@ -51,14 +58,22 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
     assert!(!ok);
     assert!(err.contains("pack id 'Broken' is not [a-z0-9_-]+"), "{err}");
     assert!(
-        err.contains("portal at (0, 0) leads to unknown map"),
+        err.contains("portal 'refs-a' at (0, 0) links to 'nowhere', which no loaded map has"),
         "{err}"
     );
 }
 
 #[test]
 fn map_text_marks_the_start_and_names_unknown_maps() {
-    let (ok, out, _) = cli(&["map", "text", "test:map:town"]);
+    let (ok, out, _) = cli(&[
+        "map",
+        "text",
+        "test:map:town",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok);
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 11);
@@ -67,9 +82,151 @@ fn map_text_marks_the_start_and_names_unknown_maps() {
         Some('<'),
         "a new game faces west on the town's street"
     );
-    let (ok, _, err) = cli(&["map", "text", "nope:map:x"]);
+    let (ok, _, err) = cli(&[
+        "map",
+        "text",
+        "nope:map:x",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("no map 'nope:map:x' is loaded"), "{err}");
+}
+
+/// `op`: one op of the engine's API from a shell (W1, with the `data.*` ops), its name a word and
+/// its arguments RON, an optional one written bare; the reply as RON, a refusal on stderr.
+#[test]
+fn op_answers_one_op_as_ron_and_says_why_not() {
+    let packs = |rest: &[&'static str]| -> Vec<&'static str> {
+        let mut args = rest.to_vec();
+        args.extend([
+            "--pack",
+            "packs/base",
+            "--pack",
+            "crates/omnis-sim/tests/packs/test",
+        ]);
+        args
+    };
+    let (ok, out, err) = cli(&packs(&["op", "data.kinds"]));
+    assert!(ok, "{err}");
+    assert!(out.contains("reply: \"kinds\""), "{out}");
+    assert!(out.contains("kind: \"monster\""), "{out}");
+    let (ok, out, err) = cli(&packs(&["op", "data.get", "(id: \"base:item:mace\")"]));
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("\"base:text:item.mace.name\": Some(\"Mace\")"),
+        "{out}"
+    );
+    assert!(out.contains("cost_cp: 500"), "{out}");
+    let (ok, out, err) = cli(&packs(&[
+        "op",
+        "data.list",
+        "(refers_to: \"base:item:dagger\", kind: \"class\")",
+    ]));
+    assert!(ok, "{err}");
+    assert!(out.contains("id: \"base:class:rogue\""), "{out}");
+    assert!(!out.contains("base:service:smith"), "{out}");
+    // Any op, not only the data's.
+    let (ok, out, _) = cli(&packs(&["op", "game.status"]));
+    assert!(ok && out.contains("protocol: 2"), "{out}");
+    let (ok, _, err) = cli(&packs(&["op", "data.get", "(id: \"base:item:nope\")"]));
+    assert!(!ok);
+    assert!(
+        err.contains("no loaded pack defines 'base:item:nope'"),
+        "{err}"
+    );
+    let (ok, _, err) = cli(&packs(&["op", "no.such.op"]));
+    assert!(!ok && err.contains("no.such.op"), "{err}");
+    let (ok, _, err) = cli(&packs(&["op"]));
+    assert!(!ok && err.contains("op needs an op's name"), "{err}");
+}
+
+/// A scratch pack `house` over base with one rules file of these entries, sealed.
+fn house(dir: &str, entries: &str) -> String {
+    let root = scratch(dir);
+    std::fs::create_dir_all(root.join("data/rules")).unwrap();
+    std::fs::write(
+        root.join("pack.ron"),
+        r#"(schema: 1, id: "house", version: "0.1.0", name: "house", license: "MIT",
+            attribution: [], depends: ["base"], entry: None)"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("data/rules/table.ron"),
+        format!(r#"(schema: 1, id: "house:rules:table", {entries})"#),
+    )
+    .unwrap();
+    let root = root.to_str().unwrap().to_owned();
+    let (ok, _, err) = cli(&["pack", "seal", &root]);
+    assert!(ok, "{err}");
+    root
+}
+
+/// Rule priority from a shell (owner, 2026-11-11): `validate` lists every override, the ops say
+/// where a rule came from, a rules file is a definition, and a tie refuses the load.
+#[test]
+fn an_override_is_listed_by_validate_and_named_by_the_ops_and_a_tie_is_refused() {
+    let root = house(
+        "cli-house",
+        r#"slots: {"attack.total": (priority: 200, inputs: ["die", "bonus", "proficiency"], expr: "die + bonus")},
+           values: {"death_save_dc": (priority: 200, value: 12), "house_only": (priority: 0, value: 1)}"#,
+    );
+    let (ok, out, err) = cli(&["validate", "packs/base", &root]);
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(lines[0].starts_with("ok: 2 packs"), "{out}");
+    assert_eq!(
+        lines[1..],
+        [
+            "override: slot attack.total: house:rules:table (pack house, priority 200) over base:rules:combat (pack base, priority 0)",
+            "override: value death_save_dc: house:rules:table (pack house, priority 200) over base:rules:combat (pack base, priority 0)",
+        ],
+        "{out}"
+    );
+    // Base alone overrides nothing.
+    let (_, out, _) = cli(&["validate", "packs/base"]);
+    assert_eq!(out.lines().count(), 1, "{out}");
+
+    // `op` starts a game, so a pack with a starting map loads between them.
+    let fixture = "crates/omnis-sim/tests/packs/test";
+    let packs = ["--pack", "packs/base", "--pack", fixture, "--pack", &root];
+    let op = |args: &[&str]| cli(&[args, &packs[..]].concat());
+    let (ok, out, err) = op(&["op", "rules.get", "(slot: \"attack.total\")"]);
+    assert!(ok, "{err}");
+    for part in [
+        "source: \"die + bonus\"",
+        "file: \"house:rules:table\"",
+        "pack: \"house\"",
+        "priority: 200",
+        "file: \"base:rules:combat\"",
+    ] {
+        assert!(out.contains(part), "{part}: {out}");
+    }
+    let (ok, out, err) = op(&["op", "data.list", "(kind: \"rules\")"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("id: \"house:rules:table\""), "{out}");
+    assert!(out.contains("id: \"base:rules:combat\""), "{out}");
+    let (ok, out, err) = op(&["op", "data.get", "(id: \"house:rules:table\")"]);
+    assert!(ok, "{err}");
+    // A definition's envelope is flattened around `def`, which RON writes as a map.
+    assert!(out.contains("\"kind\": rules"), "{out}");
+    assert!(out.contains("\"pack\": \"house\""), "{out}");
+    assert!(out.contains("priority: 200"), "{out}");
+
+    let tied = house(
+        "cli-house-tied",
+        r#"values: {"death_save_dc": (priority: 0, value: 12)}"#,
+    );
+    let (ok, _, err) = cli(&["validate", "packs/base", &tied]);
+    assert!(!ok);
+    assert!(
+        err.contains(
+            "value 'death_save_dc': priority 0 in both 'base:rules:combat' and 'house:rules:table'"
+        ),
+        "{err}"
+    );
 }
 
 #[test]
@@ -78,7 +235,17 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let script = dir.join("walk.txt");
     let text = "forward, forward\nturn-left # face west\nuse\n";
     std::fs::write(&script, text).unwrap();
-    let (ok, out, err) = cli(&["play", "--script", script.to_str().unwrap(), "--seed", "9"]);
+    let (ok, out, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--seed",
+        "9",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     let lines: Vec<&str> = out.lines().collect();
     assert!(lines[0].starts_with("0 forward: Moved"), "{}", lines[0]);
@@ -86,7 +253,11 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         lines.iter().any(|l| l.starts_with("3 use: Message")),
         "{out}"
     );
-    let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
+    let data = load_packs(&[
+        &repo().join("packs/base"),
+        &repo().join("crates/omnis-sim/tests/packs/test"),
+    ])
+    .unwrap();
     // The headless driver is a dev world (`Settings.devtools`), and a save says so.
     let settings = Settings {
         devtools: true,
@@ -106,13 +277,29 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     );
 
     std::fs::write(&script, "forward\nfly\n").unwrap();
-    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("line 2: unknown command 'fly'"), "{err}");
     // A word names a slot, resolved when it is applied: the headless party is empty, so the
     // fourth slot names nobody.
     std::fs::write(&script, "forward\ncast-0-m3\n").unwrap();
-    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(
         err.contains("turn 1: 'cast-0-m3' names an empty slot"),
@@ -131,7 +318,7 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
         "--pack",
         "packs/base",
         "--pack",
-        "packs/test",
+        "crates/omnis-sim/tests/packs/test",
     ]);
     assert!(ok, "{err}");
     assert!(
@@ -145,7 +332,14 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
     let tampered = format!("{}{}{}", &text[..start], recorded ^ 1, &text[end..]);
     let file = scratch("cli-replay").join("tampered.ron");
     std::fs::write(&file, tampered).unwrap();
-    let (ok, _, err) = cli(&["replay", file.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "replay",
+        file.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("differs from recorded"), "{err}");
 }
@@ -154,16 +348,44 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
 fn wander_writes_a_replay_that_replay_times() {
     let file = scratch("cli-wander").join("w.ron");
     let path = file.to_str().unwrap();
-    let (ok, out, err) = cli(&["wander", "--seed", "3", "--commands", "120", "--out", path]);
+    let (ok, out, err) = cli(&[
+        "wander",
+        "--seed",
+        "3",
+        "--commands",
+        "120",
+        "--out",
+        path,
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     assert!(out.starts_with("wrote 120 commands to "), "{out}");
     assert!(out.contains("bytes of events a command"), "{out}");
-    let (ok, out, err) = cli(&["replay", path, "--time"]);
+    let (ok, out, err) = cli(&[
+        "replay",
+        path,
+        "--time",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     assert!(out.starts_with("ok: 120 commands reproduce"), "{out}");
     assert!(out.contains("µs a command"), "{out}");
     assert!(out.contains(" interactions, "), "{out}");
-    let (ok, _, err) = cli(&["wander", "--commands", "5"]);
+    let (ok, _, err) = cli(&[
+        "wander",
+        "--commands",
+        "5",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok && err.contains("--out"), "{err}");
 }
 
@@ -251,7 +473,7 @@ fn migration_draft_writes_each_name_gone_as_a_remove() {
         "--pack",
         "packs/base",
         "--pack",
-        "packs/test",
+        "crates/omnis-sim/tests/packs/test",
         "--pack",
         "crates/omnis-sim/tests/packs/objects",
     ];
@@ -282,7 +504,11 @@ fn migration_draft_writes_each_name_gone_as_a_remove() {
     assert!(!ok, "the pack changed: it must be resealed first");
     assert!(err.contains("reseal"), "{err}");
     assert!(cli(&["pack", "seal", new_dir]).0);
-    let mut validate = vec!["validate", "packs/base", "packs/test"];
+    let mut validate = vec![
+        "validate",
+        "packs/base",
+        "crates/omnis-sim/tests/packs/test",
+    ];
     validate.push("crates/omnis-sim/tests/packs/objects");
     validate.push(new_dir);
     let (ok, out, err) = cli(&validate);
@@ -297,7 +523,7 @@ fn save_check_prints_the_report_and_fails_when_the_save_does_not_load() {
     let root = scratch("cli-save-check");
     let old = load_packs(&[
         &repo().join("packs/base"),
-        &repo().join("packs/test"),
+        &repo().join("crates/omnis-sim/tests/packs/test"),
         &fixture("objects"),
         &fixture("chain/v1"),
     ])
@@ -318,7 +544,7 @@ fn save_check_prints_the_report_and_fails_when_the_save_does_not_load() {
         ];
         let mut packs = vec![
             repo().join("packs/base"),
-            repo().join("packs/test"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
             fixture("objects"),
         ];
         if chain {
@@ -363,7 +589,7 @@ fn migration_draft_leaves_what_cannot_be_removed_open() {
     let load = |chain: &str| {
         load_packs(&[
             &repo().join("packs/base"),
-            &repo().join("packs/test"),
+            &repo().join("crates/omnis-sim/tests/packs/test"),
             &fixture("objects"),
             &fixture(chain),
         ])

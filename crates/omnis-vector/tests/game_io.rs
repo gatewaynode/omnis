@@ -4,6 +4,7 @@
 use crate::common::{data, town_session};
 use omnis_sim::omnis_data::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES};
 use omnis_vector::game_io;
+use omnis_vector::shell::failure;
 use omnis_vector::shell::session::{Config, Packs};
 use std::path::PathBuf;
 
@@ -45,6 +46,33 @@ fn a_missing_pack_stops_the_start_with_its_name() {
         panic!("a pack that is not there loads");
     };
     assert!(why.contains("no/such/pack"), "{why}");
+}
+
+/// A start that fails says why on stderr and leaves the line under `.omnis/` too: on Windows the
+/// binary has no console (Windows CI, 2026-11-08). The binary itself is run, on a pack that is
+/// not there, from a scratch working directory; it ends before any window.
+#[test]
+fn a_failed_start_leaves_its_reason_under_omnis() {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("vector-last-error");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let path = failure::record(&root, "pack 'x' is not there").unwrap();
+    assert_eq!(path, root.join(failure::LAST_ERROR));
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "omnis: pack 'x' is not there\n"
+    );
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_omnis"))
+        .current_dir(&root)
+        .args(["--pack", "no/such/pack"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "{}", out.status);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("no/such/pack"), "{stderr}");
+    let said = std::fs::read_to_string(root.join(failure::LAST_ERROR)).unwrap();
+    assert_eq!(said, stderr, "the file holds what stderr was told");
 }
 
 /// Tidy (M8.5 7e) lists the world-folder files no save under `.omnis/` names and deletes them

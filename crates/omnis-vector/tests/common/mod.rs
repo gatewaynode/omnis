@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod app;
+pub mod editor;
 pub mod fight;
 
 use omnis_sim::omnis_core::{CharacterId, Facing, MapId, Position};
@@ -16,6 +17,20 @@ use std::path::PathBuf;
 
 pub const SEED: u64 = 7;
 
+/// The shipped maps the flat-map checks run on: every one but the depths, which carry the
+/// owner's height and pile at (1, 9), drawn in the editor (2026-10-31). At least three.
+pub fn flat_maps(data: &Data) -> Vec<(MapId, &omnis_sim::omnis_data::MapData)> {
+    let depths = map(data, "test:map:depths");
+    let flat: Vec<_> = data
+        .maps
+        .iter()
+        .filter(|(id, _)| **id != depths)
+        .map(|(id, m)| (*id, m))
+        .collect();
+    assert!(flat.len() >= 3, "{} flat maps", flat.len());
+    flat
+}
+
 /// Put the party on the meadow cell the test pack started on before it gained the town: the
 /// walking tests were written there. Set directly, so a session placed here does not replay
 /// from its log (`town_session` does).
@@ -24,11 +39,16 @@ pub fn to_meadow(world: &mut SimWorld, data: &Data) -> Pose {
     place(world, meadow, 16, 16, Facing::North)
 }
 
+/// The base pack and the frozen fixture (`crates/omnis-sim/tests/packs/test`, id `test`): what
+/// every test loads. The owner's own pack under `packs/` is never a test's.
 pub fn data() -> Data {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
-    let (base, test) = (root.join("base"), root.join("test"));
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let (base, test) = (root.join("packs/base"), root.join(FIXTURE));
     load_packs(&[base.as_path(), test.as_path()]).expect("the shipped packs load")
 }
+
+/// The frozen fixture's path from the repository's root.
+pub const FIXTURE: &str = "crates/omnis-sim/tests/packs/test";
 
 /// The shipped packs and the engine's elevation fixture (M8.5 step 1a): slopes, cliffs, a
 /// one-way edge and a ramp, on `heights:map:hills`.
@@ -36,7 +56,7 @@ pub fn heights_data() -> Data {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     load_packs(&[
         &root.join("packs/base"),
-        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/test"),
         &root.join("crates/omnis-sim/tests/packs/heights"),
     ])
     .expect("the fixture loads")
@@ -47,7 +67,7 @@ pub fn objects_data() -> Data {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     load_packs(&[
         &root.join("packs/base"),
-        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/test"),
         &root.join("crates/omnis-sim/tests/packs/objects"),
     ])
     .expect("the fixture loads")
@@ -59,7 +79,7 @@ pub fn levels_data() -> Data {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     load_packs(&[
         &root.join("packs/base"),
-        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/test"),
         &root.join("crates/omnis-sim/tests/packs/levels"),
     ])
     .expect("the fixture loads")
@@ -180,5 +200,7 @@ pub fn ctx<'a>(
         },
         prefs: omnis_vector::settings::Prefs::default(),
         fits: omnis_vector::settings::SCALE_MAX,
+        editing: None,
+        playtest: false,
     }
 }

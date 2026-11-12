@@ -2,8 +2,8 @@
     schema: 1,
     id: "badc:rules:bad",
     slots: {
-        "a": (inputs: ["1x"], expr: "1"),
-        "b": (inputs: ["level"], expr: "level + bonus"),
-        "c": (inputs: [], expr: "\"abc\""),
+        "a": (priority: 0, inputs: ["1x"], expr: "1"),
+        "b": (priority: 0, inputs: ["level"], expr: "level + bonus"),
+        "c": (priority: 0, inputs: [], expr: "\"abc\""),
     },
 )

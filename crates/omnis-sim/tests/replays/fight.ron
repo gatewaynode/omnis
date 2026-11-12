@@ -3,13 +3,13 @@
     packs: [
         (
             id: "base",
-            version: "0.1.0",
-            hash: 2652312303854716409,
+            version: "0.1.1",
+            hash: 5085736799993279299,
         ),
         (
             id: "test",
-            version: "0.1.1",
-            hash: 793284631953193633,
+            version: "0.2.9",
+            hash: 14523718773761627429,
         ),
     ],
     settings: (
@@ -118,6 +118,7 @@
         Step(Forward),
         Step(Forward),
         Step(Forward),
+        Turn(Right),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -148,5 +149,5 @@
             stack: 0,
         )),
     ],
-    fingerprint: 8775869725393273618,
+    fingerprint: 11480507283652534655,
 )

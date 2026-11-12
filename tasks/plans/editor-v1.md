@@ -4,7 +4,8 @@
 > `omnis-vector`, not `omnis-app`; the map format has heights, ramps, levels, joins and stairs; objects come
 > first, in M8.5 step 2. The new plan is written after step 2 (`tasks/TODO.md`, M5). Parts to reuse: §A
 > (`omnis_data::edit`, `Document` with undo and redo, save refused while invalid) and §E's kinds, placements,
-> stable ids, limits and blocking. Kept below as the record.
+> stable ids, limits and blocking. Kept below as the record. **The new plan is `tasks/plans/m5-editor-v1.md`
+> (2026-10-21).**
 
 Saved 2026-09-19. Planned on 2026-09-13 as M5 and deferred by the owner on 2026-09-19 ("the editor can wait"); it now sits in the TODO's Phases 2–5 block ahead of the procgen panel that extends it. Dates and version numbers below are as of the planning day; re-check the dependency table (30-day rule, Socket scores) and the code facts (function lengths, file lines, `Title::ITEMS`) before starting.
 

@@ -295,6 +295,10 @@
 - **Rule**: restore with `open(f, 'w').write(original)` (a fresh mtime), or `touch` the file after restoring.
   After any mutation run, `touch` the mutated files before the gate or a demo. When a demo disagrees with the
   tests, suspect a stale artifact before the code.
+- **Broken again 2026-10-22**: the continuity notes abbreviated this rule to "rewriting its text and `os.utime`",
+  and the runner put the *old* mtime back, so the B8 gate tested the mutant and went red on the very test
+  that had caught it. The mtime after a restore must be new: never `os.utime` back to the original. A
+  continuity note quotes a rule's operative words or points at the lesson; it never paraphrases one.
 
 ## 2026-10-19 — Context is measured, not estimated
 - **What happened**: asked to check context before 7h4, I estimated 200–250k from memory of what I had read;
@@ -324,3 +328,373 @@
   rerun.
 - **Rule**: once a mutation runner starts, no `cargo` command and no edit to a file any of its tests read
   (sources, fixtures, packs) until it ends. Write docs and plans meanwhile. Settle fixtures before the run.
+
+## 2026-10-21 — A text for an author is sized to how authors work, and addressed to what it is about
+- **What happened**: M5.1 added one optional `notes: Option<String>` of 4 KiB to each map and level, the
+  shape ARCHITECTURE §8.2 had named. The owner: campaign notes are copious, the editor is also the game
+  master's desk, and each square, object and item may need its own 4 KiB; a keyed notes file is the right
+  shape. The hand-written maps already showed it: their comments sit on particular cells, services and
+  portals, which one text per map cannot address.
+- **Rule**: when a field holds text for a person (an author, a game master, a modder), size it against how
+  that person works, not against the string limit, and address it to the thing it is about (a key per
+  square, object or item, in a store of its own) rather than hanging one string on the file. Before
+  building a field a vision document named in passing, check the real material it must hold.
+
+## 2026-10-21 — A gate run in the background is read before the commit, and the commit is chained on its verdict
+- **What happened**: M5.2's gate ran in the background and the task runner reported "exit code 0", the
+  wrapper shell's. The gate itself had exited 101 on a clippy error in a test. I committed in a separate
+  command that printed the log's `exit 101` and went on to `git commit` regardless; the commit had to be
+  amended. The 2026-09-19 lesson ("the gate's exit status must reach the commit") was broken by the
+  background pattern, where the status sits in a file.
+- **Rule**: a background gate writes `VERIFY-GREEN` and its exit code to its log; the commit command is
+  `grep -q VERIFY-GREEN <log> && git commit …` (or the whole gate-and-commit chain runs as one background
+  command), never a commit in a command of its own after reading the log by eye. The runner's exit code is
+  the wrapper's, not the gate's.
+
+## 2026-10-22 — A control the owner chose against the convention is accepted by stumbling into it, not only by seeking it
+- **What happened**: on 2026-10-12 the owner asked for an unlimited camera pitch, a free head that turns over
+  past straight up. The acceptance script had them look over the top on purpose, and they accepted it. Ten
+  days later, during an unrelated acceptance, mouse look was locked, a mouse move carried the view over the
+  top unnoticed, and W walked the party away from what the screen showed. The report read as a bug in the
+  keys. The convention every first-person game keeps (a clamp short of vertical) exists for exactly that
+  accident, and the first acceptance only tested the deliberate case.
+- **Rule**: when the owner chooses a control behaviour against the genre's convention, name in the plan the
+  accident the convention prevents, and put that accident in the acceptance script: arrive at the state
+  without meaning to, then try the ordinary keys. If the state is confusing arrived at by accident, say so
+  before building, and offer the convention as the recommended option. When the owner later reports the
+  accident as a bug, the answer is their earlier choice and the alternatives, not a fix to the keys.
+
+
+## 2026-10-22 — A game window launched from the agent's shell never ticks; its socket hangs
+- **What happened**: to look at the editor's new tools column, the game was launched windowed from the
+  sandboxed shell in the background and asked for a screenshot over the dev socket. The listener accepted
+  the connection (the kernel's backlog) and no reply ever came, in the editor and at the title alike; a
+  quarter of an hour went on process hunting (`ps` and `pgrep` are refused in the sandbox) and on a
+  suspected freeze in the new code. The control run at the title hung the same way: the process has no
+  window-server session (`Connection Invalid error for service com.apple.hiservices-xpcservice`), so winit
+  never runs the frame loop, and the socket's system never runs.
+- **Rule**: a visual check of the real window is the owner's, through the acceptance script, or an MCP call
+  on a game the owner started. From this shell, verify with the headless tests and `screen_text`; a
+  windowed launch from here proves only that the binary starts without a panic. Do not debug a socket that
+  gives no reply from such a launch.
+
+## 2026-10-24 — A test that writes a framework's component must use the framework's convention
+- **What happened**: the editor's pointer tests wrote `RelativeCursorPosition.normalized` as 0..1 from the
+  pane's top left, and the router read it the same way. Bevy fills it from −0.5 to 0.5 about the centre, so
+  in the real window every click fell off the map and the mouse did nothing; fifteen tests were green on a
+  convention nobody had checked. The owner found it in the first hand test. A test through Bevy's own
+  `UiPlugin`, layout and focus systems (`tests/editor_pointer.rs`, no renderer: a `Window`, a `Camera2d` and
+  a stand-in for the camera's target info) went red at once.
+- **Rule**: when a test writes a component the framework normally fills, read the framework's source for its
+  convention first and quote it in the helper's doc. Keep one test per such path that goes through the
+  framework's own systems, so the hand-written helper is checked against what the framework really writes.
+- **Also**: the owner reached for the game's movement keys (WASD) in the editor. Wherever a cursor moves,
+  bind the game's keys beside the arrows.
+
+## 2026-10-24 — A mouse action must never depend on a hidden state
+- **What happened**: an edge brush painted the side the pointer was near only within a thin band; anywhere
+  else in the cell it painted the side the cursor *faced*, set by Q and E. The owner found doors "very
+  careful about the direction" and could not remove them, and walls hard: the rule was invisible, and the
+  outcome depended on a state the pointer gave no sign of.
+- **Rule**: what a click will do must be visible before the click (a hover of the aim), and a pointer action
+  decides from the pointer alone; keyboard state steers keyboard actions. When a report says a tool is
+  "fiddly" or "direction-sensitive", look first for a hidden input in the rule.
+
+## 2026-10-24 — A layer that rebuilds its nodes must carry their transient state across
+- **What happened**: the editor's tools column is rebuilt whenever its screen changes; the eighths choice is
+  part of that screen, so each step of the height rebuilt the column unscrolled and the owner had to scroll
+  back to the Height row for the next step, or step blind from the keys.
+- **Rule**: when a change redraws nodes from a description, the state that is not in the description (a
+  panel's scroll, the field with the keyboard, a hover) is read before the despawn and given to what is built
+  in its place. Check it with a test that scrolls, changes the content and reads the new panel.
+
+## 2026-10-24 — A creation form starts valid and keeps the loader's keys
+- **What happened**: the editor's Add → Encounter opened an empty form: Apply with nothing typed gave an
+  encounter with no id and no stacks, which the loader refused, so the map could not be saved until the
+  author had filled every field right; and an id already on the map would have replaced the other encounter
+  silently, since the document places by upsert. The owner asked for a minimal default and for the
+  validation to be checked at creation, "so we can be sure it saves before the editing is done".
+- **Rule**: a form that creates a thing opens filled with defaults the loader takes (a free id, the one
+  required row, the plain choice), so Apply at once leaves the map saveable; and the form checks the
+  loader's keys itself before the store's upsert (a taken id, a cell that holds one already), refusing in
+  one line with the form standing. After any Apply, say the loader's verdict at once rather than leaving it
+  to the Save button's dim reason.
+
+## 2026-10-24 — A system added to a set inherits the set's run conditions
+- **What happened**: the editor's preview systems were put `in_set(VectorSet::Draw)` beside the view's, and
+  `VectorSet::Draw` runs only while a game session exists. In the editor there is none, so the preview's
+  camera never switched on and the picture stayed black; the owner saw "an empty viewport". The headless
+  tests had not caught it because the plugin needs a renderer and was not added to the test shell.
+- **Rule**: before adding a system to a set, read the set's `configure_sets` and quote its condition in a
+  comment at the call; a system for a state the set excludes gets its own ordering (`after(...)`) and its
+  own `run_if`. And a plugin for a window is still made to run headless with `Option` parameters and a
+  `is_plugin_added` check for the parts that need the renderer, so its wiring has a test.
+
+## 2026-10-24 — Interface strings use glyphs the interface font has
+- **What happened**: "Level…" and "0‰" drew a box in the editor: the font lacks the ellipsis and the
+  per-mille sign.
+- **Rule**: interface strings are plain ASCII unless the glyph has been seen rendered; a unit is spelled
+  out ("per mille", "eighths"), an ellipsis is three dots.
+
+## 2026-10-24 — A field's text is not a word: a new value from the model needs a new field
+- **What happened**: the RON editor's second file opened showed the first file's text (the owner's
+  report); Revert file left the broken text in the field; a note's form replaced by another cell's kept
+  the first cell's words. The kit rewrites a column's words in place when its shape stands, and a text
+  field's content is deliberately not among them, since what is typed there is the model's already. A
+  change that comes from the model (a file opened, a revert, a form replaced) left the field as it was,
+  with the model holding other text: a keystroke would have carried the first file's text into the second.
+- **Rule**: a field's text flows one way, from the field to the model, while the field stands. Whenever
+  the model sets a field's text itself, it marks the thing `fresh` and the layer rebuilds that column
+  whatever the shape. Any new path that sets a field's text in the model (open, revert, reset, a form
+  replaced) sets `fresh`, and its test reads the drawn field's `value()`, not the model.
+
+## 2026-10-24 — "Changed" is not "typed": a framework system marks a component changed every frame
+- **What happened**: in the window, Bevy's text layout takes every `EditableText` mutably every frame, so
+  every field reads as changed every frame. The editor's route read any changed field into the model when
+  its text differed; in the frame a file was picked, the screen router had set the model to the second
+  file and the route then typed the old field's text (the first file's) into it. The owner saw the first
+  file's text under the second file's name, and Revert "revealed" the second file. Headless nothing touches
+  a field without an edit, so the tests passed, and a first fix (rebuilding the column) did not help.
+- **Rule**: a change filter on a component a framework system also writes is not a signal of an edit; the
+  route decides from the model's state (here `fresh`: the drawn field is stale until the rebuild) and never
+  from "it changed". A test of such a route runs under a churn system that marks the components changed
+  every frame (`common::app::churn_fields`), so the headless test meets the window's condition.
+
+## 2026-10-24 — A guard that dims a whole list reads as a broken list
+- **What happened**: the first file picker dimmed every other file while the open one had unsaved text,
+  the reason appended to each label. In the window that looked like a list that ignored clicks; the owner
+  asked for the check at the Open file... button instead: is a file loaded, does it need saving, then clear
+  the editor and list.
+- **Rule**: a decision the owner must make belongs at the action that needs it, asked once with the ways
+  out (Save and continue, Discard changes, Cancel), not spread over the choices as dim reasons. Dimming
+  with a reason suits one control that cannot act now; it does not suit a whole list.
+
+## 2026-10-25 — A mode is state the opening action must set, not state it inherits
+- **What happened**: the editor's centre shows the plan or a file's text by a `mode` flag. `Editor::open`
+  reset the cursor, the view, the brush, the stroke, the form and the message, and left the mode alone: a
+  map opened from the tools while a file was showing stayed on the text ("I don't get the map editing view
+  in the central column"). The field was added for the file view and the older action was never revisited.
+- **Rule**: when a flag that chooses what a pane shows is added, every action that opens something into
+  that pane is read again and sets the flag it needs; the one action that restores (reopen after a save or
+  revert) saves and restores it with the rest of the carried state. A test opens the thing from the other
+  mode, not only from the default one.
+
+## 2026-10-25 — A layout exception for one row is written as an exception, not a new default
+- **What happened**: the document's row needs `min_height: 0` to take the panel's remaining height and
+  scroll inside it. The change set `min_height: 0` on every row, since one line was simpler than a
+  branch. Every other row then shrank into its neighbours once a column had more rows than height
+  ("button overlap ... in the left column"); the headless tests had no crowded column laid out.
+- **Rule**: a property set for one kind of row stays under that kind's branch, the others keeping the
+  framework's default (`Val::Auto`, the content's height). A change to shared layout code runs against
+  a crowded panel under Bevy's layout (`ui_editor_app`: the tools column overflows at the test window's
+  height), asserting every row is at least as tall as its tallest control.
+
+
+## 2026-10-25 — A literal about a fixture the owner edits through the product is a test that breaks on use
+- **What happened**: four tests pinned the test pack's next seal as the literal `"0.1.2"`, one expected an
+  empty notes store. The owner saved the town through the editor and committed it (0.1.3, a note added):
+  eight tests went red on a tree the owner had every right to produce, and the gate could not run green
+  until M5.10 reconciled it.
+- **Rule**: a fixture the product itself can change (a pack the editor saves, a store it writes) is read
+  by the test, never pinned: the version expected after a save is the manifest's patch one higher
+  (`seal::status`), a count is the shipped count plus the test's own, a key is asserted present, not the
+  only one. A literal is for what only a commit can move (a schema, a protocol, a golden fingerprint), and
+  those are rebaselined in the same commit as the change.
+
+## 2026-10-25 — A tool over "what is under the pointer" enumerates what the plan draws there, not one list
+- **What happened**: the Move tool took `here_at(cell)`, the inspector's placements, as the eraser does. The
+  map's start is drawn on the plan and listed by the inspector, but it is a field of the map, not a
+  placement, and so not in that list: a press on the start marker panned the plan ("I couldn't move the start
+  marker"). The tests moved a portal and a site and never pressed the start.
+- **Rule**: a tool that acts on what is under the pointer is written from what the plan draws on a cell
+  (`plan::Source`: the start, the marks, the cursor, the edges) and what the inspector lists there, with one
+  arm per kind, even the kind that has no key in the placements list; its test presses each drawn kind once.
+  Where kinds share a cell, the tool takes them in the inspector's order, so the owner can predict it.
+
+## 2026-10-25 — A window report is reproduced in the window's terms before the fix is called done
+- **What happened**: "I couldn't move the start marker." The code showed a plain cause (Move took the
+  placements list, the start is not in it), the fix was built with a red headless test and reported as done.
+  The owner's second run: still not working, while the services move. The headless test, a test through
+  Bevy's real UI path and the binary's build time all agree the fix is in; what the window does is still
+  unknown, since the first report did not say whether the plan panned or nothing happened.
+- **Rule**: a report from the window names an observation, not a cause. Before building, read back what the
+  owner should see under the suspected cause (here: the plan pans) and, when the report does not say, ask
+  that one question or read the running game over the dev socket (`editor_status`, `screen_text`) while the
+  owner holds it open. A fix for a window report is "done" when the owner's run agrees, not when the test is
+  green; say "built, please try" rather than "fixed".
+
+## 2026-10-25 — An edit that changes a key is a removal and a placement, not a put
+- **What happened**: a placement's form (M5.6) made its Apply as `Document::place` of the request, which
+  puts by key. Renaming an encounter's id in its form left the old entry beside the new one; the loader
+  then refused the two on one tile. Nothing had tested a rename for the count on the cell, only for the
+  new id's presence. Found by the object stamp's test (step 3), which renamed an encounter to take an id.
+- **Rule**: an edit of something keyed (an id, a tile) is made as `[Remove(old key), new]` in one step
+  whenever the request's key differs from the one the form opened on (`Place::key`), and a test that
+  renames or moves asserts the count where it was and where it is, then the loader's verdict.
+
+## 2026-10-31 — A choice over pack content is a picker, not a stepper
+- **What happened**: step 3 gave each stamp its detail as a left/right choice under the palette, with a
+  modal picker noted as "later, when the list is long". The owner's first hand test rejected it: the ids
+  overflowed the 330 px column ("ter < test:monster:bob_the_rat_king") and stepping one by one through
+  monsters would not scale past placeholder content. The stepper was built knowing the lists grow with
+  the packs, and the owner had already asked for pickers as modals (2026-10-24).
+- **Rule**: a control whose options are the packs' content (monsters, items, maps, text keys, services)
+  is a picker modal from the first commit (search, several at once where the data takes several, Finish,
+  Cancel); a choice box is for a short set the code names (facings, dispositions, eighths). A row of the
+  column that would show an id is read against the column's width before it is drawn: the id's last
+  segment, or a summary line of its own.
+- **Also**: two controls under one id break the layer's by-id word sync (`LabelOf`: the first control
+  found gives its words to both); a row that wants two entry points for one action gets two acts.
+
+## 2026-10-31 — A "you will see" in an acceptance doc needs a test behind it
+- **What happened**: step 4's acceptance doc and its report promised the lasso's loop "outlined in yellow as
+  you draw". Nothing drew it: `Editor::preview()` returned None unless a run tool was held, and the loop in
+  progress (`Editor.lasso`) reached the plan only once it had become a selection. The tests pinned the
+  selection's outline and a cell run's preview, not the loop's. The owner's hand test found it in a minute:
+  "there is no indicator of the lasso shape you are drawing".
+- **Rule**: a "You will see" line in an acceptance doc is written from a test that asserts it (the
+  `preview()`, `Source` or screen text it names), or it is struck before the report. Every transient the
+  model holds for the pointer (a loop, a run, a carried drag) has a test that reads what the plan paints
+  while it is held, not only what it leaves behind. The report describes what was asserted, not what was
+  meant.
+
+## 2026-10-31 — The test pack is the owner's canvas too; pins name the owner's content
+- **What happened**: the owner's hand tests of steps 4 and 5 saved onto `packs/test` itself, not the scratch
+  copy, and the second time committed and pushed the pack. Eight tests leaned on the fixture as it was: the
+  golden replays (the packs' fingerprint is in them), an encounter count, and five checks assuming every
+  shipped map is flat and carries nothing (sim and client).
+- **Rule**: a change to `packs/test` by the owner is content, kept as they left it; the tests follow in a
+  commit of their own: `cargo test -p omnis-sim rebaseline -- --ignored` for the replays, and a pin that
+  assumed a shape of the fixture (flat, empty, a count) is rewritten to name the owner's content or to run on
+  the maps the assumption still holds for (`tests/common/flat_maps`), never loosened to nothing. A new pin on
+  the fixture's shape is written against the content, not the assumption that the fixture stays still.
+
+## 2026-11-01 — A button's dim reason is a phrase; the words live where text lives
+- **What happened**: Save and Playtest dimmed with the loader's first error quoted in full ("1 error: data/maps/
+  dungeon.ron: portal at (0, 5) has no way back: no portal behind its landing ..."). Step 1 of the entrances
+  enhancement made the errors long, and the owner's hand test read the column as the Save button gone and the
+  Playtest option lost: "I seem to have lost the 'test play' option", "the save file seems overlapped by the
+  red error text". The same words stood three times in one column (both buttons and the red message), and a
+  fourth in the inspector.
+- **Rule**: a control's `why_not` is a phrase the column's width holds in a line or two ("1 error", "no
+  changes", "open a map first"); it never quotes a message. The words of a verdict are shown once, where text
+  lives: the inspector's rows for what stands, the message for what just happened. When a reason would quote
+  something, write the count or the kind and point nowhere (the layout tells where the words are). A test that
+  pins a reason compares it whole (`assert_eq!` on the phrase), not `contains("error")`: the loose pin let the
+  playtest test pass on the wrong branch after step 1 added the start rule.
+
+## 2026-11-01 — A check that stands on another's soundness runs only on a sound world
+- **What happened**: reachability (every world map reached through portal pairs) ran whatever else the loader
+  had found. With pairs derived from links, one link to nothing loaded broke its pair, and the loader listed every
+  map beyond it as unreached: four rows for one fault, in the editor's status too. The corpus pack built for the
+  link faults could then never show the reachability row, since its world was never sound.
+- **Rule**: a check whose input is another check's result (reachability from pairs, a landing from a link) runs
+  only when that input is sound: gate it on no earlier errors, in the loader and in `MapData::resolve` alike, and
+  say so in its doc comment. A corpus pack holds one fault family; a fault that hides another gets a pack of its
+  own (`bad-reach` beside `bad-ways`). The test that counts a report's rows is the one that catches the cascade.
+
+## 2026-11-07 — A press on the frame a screen closes is that screen's; the harness's press carries no mouse
+- **What happened**: "the left column palette based controls don't seem to actually link anything." The model
+  was airtight headless: the picker's Finish held the choice and the next click placed the linked portal. In
+  the window the Finish press closed the modal in the screens' router, and the editor's router, running later
+  in the same frame, saw the plan uncovered with the left button just down and the pointer over it: the stamp
+  dropped its linked portal under the Finish button, spending the choice, and the owner's click placed an
+  unlinked one. Three sessions of diagnosis went to the form's text field first, because the harness's
+  `press_ui` sets a control's `Interaction` and sends no mouse button, so the plan's frame never saw a press.
+- **Rule**: a button that went down while a screen stood over the editor belongs to that screen, whatever the
+  system order (`route` keeps whether a screen stood last frame; the frame the cover lifts takes no `Down`).
+  When a window report resists a headless reproduction, reproduce the window's *input* too: a modal control is
+  pressed with the mouse button down and the pointer somewhere real (`real_click` in `editor_link.rs`); the
+  system order the window runs is the harness's as well, so the harness can show it once the input is honest.
+  Two reports with one symptom ("the link is lost") get one cause looked for before two fixes.
+
+## 2026-11-07 — A field's text set by the model needs the field drawn anew; a shape that happens to change is no mechanism
+- **What happened**: step 2b's picker wrote the chosen id into the form's link field and it showed in the window,
+  so the path was taken as sound. It showed only because Unlink's dim reason flipped with the field going empty or
+  not, which changed the column's shape and rebuilt it. A link changed from one id to another changed no shape: the
+  drawn field kept the old id and the window's frame pushed it back into the model (found while planning the list
+  under the field; the switch test in `editor_link.rs` is red without the fix).
+- **Rule**: the words' sync never rewrites a drawn text field. Every model-side write to a field goes through
+  `Form::set_text`, which marks the form `refill`, and the column is drawn anew for it (`shell/editor.rs`
+  `refresh`), the keyboard kept. When a behaviour is seen to work, name the mechanism that makes it work; "it
+  rebuilt" is not one until the condition that rebuilt it is the one meant.
+
+## 2026-11-07 — The fixture and the canvas are two packs
+- **What happened**: `packs/test` was the fixture every test loaded and the owner's authoring canvas at once. Every
+  save through the editor resealed it, moving the hash the golden replays fingerprint, and the lesson of 2026-10-31
+  made the tests follow each save in a commit of their own. On 2026-11-07 the owner moved the town's shops while a
+  step was being built: 71 tests outside the editor went red, and a gate could only be run in a worktree on the
+  committed pack. The owner: "a specific test map, that is not used in play but lets us move all the tests against
+  an unchanging pack."
+- **Rule**: the tests and the replays load the frozen fixture `crates/omnis-sim/tests/packs/test` (id `test`, a copy
+  of the pack as committed at `8d58c3e2`, sealed once; the vector harness's `common::FIXTURE`), never the owner's
+  pack under `packs/`. The fixture is never saved onto: a test that writes works on a scratch copy of it. A change
+  to the fixture is deliberate, re-baselines the replays in the same commit and records the fingerprints. The
+  owner's canvas is theirs alone: committed as they leave it, loaded by the game, the CLI and the MCP by default,
+  and no test's. The 2026-10-31 lesson's "tests follow in a commit of their own" is retired.
+
+## 2026-11-07 — A renamed pack lengthens every id it is drawn in
+- **What happened**: after the canvas became `the_lower_kingdoms`, the owner reported the pack name overflowing the
+  tools column. The first fix put the pack root on its own row under the title, where the owner's first report
+  pointed. The second report, with a screenshot, showed the overflow was the map chooser: its value
+  `the_lower_kingdoms:map:depths` with its two arrows ran past the 330 px column on both sides. `test:map:depths`
+  had fit. A headless measure of every text in the column (the row's `TextLayoutInfo` against its box) found the
+  chooser's value a few pixels inside the column and the arrows outside it.
+- **Rule**: an id's length is content, not layout: when a pack or an id's prefix changes, every place that draws
+  the id in a narrow column is read again (the chooser, the palette, the pick lists, the file list), and where
+  room is short the id is drawn by its last segment (`stamp::short`), the prefix being the pack shown above. A
+  report of an overflow names a place; before the fix, measure every text of the column headless (the harness
+  lays the UI out with fonts) and fix the one that measures over, not the one the report named.
+
+## 2026-11-08 — A pack-relative name is a string with `/`, never a `Path::join`
+- **What happened**: the first Windows CI run failed one test: the editor's loader words named a new map's file
+  `data/maps\hamlet.ron`. `MapData::resolve` made the name with `Path::new("data/maps").join(...)`, which uses the
+  platform's separator, while every other pack-relative name in the tree is a string built with `/`
+  (`ron_io::list_under`, `new_map`) and the pack hasher already replaced `\` with `/`. The pre-build sweep looked
+  for CRLF, shells and symlinks and not for this; macOS could not show it.
+- **Rule**: a pack-relative name (a file in a pack, a path in a message, a key in a hash) is a `String` with `/`
+  on every platform, built with `format!` and carried as a `&str` or `Path::new(&str)` unchanged; `Path::join`
+  is for a real filesystem path under a root the OS gave, never for a name that is displayed, compared or
+  hashed. A Windows failure in a path's text is found by `grep -rn "\.join(" crates/*/src` read against this
+  rule, and the fix passes the name from where it is known rather than deriving it again.
+
+## 2026-11-11 — A gate that counts results must fail on none; a stopped build leaves artifacts to distrust
+- **What happened**: a gate run for the catalogue (step 1 of the `data.*` ops) printed `tests passed  failed
+  ignored` with no numbers and then VERIFY-GREEN. Every test binary had failed to link (`ld: symbol(s) not found`
+  in `libomnis_data`'s rlib): I had stopped an earlier gate mid-build to change a type, and the incremental
+  artifacts it left were inconsistent. `verify.sh` kept only `test result|FAILED|panicked` lines and failed on
+  a failed count alone, so a run in which nothing ran passed. Caught by reading the count line before the
+  commit, not by the chain.
+- **Rule**: the test stage fails on a failed test, on any `^error` line from cargo, and on zero tests passed
+  (`scripts/test-summary.sh`, with a `--self-test` of each case that the gate runs first). Before a commit the
+  count line is read as a number against the last known one (1228 on 2026-11-11), not only the green word.
+- **Rule**: a gate or a build is never stopped part-way; if one must be, `cargo clean -p <crate>` for every
+  crate whose sources changed since the last whole build comes before the next run. A link error naming
+  `anon.*.llvm.*` symbols in a workspace rlib is a stale artifact, not the code.
+
+## 2026-11-11 — Before departing from a plan over a rule, look for the rule's precedent in the tree
+- **What happened**: the approved plan for the `data.*` ops named a string-collecting `serde::Serializer`. I
+  built a walk over RON text instead, because the trait's signatures name the float types the sim lint bans,
+  and reported that I "did not use the lint's exemption marker". `omnis-sim/src/query/path.rs` had carried
+  exactly that case since `world.query`: two aliases, `type Float32` and `type Float64`, each on a
+  `lint-sim: allow` line. One `grep -rn "lint-sim: allow" crates` would have shown it. The owner chose the
+  serializer when asked (it takes each string from the type, not from how a format prints it).
+- **Rule**: when a lint or a rule seems to block what a plan approved, grep the tree for how the same case is
+  already handled before choosing a departure; a departure is the owner's choice, asked before it is built,
+  not reported after.
+- **Rule** (the owner's preference, 2026-11-11): a value is walked through its type (a serializer, a visitor),
+  not through its printed text.
+
+## 2026-11-11 — A second checkout never builds into this tree's `target/`
+- **What happened**: to compare `rules.list` before and after a format change I built the previous commit from a
+  temporary `git worktree` with `CARGO_TARGET_DIR` pointed at this tree's `target/`. It left the old
+  `omnis-cli` binary in place; cargo then took it as fresh, and the gate's `validate` step ran the old loader
+  against the new files and failed. The gate caught it (no VERIFY-GREEN), and `cargo clean -p` for the crates
+  involved cleared it.
+- **Rule**: another checkout builds into its own target directory (the scratchpad), never this tree's. The
+  cost is a cold build; the saving is not worth a wrong binary.
+- **Rule**: a change to a sealed pack's files moves its version and hash, and the world's fingerprint covers the
+  packs it was made on, so the golden replays are rebaselined in the same commit
+  (`cargo test -p omnis-sim rebaseline -- --ignored`) and the plan says so. "Replays stay at their pins" holds
+  only when no sealed pack's text changes; equality of behaviour is then shown another way (here `rules.list`
+  compared across the two commits).

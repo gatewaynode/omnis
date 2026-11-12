@@ -469,6 +469,7 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
         DevCommand::KillStack { stack } => format!("dev: stack {} slain", u16::from(*stack) + 1),
         DevCommand::Reconcile { region } => format!("dev: reconcile with {region}"),
         DevCommand::Fold => "dev: fold".to_owned(),
+        DevCommand::Pass { minutes } => format!("dev: {minutes} minutes pass"),
     }
 }
 

@@ -4,7 +4,7 @@ use super::screen::Showing;
 use super::session::Session;
 use super::settings::Current;
 use super::{VectorSet, ViewState};
-use crate::look::{level, wrap_pitch, yaw_sign};
+use crate::look::{clamp_pitch, level};
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -49,7 +49,7 @@ pub struct Intent {
 /// the binder and the simulation never see it.
 #[derive(Resource, Debug, Default)]
 pub struct View {
-    /// Radians, `(-π, π]`, positive up; past ±π/2 the view has turned over.
+    /// Radians, `[-PITCH_LIMIT, PITCH_LIMIT]`, positive up: just short of straight up or down.
     pub pitch: f32,
     /// Easing back to level after a step.
     pub levelling: bool,
@@ -103,7 +103,8 @@ impl Plugin for MovementPlugin {
 
 /// A left click in the view turns mouse look on and another turns it off, leaving the view
 /// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
-/// the panel opening and the fight screen (`movement::look`).
+/// the panel opening, the fight screen and the editor (`movement::look`).
+#[allow(clippy::too_many_arguments)]
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -112,6 +113,7 @@ fn grab_cursor(
     mut intent: ResMut<Intent>,
     showing: Option<Res<Showing>>,
     view: Option<Res<State<ViewState>>>,
+    editing: Option<Res<super::editor::Editing>>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
@@ -124,7 +126,8 @@ fn grab_cursor(
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
             panel: showing.is_some_and(|s| s.0)
-                || view.is_some_and(|v| *v.get() == ViewState::Fight),
+                || view.is_some_and(|v| *v.get() == ViewState::Fight)
+                || editing.is_some(),
         },
     );
     if next != intent.looking {
@@ -203,7 +206,7 @@ fn yaw_delta(intent: &mut Intent, dt: f32, snap: bool) -> f32 {
 fn pitch(view: &mut View, intent: &Intent, dt: f32, snap: bool) {
     let tilt = intent.mouse_pitch + intent.tilt * TURN_SPEED * dt;
     if tilt != 0.0 {
-        view.pitch = wrap_pitch(view.pitch + tilt);
+        view.pitch = clamp_pitch(view.pitch + tilt);
         view.levelling = false;
     }
     if intent.level {
@@ -230,8 +233,6 @@ fn advance(
         view.pitch = 0.0;
         view.levelling = false;
     }
-    // Upside down, the mouse turns the other way, so the picture turns the way it moves.
-    intent.mouse_yaw *= yaw_sign(view.pitch);
     let terrain_minutes = session
         .data
         .maps

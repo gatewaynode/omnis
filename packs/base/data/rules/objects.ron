@@ -6,7 +6,7 @@
     schema: 1,
     id: "base:rules:objects",
     values: {
-        "notice_tiles": 2,
-        "search_minutes": 10,
+        "notice_tiles": (priority: 0, value: 2),
+        "search_minutes": (priority: 0, value: 10),
     },
 )

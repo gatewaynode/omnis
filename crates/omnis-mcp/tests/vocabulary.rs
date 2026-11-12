@@ -207,10 +207,62 @@ struct Seen {
 
 fn headless() -> Headless {
     Headless::new(
-        vec![repo().join("packs/base"), repo().join("packs/test")],
+        vec![
+            repo().join("packs/base"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
+        ],
         1,
     )
     .unwrap()
+}
+
+/// What the `data.*` ops answer about everything `game` has loaded: the kinds, every row of the
+/// listing, every definition and its words. A definition's `def` is left out by name: it is the
+/// pack format's shape, outside the protocol's field rules (`docs/api.md` §7.12); the envelope
+/// around it is held to them like any view.
+fn definitions(game: &mut Headless) -> Vec<(String, Value)> {
+    let mut wire = vec![("data.kinds".to_owned(), answer(game, &Op::DataKinds))];
+    let listing = answer(
+        game,
+        &Op::DataList {
+            kind: None,
+            prefix: None,
+            matching: None,
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: Some(500),
+        },
+    );
+    let ids: Vec<String> = listing["definitions"]
+        .as_array()
+        .expect("a page of definitions")
+        .iter()
+        .map(|row| row["id"].as_str().expect("an id").to_owned())
+        .collect();
+    assert!(ids.len() > 100, "the yard's packs hold every kind");
+    wire.push(("data.list".to_owned(), listing));
+    let mut keys = Vec::new();
+    for id in ids {
+        let mut one = answer(
+            game,
+            &Op::DataGet {
+                id: id.clone(),
+                lang: None,
+            },
+        );
+        let view = one["definition"].as_object_mut().expect("a definition");
+        assert!(view.remove("def").is_some(), "{id} carries its def");
+        keys.extend(view["words"].as_object().expect("words").keys().cloned());
+        wire.push((format!("data.get {id}"), one));
+    }
+    keys.truncate(200);
+    keys.push("base:text:no.such.key".to_owned());
+    wire.push((
+        "data.text".to_owned(),
+        answer(game, &Op::DataText { keys, lang: None }),
+    ));
+    wire
 }
 
 /// Every source, on the real packs.
@@ -241,7 +293,7 @@ fn everything() -> Seen {
     let mut game = Headless::new(
         vec![
             repo().join("packs/base"),
-            repo().join("packs/test"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
             repo().join("crates/omnis-sim/tests/packs/objects"),
         ],
         1,
@@ -294,6 +346,7 @@ fn everything() -> Seen {
         count: 10,
     });
     play(&mut game, "yard pick", pick, &mut seen);
+    seen.wire.extend(definitions(&mut game));
     for name in ["walk", "fight"] {
         let path = repo().join(format!("crates/omnis-sim/tests/replays/{name}.ron"));
         let replay: Replay = read_ron(&path, &path).unwrap();

@@ -14,6 +14,12 @@ pub mod cast;
 pub mod create_party;
 pub mod debug;
 pub mod defeat;
+pub mod editor_files;
+pub mod editor_history;
+pub mod editor_menu;
+pub mod editor_pick;
+pub mod editor_props;
+pub mod editor_rules;
 pub mod fight;
 pub mod inventory;
 pub mod load_report;
@@ -78,6 +84,26 @@ pub enum ScreenId {
     Log,
     /// A save the loaded packs cannot load, and why (M8.5 7h4).
     LoadReport,
+    /// The editor's menu: Esc over the editor (M5.4).
+    EditorMenu,
+    /// The editor's file picker: a modal over the editor (M5.9b).
+    EditorFiles,
+    /// A stamp's detail picker: a modal over the editor (the column's step 3b).
+    EditorPick,
+    /// A stamp's properties: a modal over the editor, after the picker.
+    EditorProps,
+    /// The editor's history list (the column's step 5).
+    EditorHistory,
+    /// The editor's rules list: every rule, where it came from and what it beat.
+    EditorRules,
+    /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
+    EditorTools,
+    /// The editor's inspector column, as the tools.
+    EditorInspector,
+    /// The editor's attribute bar over the plan (M5.6), as the tools.
+    EditorBar,
+    /// The editor's file text in the centre (M5.9), as the tools.
+    EditorText,
 }
 
 impl ScreenId {
@@ -129,6 +155,8 @@ pub enum ControlId {
     SaveLog,
     /// End the game and go back to the title.
     QuitToTitle,
+    /// End a playtest and go back to the editor as it was left (M5.8).
+    BackToEditor,
     /// Leave the program.
     Quit,
     /// The draft's name.
@@ -200,6 +228,10 @@ pub enum ControlId {
     Verb(u8),
     /// The full log's filter.
     LogFilter,
+    /// The title's Editor button (M5.4).
+    Editor,
+    /// A control of the editor's layer (M5.4).
+    Edit(crate::editor::EditAct),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -274,12 +306,41 @@ pub enum Kind {
         /// The highest it may be.
         max: i64,
     },
-    /// Typed text, at most `max` bytes.
+    /// Typed text, at most `max` bytes, on `lines` lines (more than one takes newlines).
     Text {
         /// The text.
         value: String,
         /// The most bytes it takes.
         max: usize,
+        /// The lines it shows; above one, Enter breaks a line.
+        lines: u8,
+    },
+    /// A whole file as text (M5.9c): every line shown and numbered, no wrapping, scrolled on both
+    /// axes, the view following the caret.
+    Document {
+        /// The text.
+        value: String,
+        /// The most bytes it takes.
+        max: usize,
+    },
+    /// A square button showing the Lucide icon `name` (the owner's drawing-GUI column, 2026-10-25);
+    /// pressed like a button. `chosen` is the one pressed state of a grid of them: framed and drawn
+    /// white. The label is the icon's name for the text readers and is not drawn.
+    Icon {
+        /// The icon's name in the set.
+        name: &'static str,
+        /// Whether this is the grid's current one.
+        chosen: bool,
+    },
+    /// A square button of one colour with a glyph on it (a terrain of the editor's palette);
+    /// pressed like a button, `chosen` as an icon's.
+    Swatch {
+        /// The square's colour.
+        rgb: (u8, u8, u8),
+        /// The glyph drawn on it.
+        glyph: char,
+        /// Whether this is the grid's current one.
+        chosen: bool,
     },
 }
 
@@ -394,9 +455,9 @@ impl Screen {
         self.keys.iter().find(|(k, _)| *k == key).map(|(_, c)| *c)
     }
 
-    /// A hash of the screen's shape: its panels, rows, spans' count and controls' ids, kinds and
-    /// whether they are live, not their words. The renderer rebuilds its nodes only when the
-    /// shape changes, and rewrites the words in place otherwise.
+    /// A hash of the screen's shape: its panels, rows, spans' count and controls' ids, kinds,
+    /// whether they are live and which icon is chosen, not their words. The renderer rebuilds its
+    /// nodes only when the shape changes, and rewrites the words in place otherwise.
     #[must_use]
     pub fn shape(&self) -> u64 {
         let mut h = Fnv(0xcbf2_9ce4_8422_2325);
@@ -406,7 +467,17 @@ impl Screen {
             for row in &panel.rows {
                 row.spans.len().hash(&mut h);
                 for c in &row.controls {
-                    (c.id, core::mem::discriminant(&c.kind), c.why_not.is_some()).hash(&mut h);
+                    let chosen = matches!(
+                        c.kind,
+                        Kind::Icon { chosen: true, .. } | Kind::Swatch { chosen: true, .. }
+                    );
+                    (
+                        c.id,
+                        core::mem::discriminant(&c.kind),
+                        c.why_not.is_some(),
+                        chosen,
+                    )
+                        .hash(&mut h);
                 }
                 row.after.len().hash(&mut h);
                 row.tint.hash(&mut h);
@@ -520,6 +591,13 @@ pub enum Effect {
     Quit,
     /// Apply the player's settings and keep them in the settings file.
     Settings(crate::settings::Prefs),
+    /// Open the editor over the loaded packs, with no game (M5.4).
+    OpenEditor,
+    /// The editor's own act, from its menu (M5.5: Save) or a modal over it, with what the
+    /// control reported (a press or an arrow's step, a modal's typed text or set number).
+    Editor(crate::editor::EditAct, Payload),
+    /// End a playtest and bring the parked editor back (M5.8).
+    ToEditor,
 }
 
 /// Why [`apply`] did nothing.
@@ -584,6 +662,33 @@ pub struct Ctx<'a> {
     pub prefs: crate::settings::Prefs,
     /// The largest interface scale the window holds, in percent.
     pub fits: u16,
+    /// The editor, while it is open (M5.5): what its menu says of the document.
+    pub editing: Option<EditingCtx<'a>>,
+    /// The game is a playtest from the editor (M5.8): not saved, and it goes back to the editor.
+    pub playtest: bool,
+}
+
+/// The open editor as its menu reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditingCtx<'a> {
+    /// A map is open.
+    pub open: bool,
+    /// The map differs from its file.
+    pub dirty: bool,
+    /// What the loader would refuse, in its words.
+    pub errors: &'a [String],
+    /// The pack's files the picker lists (M5.9b), as the data layer lists them.
+    pub files: &'a [String],
+    /// The file open as text, and whether its text is unsaved.
+    pub file: Option<(&'a str, bool)>,
+    /// A stamp's detail being chosen (step 3b): what the picker and the properties show.
+    pub pick: Option<&'a crate::editor::pick::Picking>,
+    /// The history list's steps and where the map stands (step 5), with a map open.
+    pub history: Option<(&'a [String], usize)>,
+    /// What the rules list's search field holds.
+    pub rules_filter: &'a str,
+    /// The id of the pack being edited: the one whose rules files open as text.
+    pub pack: &'a str,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -672,6 +777,20 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Settings, _) => settings::content(ctx, forms),
         (ScreenId::LoadReport, _) => load_report::content(forms),
+        (ScreenId::EditorMenu, _) => editor_menu::content(ctx),
+        (ScreenId::EditorFiles, _) => editor_files::content(ctx),
+        (ScreenId::EditorPick, _) => editor_pick::content(ctx),
+        (ScreenId::EditorProps, _) => editor_props::content(ctx),
+        (ScreenId::EditorHistory, _) => editor_history::content(ctx),
+        (ScreenId::EditorRules, _) => editor_rules::content(ctx),
+        // The editor's columns are built by its layer (`shell/editor.rs`), not here.
+        (
+            ScreenId::EditorTools
+            | ScreenId::EditorInspector
+            | ScreenId::EditorBar
+            | ScreenId::EditorText,
+            _,
+        ) => empty(id),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
@@ -713,7 +832,7 @@ pub fn apply(
         return Err(Refused::Dim(why.clone()));
     }
     match (&found.kind, payload) {
-        (Kind::Button, Payload::Press)
+        (Kind::Button | Kind::Icon { .. } | Kind::Swatch { .. }, Payload::Press)
         | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { min, max, .. }, Payload::Set(n)) => {
@@ -721,7 +840,7 @@ pub fn apply(
                 return Err(Refused::OutOfRange);
             }
         }
-        (Kind::Text { max, .. }, Payload::Text(text)) => {
+        (Kind::Text { max, .. } | Kind::Document { max, .. }, Payload::Text(text)) => {
             if text.len() > *max {
                 return Err(Refused::TooLong(*max));
             }
@@ -734,6 +853,19 @@ pub fn apply(
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
         (ScreenId::LoadReport, _) => load_report::apply(forms, control),
+        (ScreenId::EditorMenu, _) => editor_menu::apply(control),
+        (ScreenId::EditorFiles, _) => editor_files::apply(control),
+        (ScreenId::EditorPick, _) => editor_pick::apply(control, payload),
+        (ScreenId::EditorProps, _) => editor_props::apply(control, payload),
+        (ScreenId::EditorHistory, _) => editor_history::apply(control, payload),
+        (ScreenId::EditorRules, _) => editor_rules::apply(control, payload),
+        (
+            ScreenId::EditorTools
+            | ScreenId::EditorInspector
+            | ScreenId::EditorBar
+            | ScreenId::EditorText,
+            _,
+        ) => Effect::None,
         (ScreenId::Debug, Some(game)) => {
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }

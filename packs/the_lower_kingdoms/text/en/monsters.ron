@@ -1,0 +1,16 @@
+// English strings for the test pack's monster copies and Bob the Rat King. Keys are `the_lower_kingdoms:text:monster.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "the_lower_kingdoms:text:monster.bob_the_rat_king.name": "Bob the Rat King",
+        "the_lower_kingdoms:text:monster.bob_the_rat_king.quarterstaff": "Quarterstaff",
+        "the_lower_kingdoms:text:monster.giant_rat.bite": "Bite",
+        "the_lower_kingdoms:text:monster.giant_rat.name": "Giant Rat",
+        "the_lower_kingdoms:text:monster.goblin.name": "Goblin",
+        "the_lower_kingdoms:text:monster.goblin.scimitar": "Scimitar",
+        "the_lower_kingdoms:text:monster.goblin.shortbow": "Shortbow",
+        "the_lower_kingdoms:text:monster.skeleton.name": "Skeleton",
+        "the_lower_kingdoms:text:monster.skeleton.shortbow": "Shortbow",
+        "the_lower_kingdoms:text:monster.skeleton.shortsword": "Shortsword",
+    },
+)
