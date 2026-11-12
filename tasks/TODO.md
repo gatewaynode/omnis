@@ -568,7 +568,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] `tasks/acceptance/loot-and-ceiling.md` (2026-11-12).
   - Review (2026-11-12): the plan's four steps are built (`ead8e8c0`, `ee803d45`, `b6492d3b`, `e3467963`) with the
     two changes from the owner's first try (`175621bd`). Gate 1262 to 1285. One addition beyond the plan's words
-    (`Rejection::NotFromThere`). Open: the owner's try of Parts 1 and 3 to 5 of the acceptance sheet; an open
+    (`Rejection::NotFromThere`). The owner, after a try the same day: "tested piles now store and release chosen items. I think
+    we can move on." (Store and the takes named; the ceiling, Destroy, the pile stamp and the quiet not named.)
+    Open: an open
     container's way into the window; Store and Destroy act on a whole row (no count asked).
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
