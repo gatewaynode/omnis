@@ -578,6 +578,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
   same presentation-PRD amendment so width, fog and relief are in the shader from the start. A plan under
   `tasks/plans/` and the amendment text come with the choice.
+  - Plan approved 2026-11-12: `tasks/plans/rendering-size-1.md`. The owner also chose to keep the line width
+    now (each segment a quad widened in the shader), since a plain line list is 1 pixel wide.
+  - [ ] Baseline captures and timing of the gizmo renderer (scratchpad).
+  - [ ] 0. Spike, thrown away: a quad through a minimal `LineMaterial` and embedded `.wesl`, offscreen.
+  - [ ] 1. `strokes.rs`: the vertex buffers, `Scene::structure`/`grid`, `colour` moved.
+  - [ ] 2. `shell/lines.rs`, `lines.wesl`, the game view's entities beside the gizmos (`--lines gizmo|mesh`);
+    capture pairs compared.
+  - [ ] 3. Crests and the editor preview through the same path.
+  - [ ] 4. The swap: the gizmo loop and the switch go; timing; presentation docs.
+  - [ ] 5. Size 2's design: `tasks/plans/rendering-size-2.md` and the proposed presentation-PRD amendment.
+  - [ ] `tasks/acceptance/rendering-size-1.md`.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
