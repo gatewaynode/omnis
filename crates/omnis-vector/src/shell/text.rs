@@ -135,9 +135,21 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 (ItemPlace::Object(_), ItemPlace::Member(t)) => {
                     format!("{} takes {what} out", who(t))
                 }
+                (ItemPlace::Ground | ItemPlace::Object(_), ItemPlace::Stores) => {
+                    format!("{what} goes into the stores")
+                }
                 (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
                 // The engine moves nothing else between these.
                 _ => format!("{what} is moved"),
+            }
+        }
+        Event::ItemDestroyed {
+            item: it, count, ..
+        } => {
+            if *count == 1 {
+                format!("{} is destroyed", item(it))
+            } else {
+                format!("{count} {} are destroyed", item(it))
             }
         }
         // An object's own words: what a verb did, or why it failed (M8.5 step 2b).

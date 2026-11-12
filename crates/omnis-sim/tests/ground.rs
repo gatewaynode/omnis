@@ -10,15 +10,15 @@ use omnis_sim::ground::pile_at;
 use omnis_sim::objects::{ObjectState, Refusal};
 use omnis_sim::{Command, Event, ItemCommand, Rejection, World, apply};
 
-const DAGGER: &str = "base:item:dagger";
-const ARROWS: &str = "base:item:arrows";
+pub const DAGGER: &str = "base:item:dagger";
+pub const ARROWS: &str = "base:item:arrows";
 
-fn item(data: &Data, id: &str) -> ItemId {
+pub fn item(data: &Data, id: &str) -> ItemId {
     data.registry.items.get(id).expect(id)
 }
 
 /// A party of one at `(x, y)` facing `facing`, carrying `n` daggers.
-fn armed(data: &Data, x: u16, y: u16, facing: Facing, n: u16) -> World {
+pub fn armed(data: &Data, x: u16, y: u16, facing: Facing, n: u16) -> World {
     let mut world = in_yard(data, 0, x, y, facing);
     let dagger = item(data, DAGGER);
     let kit = &mut world.party.members[0].equipment;
@@ -37,11 +37,11 @@ fn carried(world: &World, data: &Data, id: &str) -> u16 {
         .sum()
 }
 
-fn pile(world: &World, data: &Data, x: u16, y: u16) -> Option<Pile> {
+pub fn pile(world: &World, data: &Data, x: u16, y: u16) -> Option<Pile> {
     pile_at(world, data, yard(data), (Level(0), x, y)).cloned()
 }
 
-fn saved_ground(world: &World, data: &Data) -> usize {
+pub fn saved_ground(world: &World, data: &Data) -> usize {
     world.maps.get(&yard(data)).map_or(0, |s| s.ground.len())
 }
 
@@ -87,7 +87,7 @@ fn moved(events: &[Event]) -> Option<(ItemPlace, ItemPlace)> {
 }
 
 /// Apply a command that must be refused, and check the world did not change.
-fn refused(world: &mut World, data: &Data, command: Command) -> Rejection {
+pub fn refused(world: &mut World, data: &Data, command: Command) -> Rejection {
     let before = world.clone();
     let rejection = apply(world, data, command).expect_err("refused");
     assert_eq!(*world, before, "a refusal changes nothing");
@@ -96,7 +96,7 @@ fn refused(world: &mut World, data: &Data, command: Command) -> Rejection {
 
 /// The world read back from its save is the same, but for the log and the journal a save does
 /// not keep.
-fn round_trip(world: &World, data: &Data) {
+pub fn round_trip(world: &World, data: &Data) {
     let text = world.to_ron().expect("writes");
     let mut back = World::from_ron(&text, data, false).expect("reads");
     back.log.clone_from(&world.log);
@@ -108,7 +108,7 @@ fn set(world: &mut World, data: &Data, id: &str, state: ObjectState) {
     world.map_state(yard(data)).objects.insert(id.into(), state);
 }
 
-fn open_chest(world: &mut World, data: &Data) {
+pub fn open_chest(world: &mut World, data: &Data) {
     let open = ObjectState {
         state: Some("open".into()),
         ..ObjectState::default()
@@ -419,7 +419,7 @@ fn a_member_who_cannot_act_moves_nothing_and_not_outside_exploring() {
 }
 
 /// What the objects view lists on the ground.
-fn listed(world: &World, data: &Data) -> Vec<(String, u16)> {
+pub fn listed(world: &World, data: &Data) -> Vec<(String, u16)> {
     omnis_sim::objects_view(world, data)
         .ground
         .into_iter()

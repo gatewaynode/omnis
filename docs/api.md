@@ -836,8 +836,14 @@ edge making up the rest; else `NotOnGround`), `TakeOut { member, object, item, c
 placement id, to kit and back; a kind with a capacity is a container, open in a state marked
 `open` or always when it has no states; its capacity counts kinds of item; refusals
 `NoSuchObject`, `VerbRefused` with `NotOffered` (not a container), `Closed` or `Full`, and
-`NotInObject`). The save keeps a pile or a container's contents only once they differ from the
-map's.
+`NotInObject`). `Stash { from, item, count }` and `Destroy { from, item, count }` take from a
+place in reach that the party does not carry, with no member named and no time taken: `from` is an
+`ItemPlace`, `"Ground"` (the piles within reach, as `PickUp`) or `{"Object": placement id}` (an
+open container, as `TakeOut`); a kit or the stores is refused with `NotFromThere`. `Stash` puts
+the items in the party's stores (`ItemMoved` to `"Stores"`); `Destroy` ends them for good
+(`ItemDestroyed`). Their refusals are the place's own: `NotOnGround`, `NotInObject`,
+`NoSuchObject`, `VerbRefused`, `NotEnough`, `ZeroCount`, `WrongMode`. The save keeps a pile or a
+container's contents only once they differ from the map's.
 
 `ServiceCommand` (`member` a `CharacterId`; `item` and `spell` string ids): `Leave` (any),
 `Room` (inn: a long rest), `Rumor` (tavern), `BuyFood { count }` (tavern), `Heal { member }`,
@@ -896,7 +902,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 73 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 74 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -968,6 +974,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
 | `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell; for `PickUp` also the cell it faces) or `{"Object": placement id}`) | Items moved. |
+| `ItemDestroyed` | `item`, `count`, `from` (`ItemPlace`: `"Ground"` or `{"Object": placement id}`) | `Destroy`: the items are gone for good. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1015,7 +1022,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (71 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (72 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1082,6 +1089,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NotOnGround` | `item` | `PickUp`: no pile within reach (the party's cell, the cell it faces across an open edge) holds any of it. |
 | `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
 | `PileFull` | | `Drop`: the cell's pile holds 32 kinds, none of them this one. |
+| `NotFromThere` | | `Stash`, `Destroy`: `from` names a kit or the stores; they take from the ground within reach or an open container only. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -1194,7 +1202,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-12 (latest, the quiet after an encounter; owner's direction): the rules value
+- 2026-11-12 (latest, store and destroy; the loot and ceiling plan, step 4): `ItemCommand::Stash { from,
+  item, count }` and `ItemCommand::Destroy { from, item, count }` (`from` an `ItemPlace`: the ground within
+  reach or an open container in reach), `Event::ItemDestroyed { item, count, from }` (74 events) and
+  `Rejection::NotFromThere` (72 rejections). `ItemMoved` may now go from `"Ground"` or an `Object` to
+  `"Stores"`. No saved shape changes and no golden moves.
+- 2026-11-12 (the quiet after an encounter; owner's direction): the rules value
   `encounter_quiet_steps` (base: 8). When an encounter begins, placed, random or an ambush, the world's `quiet`
   is set to it; each step after that is not onto a placed group takes one off and rolls no random table, with no
   `EncounterCheck` and no draw on the `encounter` stream. A pack without the value, or with 0, rolls on every

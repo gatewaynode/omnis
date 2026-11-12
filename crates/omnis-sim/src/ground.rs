@@ -100,8 +100,30 @@ pub(crate) fn pick_up(
     count: u16,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let (map, _) = here(world)?;
+    here(world)?;
     let own = actor(world, data, member)?;
+    let id = take(world, data, item, count)?;
+    add_to(&mut world.party.members[own].equipment, id, count);
+    events.push(moved(
+        data,
+        id,
+        count,
+        ItemPlace::Ground,
+        ItemPlace::Member(member),
+    ));
+    Ok(())
+}
+
+/// Take `count` of an item off the ground within reach, checked before anything changes: from
+/// the party's cell first, the faced cell's pile making up the rest. Where it goes is the
+/// caller's.
+pub(crate) fn take(
+    world: &mut World,
+    data: &Data,
+    item: &str,
+    count: u16,
+) -> Result<ItemId, Rejection> {
+    let (map, _) = here(world)?;
     let id = from_list(data, &in_reach(world, data), item, count, |item| {
         Rejection::NotOnGround {
             item: String::from(item),
@@ -118,15 +140,7 @@ pub(crate) fn pick_up(
             left -= taken;
         }
     }
-    add_to(&mut world.party.members[own].equipment, id, count);
-    events.push(moved(
-        data,
-        id,
-        count,
-        ItemPlace::Ground,
-        ItemPlace::Member(member),
-    ));
-    Ok(())
+    Ok(id)
 }
 
 /// Lay items on the ground of the party's cell, where a pile already lies or at its centre: the

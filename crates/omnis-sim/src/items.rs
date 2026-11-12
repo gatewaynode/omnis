@@ -126,6 +126,27 @@ pub enum ItemCommand {
         /// How many; at least one.
         count: u16,
     },
+    /// Put items from a place in reach that the party does not carry into the party's stores
+    /// (owner, 2026-11-12): `from` is the ground within reach or an open container in reach;
+    /// a kit or the stores is refused (`NotFromThere`; a kit's way there is `Stow`).
+    Stash {
+        /// Where the items are: `Ground` or `Object(id)`.
+        from: ItemPlace,
+        /// The item's id; the place must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
+    },
+    /// Destroy items in a place in reach that the party does not carry: they are gone for
+    /// good. `from` as for `Stash`.
+    Destroy {
+        /// Where the items are: `Ground` or `Object(id)`.
+        from: ItemPlace,
+        /// The item's id; the place must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
+    },
 }
 
 /// What a use does, from the item's `use_effect`.
@@ -224,6 +245,35 @@ pub(crate) fn apply(
             ref item,
             count,
         } => objects::put_in(world, data, member, object, item, count, events),
+        ItemCommand::Stash {
+            ref from,
+            ref item,
+            count,
+        } => {
+            let id = lift(world, data, from, item, count)?;
+            add_to(&mut world.party.inventory, id, count);
+            events.push(ground::moved(
+                data,
+                id,
+                count,
+                from.clone(),
+                ItemPlace::Stores,
+            ));
+            Ok(())
+        }
+        ItemCommand::Destroy {
+            ref from,
+            ref item,
+            count,
+        } => {
+            let id = lift(world, data, from, item, count)?;
+            events.push(Event::ItemDestroyed {
+                item: id_of(&data.registry.items, id),
+                count,
+                from: from.clone(),
+            });
+            Ok(())
+        }
         ItemCommand::Use {
             member,
             ref item,
@@ -244,6 +294,22 @@ pub(crate) fn apply(
             advance(world, data, minutes, events);
             Ok(())
         }
+    }
+}
+
+/// Take `count` of an item out of a place in reach that the party does not carry, checked in
+/// full before anything changes: the ground within reach, or an open container in reach.
+fn lift(
+    world: &mut World,
+    data: &Data,
+    from: &ItemPlace,
+    item: &str,
+    count: u16,
+) -> Result<ItemId, Rejection> {
+    match from {
+        ItemPlace::Ground => ground::take(world, data, item, count),
+        ItemPlace::Object(object) => objects::take_from_container(world, data, object, item, count),
+        ItemPlace::Member(_) | ItemPlace::Stores => Err(Rejection::NotFromThere),
     }
 }
 

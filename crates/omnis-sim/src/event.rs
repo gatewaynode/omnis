@@ -524,6 +524,15 @@ pub enum Event {
         /// Where to.
         to: ItemPlace,
     },
+    /// Items were destroyed where they lay: gone for good (`ItemCommand::Destroy`).
+    ItemDestroyed {
+        /// Which item.
+        item: String,
+        /// How many.
+        count: u16,
+        /// Where they were.
+        from: ItemPlace,
+    },
     /// A member used an item; what it did follows.
     ItemUsed {
         /// Who.

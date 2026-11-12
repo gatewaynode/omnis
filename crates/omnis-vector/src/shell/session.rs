@@ -708,6 +708,7 @@ pub fn reshapes(event: &Event) -> bool {
         Event::ItemMoved { from, to, .. } => {
             [from, to].iter().any(|p| matches!(p, ItemPlace::Ground))
         }
+        Event::ItemDestroyed { from, .. } => matches!(from, ItemPlace::Ground),
         _ => false,
     }
 }
@@ -823,6 +824,12 @@ mod tests {
             },
             moved(member.clone(), ItemPlace::Ground),
             moved(ItemPlace::Ground, member.clone()),
+            moved(ItemPlace::Ground, ItemPlace::Stores),
+            Event::ItemDestroyed {
+                item: "base:item:arrows".into(),
+                count: 1,
+                from: ItemPlace::Ground,
+            },
             Event::CombatEnded {
                 outcome: CombatOutcome::Victory,
                 xp: 0,
@@ -836,6 +843,11 @@ mod tests {
         for no in [
             moved(member.clone(), ItemPlace::Stores),
             moved(member, ItemPlace::Object(object("chest_1"))),
+            Event::ItemDestroyed {
+                item: "base:item:arrows".into(),
+                count: 1,
+                from: ItemPlace::Object(object("chest_1")),
+            },
             Event::Moved {
                 from: place.clone(),
                 to: place,

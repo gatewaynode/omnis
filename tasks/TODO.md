@@ -559,8 +559,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
       `World::quiet`, no roll and no draw for that many steps after any encounter begins. Base resealed at
       0.1.2, the replays rebaselined. Tests `encounter::after_an_encounter_the_table_is_quiet_...` and
       `encounter::a_placed_group_starts_the_quiet_...`.
-  - [ ] 4. Store and destroy: `ItemCommand::Stash` and `ItemCommand::Destroy` (`from: ItemPlace`),
-    `Event::ItemDestroyed`, every pin; the two buttons, Destroy asked first.
+  - [x] 4. Store and destroy (2026-11-12): `ItemCommand::Stash` and `ItemCommand::Destroy` (`from: ItemPlace`),
+    `Event::ItemDestroyed` (74 events), every pin; the two buttons, Destroy asked first. Added beyond the
+    plan's words: `Rejection::NotFromThere` (72) for the "any other place is refused" the plan asks, since no
+    existing refusal says it. Neither command names a member, so both stay lit when nobody can carry.
+    `Item` has no "kept" mark (no quest items yet), so Destroy is never dimmed for one. Sim `tests/stash.rs`
+    (4 tests), client `tests/loot.rs` (3 new).
   - [ ] `tasks/acceptance/loot-and-ceiling.md`.
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the

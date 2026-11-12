@@ -448,6 +448,16 @@ fn the_hud_names_items_on_the_ground_and_in_a_container() {
             ItemPlace::Member(member),
             format!("{who} takes {dagger} out"),
         ),
+        (
+            ItemPlace::Ground,
+            ItemPlace::Stores,
+            format!("{dagger} goes into the stores"),
+        ),
+        (
+            chest(),
+            ItemPlace::Stores,
+            format!("{dagger} goes into the stores"),
+        ),
     ];
     for (from, to, line) in lines {
         let moved = Event::ItemMoved {
@@ -458,6 +468,19 @@ fn the_hud_names_items_on_the_ground_and_in_a_container() {
         };
         assert_eq!(text::describe(&moved, &names, &data), Some(line));
     }
+    let destroyed = |count| Event::ItemDestroyed {
+        item: "base:item:dagger".into(),
+        count,
+        from: ItemPlace::Ground,
+    };
+    assert_eq!(
+        text::describe(&destroyed(1), &names, &data),
+        Some(format!("{dagger} is destroyed"))
+    );
+    assert_eq!(
+        text::describe(&destroyed(3), &names, &data),
+        Some(format!("3 {dagger} are destroyed"))
+    );
 }
 
 /// What the dead dropped, on the death and the victory lines (M8.5 step 2a, item 12).

@@ -33,8 +33,25 @@ pub(crate) fn take_out(
     count: u16,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let (placement, _) = open(world, data, object)?;
+    open(world, data, object)?;
     let own = actor(world, data, member)?;
+    let id = take(world, data, object, item, count)?;
+    add_to(&mut world.party.members[own].equipment, id, count);
+    let from = ItemPlace::Object(String::from(object));
+    events.push(moved(data, id, count, from, ItemPlace::Member(member)));
+    Ok(())
+}
+
+/// Take `count` of an item out of an open container in reach, checked before anything
+/// changes. Where it goes is the caller's.
+pub(crate) fn take(
+    world: &mut World,
+    data: &Data,
+    object: &str,
+    item: &str,
+    count: u16,
+) -> Result<ItemId, Rejection> {
+    let (placement, _) = open(world, data, object)?;
     let mut held = Vec::from(contents(world, placement));
     let id = from_list(data, &held, item, count, |item| Rejection::NotInObject {
         item: String::from(item),
@@ -43,10 +60,7 @@ pub(crate) fn take_out(
         return Err(Rejection::NotInObject { item: item.into() });
     }
     keep(world, placement, held);
-    add_to(&mut world.party.members[own].equipment, id, count);
-    let from = ItemPlace::Object(placement.id.clone());
-    events.push(moved(data, id, count, from, ItemPlace::Member(member)));
-    Ok(())
+    Ok(id)
 }
 
 /// Put `count` of a kit's item into an open container in reach.

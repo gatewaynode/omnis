@@ -434,6 +434,9 @@ pub enum Rejection {
     },
     /// The ground of the party's cell has no room for another kind of item.
     PileFull,
+    /// `Stash` or `Destroy` named a kit or the stores: they take from the ground within reach
+    /// or an open container only.
+    NotFromThere,
 }
 
 impl core::fmt::Display for Rejection {
@@ -505,6 +508,9 @@ impl Rejection {
             }
             Rejection::NotInObject { item } => write!(f, "there is no {item} in it"),
             Rejection::PileFull => f.write_str("there is no room on the ground here"),
+            Rejection::NotFromThere => {
+                f.write_str("only the ground or an open container can be taken from that way")
+            }
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

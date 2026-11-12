@@ -166,14 +166,22 @@ fn dev_schema() -> Value {
     ]})
 }
 
-/// The `Item` command's variants: every `item` is an item kind's string id that the kit or the
-/// stores it names holds.
+/// The `Item` command's variants: every `item` is an item kind's string id that the kit, the
+/// stores or the place it names holds.
 fn item_schema() -> Value {
     let member = ("member", member_id());
     let item = ("item", String::schema());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
     let object = ("object", String::schema());
     let slot = json!({"type": "string", "enum": ["MainHand", "OffHand", "Ranged", "Body"]});
+    // Where `Stash` and `Destroy` take from: the ground in reach, or an open container by id.
+    let from = (
+        "from",
+        json!({"oneOf": [
+            {"type": "string", "enum": ["Ground"]},
+            {"type": "object", "properties": {"Object": String::schema()}, "required": ["Object"], "additionalProperties": false}
+        ]}),
+    );
     json!({"oneOf": [
         variant("Equip", &[member.clone(), item.clone()]),
         variant("Unequip", &[member.clone(), ("slot", slot)]),
@@ -184,7 +192,9 @@ fn item_schema() -> Value {
         variant("Drop", &[member.clone(), item.clone(), count.clone()]),
         variant("PickUp", &[member.clone(), item.clone(), count.clone()]),
         variant("TakeOut", &[member.clone(), object.clone(), item.clone(), count.clone()]),
-        variant("PutIn", &[member, object, item, count])
+        variant("PutIn", &[member, object, item.clone(), count.clone()]),
+        variant("Stash", &[from.clone(), item.clone(), count.clone()]),
+        variant("Destroy", &[from, item, count])
     ]})
 }
 
@@ -381,7 +391,7 @@ mod tests {
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 15);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
         assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
-        assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 10);
+        assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 12);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][6]["properties"]["Combat"]["oneOf"];
         assert_eq!(combat.as_array().unwrap().len(), 6);

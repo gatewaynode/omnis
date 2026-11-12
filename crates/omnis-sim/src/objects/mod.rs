@@ -10,7 +10,7 @@ mod outcome;
 
 pub(crate) use act::{act, admit, choices, offered, reach, reachable};
 pub use container::contents;
-pub(crate) use container::{put_in, take_out};
+pub(crate) use container::{put_in, take as take_from_container, take_out};
 pub use knowledge::Knowledge;
 pub(crate) use notice::search;
 pub(crate) use outcome::check_of;

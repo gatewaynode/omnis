@@ -202,7 +202,10 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `ground::{cells, in_reach}` and `objects_view::piles_in_reach` (reach as `objects::reach`); client
   `screen/loot.rs` (`Loot`, `LootAct`, `gone`, `receiver`; `Forms.loot`, `ControlId::Loot`, `Effect::Commands`),
   `aim.rs` (`Eye`, `project`, `rect`, `pile_under`, Bevy-free), `shell/aim.rs` (`Aimed`, the cursor, the click,
-  registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`.
+  registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`. Store and destroy (step 4):
+  `items::lift` over `ground::take` and `objects::container::take` (`ItemCommand::{Stash, Destroy}`,
+  `Event::ItemDestroyed`, `Rejection::NotFromThere`), `LootAct::{Store, Destroy, Confirm, Cancel}` and
+  `Loot.asking`; sim `tests/stash.rs`.
   `collide::blocks` refuses a step through a footprint via `SimWorld::object_blocks`
   (the engine's `api::object_blocks`); `tests/agreement.rs` covers the yard, gate shut and open.
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--settings`, `--screen`; `Packs`, always a resource; `Session`, only

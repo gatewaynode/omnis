@@ -2,6 +2,7 @@
 //! variant fails the build here until it has a successor arm. The schema proof holds each
 //! instance against the hand-written schema; the vocabulary test reads every key they carry.
 
+use omnis_cli::omnis_sim::event::ItemPlace;
 use omnis_cli::omnis_sim::omnis_core::CharacterId;
 use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation, Vertical};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill, Verb};
@@ -218,7 +219,33 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
             item,
             count,
         },
-        ItemCommand::PutIn { .. } => return None,
+        ItemCommand::PutIn { .. } => ItemCommand::Stash {
+            from: ItemPlace::Ground,
+            item,
+            count,
+        },
+        ItemCommand::Stash {
+            from: ItemPlace::Ground,
+            ..
+        } => ItemCommand::Stash {
+            from: ItemPlace::Object("chest_1".into()),
+            item,
+            count,
+        },
+        ItemCommand::Stash { .. } => ItemCommand::Destroy {
+            from: ItemPlace::Ground,
+            item,
+            count,
+        },
+        ItemCommand::Destroy {
+            from: ItemPlace::Ground,
+            ..
+        } => ItemCommand::Destroy {
+            from: ItemPlace::Object("chest_1".into()),
+            item,
+            count,
+        },
+        ItemCommand::Destroy { .. } => return None,
     })
 }
 

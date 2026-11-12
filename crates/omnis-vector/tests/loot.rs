@@ -101,7 +101,7 @@ fn the_window_lists_the_pile_ahead_with_take_take_all_and_take_everything() {
         rows(&screen),
         [
             "[Taken by] [Close]".to_owned(),
-            format!("{arrows} x10 [Take] [Take all]"),
+            format!("{arrows} x10 [Take] [Take all] [Store] [Destroy]"),
             "[Take everything]".to_owned(),
         ]
     );
@@ -229,7 +229,7 @@ fn take_everything_sends_one_command_an_item_and_a_fallen_receiver_dims_the_butt
     let dagger = omnis_vector::labels::item(&data, DAGGER);
     assert_eq!(
         rows(&shown(&data, &world, &forms))[1],
-        format!("{dagger} [Take]"),
+        format!("{dagger} [Take] [Store] [Destroy]"),
         "one of it: no Take all"
     );
 
@@ -256,6 +256,11 @@ fn take_everything_sends_one_command_an_item_and_a_fallen_receiver_dims_the_butt
     ] {
         let control = screen.control(ControlId::Loot(act)).expect("on the window");
         assert!(control.why_not.is_some(), "{act:?} is dim: {control:?}");
+    }
+    // The stores need no hands, and neither does an end: those stay lit.
+    for act in [LootAct::Store(0), LootAct::Destroy(1)] {
+        let control = screen.control(ControlId::Loot(act)).expect("on the window");
+        assert_eq!(control.why_not, None, "{act:?}");
     }
     let views = common::views(&world, &data);
     assert_eq!(
@@ -315,7 +320,28 @@ fn an_open_container_goes_through_the_same_window_and_a_shut_one_shows_nothing()
         omnis_vector::labels::text(&data, &chest.name)
     );
     let dagger = omnis_vector::labels::item(&data, DAGGER);
-    assert_eq!(rows(&screen)[1], format!("{dagger} [Take]"));
+    assert_eq!(
+        rows(&screen)[1],
+        format!("{dagger} [Take] [Store] [Destroy]")
+    );
+    assert_eq!(
+        press(
+            &data,
+            &world,
+            &mut forms,
+            LootAct::Store(0),
+            &Payload::Press
+        ),
+        Effect::Command {
+            command: Command::Item(ItemCommand::Stash {
+                from: ItemPlace::Object("chest_1".into()),
+                item: DAGGER.into(),
+                count: 1,
+            }),
+            close: false
+        },
+        "the same Store, from the chest"
+    );
     let take_out = Command::Item(ItemCommand::TakeOut {
         member: first,
         object: "chest_1".into(),
@@ -334,6 +360,94 @@ fn an_open_container_goes_through_the_same_window_and_a_shut_one_shows_nothing()
     // A place nothing is taken from this way is never shown.
     forms.loot.from = ItemPlace::Stores;
     assert!(gone(&data, &world, &forms));
+}
+
+#[test]
+fn store_sends_all_of_it_to_the_stores_and_destroy_asks_before_anything_is_sent() {
+    let data = objects_data();
+    let world = yard(&data, 1, 2, Facing::East);
+    let mut forms = Forms::default();
+    let arrows = omnis_vector::labels::item(&data, ARROWS);
+    let gone_for_good = |keep: bool| {
+        let (from, item, count) = (ItemPlace::Ground, ARROWS.to_owned(), 10);
+        Effect::Command {
+            command: Command::Item(if keep {
+                ItemCommand::Stash { from, item, count }
+            } else {
+                ItemCommand::Destroy { from, item, count }
+            }),
+            close: false,
+        }
+    };
+    assert_eq!(
+        press(
+            &data,
+            &world,
+            &mut forms,
+            LootAct::Store(0),
+            &Payload::Press
+        ),
+        gone_for_good(true)
+    );
+    let listed = rows(&shown(&data, &world, &forms));
+
+    // Destroy sends nothing: the window asks, with nothing else to press.
+    assert_eq!(
+        press(
+            &data,
+            &world,
+            &mut forms,
+            LootAct::Destroy(0),
+            &Payload::Press
+        ),
+        Effect::None
+    );
+    assert_eq!(forms.loot.asking, Some((ARROWS.to_owned(), 10)));
+    let question = shown(&data, &world, &forms);
+    assert_eq!(
+        rows(&question),
+        [
+            format!("Destroy {arrows} x10? This cannot be undone."),
+            "[Destroy] [Cancel]".to_owned(),
+        ]
+    );
+    let views = common::views(&world, &data);
+    for act in [LootAct::Take(0), LootAct::Store(0), LootAct::Everything] {
+        assert!(
+            screen::apply(
+                ScreenId::Loot,
+                &ctx(&data, &world, &views),
+                &mut forms,
+                ControlId::Loot(act),
+                &Payload::Press,
+                0
+            )
+            .is_err(),
+            "{act:?} is not on the question"
+        );
+    }
+
+    // Cancel: the rows are back as they were, and nothing was sent.
+    assert_eq!(
+        press(&data, &world, &mut forms, LootAct::Cancel, &Payload::Press),
+        Effect::None
+    );
+    assert_eq!(forms.loot.asking, None);
+    assert_eq!(rows(&shown(&data, &world, &forms)), listed);
+
+    // Asked again and answered: the one command, and the question is over.
+    press(
+        &data,
+        &world,
+        &mut forms,
+        LootAct::Destroy(0),
+        &Payload::Press,
+    );
+    assert_eq!(
+        press(&data, &world, &mut forms, LootAct::Confirm, &Payload::Press),
+        gone_for_good(false)
+    );
+    assert_eq!(forms.loot.asking, None);
 }
 
 /// The shell on the yard, the party at `(x, y)` facing `facing`.
@@ -428,6 +542,84 @@ fn shift_space_opens_the_window_take_everything_empties_the_pile_and_it_closes()
         held.iter().find(|i| i.item == ARROWS).map(|i| i.count),
         Some(10),
         "{first:?} holds them"
+    );
+}
+
+/// Shift+Space with the pile ahead: the loot window.
+fn open_window(app: &mut App) {
+    let shift = |app: &mut App, state| common::app::key(app, KeyCode::ShiftLeft, state);
+    shift(app, bevy::input::ButtonState::Pressed);
+    tap(app, KeyCode::Space);
+    shift(app, bevy::input::ButtonState::Released);
+    assert_eq!(top(app), Some(ScreenId::Loot));
+}
+
+fn stored(app: &App, item: &str) -> u16 {
+    let s = app.world().resource::<Session>();
+    let stores = &s.views.party.inventory;
+    stores
+        .iter()
+        .filter(|i| i.item == item)
+        .map(|i| i.count)
+        .sum()
+}
+
+#[test]
+fn in_the_app_store_fills_the_stores_and_the_window_closes_on_the_empty_pile() {
+    let mut app = yard_app(1, 2, Facing::East);
+    let before = stored(&app, ARROWS);
+    open_window(&mut app);
+    let text = screen_text(app.world());
+    for word in ["Store", "Destroy"] {
+        assert!(text.contains(word), "{word}: {text}");
+    }
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Store(0))));
+    assert_eq!(ground_of(&app), []);
+    assert_eq!(stored(&app, ARROWS), before + 10);
+    app.update();
+    assert_eq!(top(&app), None, "nothing left: the window closed itself");
+    let s = app.world().resource::<Session>();
+    assert!(
+        s.lines.iter().any(|l| l.contains("goes into the stores")),
+        "{:?}",
+        s.lines
+    );
+    assert_eq!(s.binder.refusals, 0);
+}
+
+#[test]
+fn in_the_app_destroy_asks_first_cancel_changes_nothing_and_yes_ends_the_pile() {
+    let mut app = yard_app(1, 2, Facing::East);
+    let before = stored(&app, ARROWS);
+    open_window(&mut app);
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Destroy(0))));
+    let text = screen_text(app.world());
+    assert!(text.contains("This cannot be undone."), "{text}");
+    assert!(!text.contains("Take everything"), "{text}");
+    assert_eq!(ground_of(&app), [(ARROWS.to_owned(), 10)], "only asked");
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Cancel)));
+    assert_eq!(ground_of(&app), [(ARROWS.to_owned(), 10)]);
+    assert_eq!(top(&app), Some(ScreenId::Loot));
+    let text = screen_text(app.world());
+    assert!(text.contains("Take everything"), "{text}");
+
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Destroy(0))));
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Confirm)));
+    assert_eq!(ground_of(&app), []);
+    assert_eq!(stored(&app, ARROWS), before, "into nobody's hands");
+    app.update();
+    assert_eq!(top(&app), None, "nothing left: the window closed itself");
+    let s = app.world().resource::<Session>();
+    assert!(
+        s.lines.iter().any(|l| l.contains("are destroyed")),
+        "{:?}",
+        s.lines
+    );
+    assert_eq!(s.binder.refusals, 0);
+    let held = &s.views.party.members[0].equipment;
+    assert_eq!(
+        held.iter().find(|i| i.item == ARROWS).map(|i| i.count),
+        None
     );
 }
 
