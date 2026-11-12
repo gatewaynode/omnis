@@ -565,7 +565,11 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     existing refusal says it. Neither command names a member, so both stay lit when nobody can carry.
     `Item` has no "kept" mark (no quest items yet), so Destroy is never dimmed for one. Sim `tests/stash.rs`
     (4 tests), client `tests/loot.rs` (3 new).
-  - [ ] `tasks/acceptance/loot-and-ceiling.md`.
+  - [x] `tasks/acceptance/loot-and-ceiling.md` (2026-11-12).
+  - Review (2026-11-12): the plan's four steps are built (`ead8e8c0`, `ee803d45`, `b6492d3b`, `e3467963`) with the
+    two changes from the owner's first try (`175621bd`). Gate 1262 to 1285. One addition beyond the plan's words
+    (`Rejection::NotFromThere`). Open: the owner's try of Parts 1 and 3 to 5 of the acceptance sheet; an open
+    container's way into the window; Store and Destroy act on a whole row (no count asked).
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
   same presentation-PRD amendment so width, fog and relief are in the shader from the start. A plan under

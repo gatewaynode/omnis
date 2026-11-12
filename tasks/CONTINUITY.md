@@ -1,14 +1,18 @@
 # Continuity notes
 
-Written 2026-11-12. **Next: step 4 of the loot window and ceiling plan**, `tasks/plans/loot-window-and-ceiling.md`
-(approved by the owner 2026-11-12; four steps in `tasks/TODO.md` W2). Built, none yet tried by the owner:
-step 1, the ceiling over a dip (`ead8e8c0`, `Ground::roof`); step 2, reach (`ee803d45`: `ground::in_reach`,
-`PickUp` and `ObjectsView.ground` over the party's cell then the faced cell); step 3, the loot window and the
-click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `shell/aim.rs`, `Does::Loot`, `Effect::Commands`, Tier 1
-`piles_in_reach`). Step 4 is `ItemCommand::Stash` and `Destroy` (`from: ItemPlace`), `Event::ItemDestroyed`
-(Event 73 to 74) with every pin, then the Store and Destroy buttons (Destroy asked first), then
-`tasks/acceptance/loot-and-ceiling.md`. **Open with the owner from step 3**: an open container has no way
-into the loot window yet (recommended: "Take from..." under an open container on the verbs screen).
+Written 2026-11-12. **The loot window and ceiling plan is built in full**, `tasks/plans/loot-window-and-ceiling.md`
+(approved by the owner 2026-11-12): step 1, the ceiling over a dip (`ead8e8c0`, `Ground::roof`); step 2, reach
+(`ee803d45`: `ground::in_reach`, `PickUp` and `ObjectsView.ground` over the party's cell then the faced cell);
+step 3, the loot window and the click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `shell/aim.rs`, `Does::Loot`,
+`Effect::Commands`, Tier 1 `piles_in_reach`); step 4, store and destroy (`e3467963`: `ItemCommand::Stash` and
+`Destroy` with `from: ItemPlace`, `Event::ItemDestroyed` (74 events), `Rejection::NotFromThere` (72), `items::lift`
+over `ground::take` and `container::take`; `LootAct::{Store, Destroy, Confirm, Cancel}`, `Loot.asking`). The
+owner's script is `tasks/acceptance/loot-and-ceiling.md`. **Next: the owner's try of that sheet**; the owner has
+tried reach and the window's opening only ("now I can get to the loot pile"). **Open with the owner**: an open
+container has no way into the loot window yet (recommended: "Take from..." under an open container on the verbs
+screen); Store and Destroy act on a whole row, with no count asked; `Item` has no "kept" mark, so Destroy is
+never dimmed for a quest item. Pinned counts moved by step 4: `schema_proof.rs` 122 instances and 177 branches,
+`schema.rs` 12 item variants, `api_doc.rs` 74 and 72.
 `shell/screen.rs` stands at 1000 lines: the next addition there moves something out first.
 **From the owner's try of steps 2 and 3** ("now I can get to the loot pile"), built the same day, not yet tried:
 a pile stamped on a cell that has one replaces it and the inspector lists a pile's contents (`editor/stamp.rs`);
@@ -17,7 +21,7 @@ replays rebaselined; the roll itself measured right at 2.95%). `editor/mod.rs` i
 The plan came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
 "the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
 button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
-`d67ba116`, `3c00f762`, `74772b2a`. Gate 1278. **Still to hear from the owner**: the word "accepted" for 0.20,
+`d67ba116`, `3c00f762`, `74772b2a`. Gate 1285. **Still to hear from the owner**: the word "accepted" for 0.20,
 and the departure (`controls::Control` with own left-button observers, not Bevy's `ui_widgets::Button`).
 The owner's edits to `packs/the_lower_kingdoms` (dungeon heights, a pile at (4, 23), version 0.2.22) are
 uncommitted and theirs: never staged. After this plan: ask the owner for the size of the rendering direction
