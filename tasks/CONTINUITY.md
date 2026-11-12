@@ -50,7 +50,7 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   Six commits of 2026-11-11 are unpushed (`970e943a` to this one); the owner pushes.
 - **The machine check passed 2026-11-11** after the owner's update of the terminal and the command line tools
   (the gate green at 1252, a fresh link good). **`DevCommand::Pass { minutes }` is built** the same day and
-  awaits the owner's test (`tasks/TODO.md` W1, the review line; tests 1256).
+  accepted 2026-11-12 (`tasks/TODO.md` W1, the review line; tests 1256).
 - **Next**, in the owner's order of 2026-11-08: the MCP bridge probe, "when needed"; then W1 closes. Otherwise the
   four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
 - **The machine** (checked 2026-11-11 after the system updates): command line tools in place, Rust 1.98.0 with

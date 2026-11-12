@@ -455,7 +455,7 @@ no loss, and every later map is built with it.
 - [x] A dev command to pass time (owner, 2026-10-08; built 2026-11-11 at the owner's word): `DevCommand::Pass { minutes }` lives the minutes at the
   region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 15).
   Replaces the 720 short rests in `tasks/acceptance/m8.md`.
-  **Review (2026-11-11, awaits the owner's test)**: one arm in `dev.rs` over `apply::advance`, the function a
+  **Review (2026-11-11; accepted by the owner 2026-11-12, "Manually confirmed")**: one arm in `dev.rs` over `apply::advance`, the function a
   step and a rest spend minutes through, so the age, the shared time, the date and timed effects move as they
   do in play; no food, no healing, no encounter. One to `DevCommand::MAX_PASS` (518,400, a year of 360 days),
   else `OutOfRange`; `WrongMode` in a fight or an encounter. The Debug World page has a Minutes field (60
