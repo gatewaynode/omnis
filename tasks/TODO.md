@@ -530,8 +530,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   loot window, reusable "for various situations where items are available for the party to take, store, or
   destroy"; a pile is in reach as objects are (own cell and the faced cell across an open edge); the ceiling is
   flat over dips only. One commit a step:
-  - [ ] 1. The ceiling: `roof = max(cell, level base) + wall height` in the lines, the fill and a wall's top;
-    BACKLOG "ceiling height controls" and "hidden piles".
+  - [x] 1. The ceiling (2026-11-12): `Ground::roof` (`max(floor, level base) + wall height`) in the lines, the
+    fill, a block's top and a wall's top; BACKLOG "ceiling height controls" and "hidden piles". Review: one
+    test on the town with a dip and a rise made in the test (no fixture has a dip), four mutations caught.
+    Not seen in a window by me: the owner's dungeon cell (5, 22).
   - [ ] 2. Reach: `PickUp` and `ObjectsView.ground` over the party's cell and the faced cell; Search's "On the
     ground" line follows.
   - [ ] 3. The loot window (`screen/loot.rs`, `ScreenId::Loot`, opened on an `ItemPlace`: Take, Take all, Take

@@ -115,7 +115,7 @@ pub fn extract(
                     terrain.block.is_some(),
                     terrain.ceiling.is_some(),
                 ),
-                h,
+                ground.roof(patch.centre, h),
             );
             rims(&mut out, ground, (x, y), patch, terrain.color);
             if map.portal_at(level, x, y).is_some() {
@@ -372,7 +372,7 @@ pub(crate) fn span(ground: &Ground, edge: EdgeKey, h: f32) -> ([f32; 2], f32) {
     if top == f32::MIN {
         return ([0.0; 2], h);
     }
-    (feet, top + h)
+    (feet, ground.roof(top, h))
 }
 
 fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, rgb: (u8, u8, u8)) {
@@ -381,21 +381,20 @@ fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, rgb: (u
 
 /// The per-cell lines: the floor grid's north and west sides (the far sides come from the
 /// neighbours, or from the walls that close the map), a block's box, a barrier's cross, and the
-/// ceiling grid. `(passable, block, ceiling)` are the terrain's.
+/// ceiling grid at `roof` (`Ground::roof`). `(passable, block, ceiling)` are the terrain's.
 fn cells(
     out: &mut Vec<Segment>,
     (x, y): (u16, u16),
     p: Patch,
     rgb: (u8, u8, u8),
     (passable, block, ceiling): (bool, bool, bool),
-    h: f32,
+    roof: f32,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let (x1, z1) = (x0 + 1.0, z0 + 1.0);
     let c = p.corners;
     line(out, [x0, c[NW], z0], [x1, c[NE], z0], SegKind::Floor, rgb);
     line(out, [x0, c[NW], z0], [x0, c[SW], z1], SegKind::Floor, rgb);
-    let roof = p.centre + h;
     if ceiling && !block {
         line(out, [x0, roof, z0], [x1, roof, z0], SegKind::Ceiling, rgb);
         line(out, [x0, roof, z0], [x0, roof, z1], SegKind::Ceiling, rgb);

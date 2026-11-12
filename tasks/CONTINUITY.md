@@ -1,11 +1,11 @@
 # Continuity notes
 
 Written 2026-11-12. **Next: the loot window and the flat ceiling**, `tasks/plans/loot-window-and-ceiling.md`
-(approved by the owner 2026-11-12, not started; four steps in `tasks/TODO.md` W2, begin at step 1, the
+(approved by the owner 2026-11-12; four steps in `tasks/TODO.md` W2; step 1, the ceiling, is done: begin at step 2, reach; was: step 1, the
 ceiling). It came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
 "the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
 button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
-`d67ba116`, `3c00f762`, `74772b2a`. Gate 1262. **Still to hear from the owner**: the word "accepted" for 0.20,
+`d67ba116`, `3c00f762`, `74772b2a`. Gate 1263. **Still to hear from the owner**: the word "accepted" for 0.20,
 and the departure (`controls::Control` with own left-button observers, not Bevy's `ui_widgets::Button`).
 The owner's edits to `packs/the_lower_kingdoms` (dungeon heights, a pile at (4, 23), version 0.2.22) are
 uncommitted and theirs: never staged. After this plan: ask the owner for the size of the rendering direction
@@ -37,7 +37,7 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   topological sort with cycle errors, which is not built (build it or correct the document); the four Bevy
   ECS tasks (`tasks/TODO.md`, Open) come after 0.20 unless the owner says otherwise; party creation's remove
   or edit a member.
-- **The gate's last figure**: `tests passed 1262 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-12).
+- **The gate's last figure**: `tests passed 1263 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-12).
 - **The machine**: Rust 1.98.0 with the `x86_64-pc-windows-msvc` std; `DEVELOPER_DIR=/Library/Developer/
   CommandLineTools` for cargo and git. A link error after a toolchain change is cleared with `cargo clean`.
   `gh` stays blocked in this sandbox.

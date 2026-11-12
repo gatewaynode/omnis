@@ -51,6 +51,9 @@ pub struct Ground {
     patches: Vec<Patch>,
     /// Whether each tile has ground on the level; one without has no patch.
     present: Vec<bool>,
+    /// The level's own height (its `base`; 0 for the map's own level), in cells: what its
+    /// ceiling is measured from over a dip.
+    base: f32,
 }
 
 /// A height in eighths of a cell, in cells.
@@ -108,12 +111,29 @@ impl Ground {
             .flat_map(|y| (0..width).map(move |x| (x, y)))
             .map(|(x, y)| map.cell(level, x, y).is_some())
             .collect();
+        let base = map
+            .def
+            .levels
+            .iter()
+            .find(|l| Level(l.level) == level)
+            .map_or(0.0, |l| cells(l.base));
         Ground {
             width,
             height,
             patches,
             present,
+            base,
         }
+    }
+
+    /// Where the ceiling stands over ground at `floor`, for a terrain `wall` high: a wall above
+    /// the floor, and never below a wall above the level's own height. So a dip does not pull
+    /// its ceiling down (owner, 2026-11-12), and a rise still lifts its own (a fixed ceiling
+    /// would cut into a hill). The ceiling's lines and fill, a block's top and a wall's top all
+    /// ask this, so they meet.
+    #[must_use]
+    pub fn roof(&self, floor: f32, wall: f32) -> f32 {
+        floor.max(self.base) + wall
     }
 
     /// Settle the grid corner `(cx, cy)`: the cells around it, grouped by the edges that join

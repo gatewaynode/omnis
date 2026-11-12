@@ -63,7 +63,7 @@ pub fn fills(
                 let rise = map.rise(level, x, y).unwrap_or(Facing::South);
                 stair(&mut out, (x, y), rise, flight(p.centre, to));
             }
-            let roof = p.centre + wall_height(terrain);
+            let roof = ground.roof(p.centre, wall_height(terrain));
             let (x0, z0) = (f32::from(x), f32::from(y));
             if terrain.block.is_some() {
                 let i = 0.1;

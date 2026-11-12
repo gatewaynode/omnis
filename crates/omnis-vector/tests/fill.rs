@@ -512,3 +512,88 @@ fn a_stair_is_a_solid_slab_from_its_foot_up_to_its_head_and_its_treads_show_from
         assert!(!hidden(&scene.fills, at, middle), "{s:?}");
     }
 }
+
+/// The town roofed everywhere, with a dip of two eighths on `dips` and a rise of two on `rises`.
+fn dented(data: &Data, dips: &[(u16, u16)], rises: &[(u16, u16)]) -> MapData {
+    let id = map(data, "test:map:town");
+    let mut town: MapData = data.maps[&id].clone();
+    for terrain in &mut town.def.terrains {
+        terrain.ceiling = Some("ceiling".to_owned());
+    }
+    let width = usize::from(town.def.width);
+    let ground = town
+        .levels
+        .iter_mut()
+        .find(|l| l.level == Level::GROUND)
+        .expect("the ground level");
+    for (cells, by) in [(dips, -2), (rises, 2)] {
+        for &(x, y) in cells {
+            let cell = ground.cells[usize::from(y) * width + usize::from(x)]
+                .as_mut()
+                .expect("ground there");
+            cell.height = by;
+        }
+    }
+    town
+}
+
+/// The owner's report (2026-11-12): a dip in the floor dipped the ceiling too. The ceiling
+/// stands a wall above the level's own height over a dip, and a wall beside a dip reaches it; a
+/// raised cell still lifts its ceiling (a fixed one would cut into a hill).
+#[test]
+fn a_dip_keeps_the_level_s_ceiling_and_a_rise_lifts_its_own() {
+    let data = data();
+    let world = world(&data);
+    let id = map(&data, "test:map:town");
+    // A cell of the top row with the map's north wall, so the wall has a dip on its only side.
+    let flat = &data.maps[&id];
+    let edge = (0..flat.def.width)
+        .find(|&x| {
+            flat.cell(Level::GROUND, x, 0)
+                .is_some_and(|c| c.walls.has(Facing::North) && !c.doors.has(Facing::North))
+        })
+        .expect("a walled cell in the top row");
+    let (dip, rise) = ((4, 2), (8, 2));
+    let town = dented(&data, &[dip, (edge, 0)], &[rise]);
+    let ground = Ground::from_map(&town, Level::GROUND);
+    let fills = fills(&town, id, Level::GROUND, &world, &ground);
+    assert!(solid(&fills, mid(dip.0, dip.1, 1.0)), "the ceiling's fill");
+    assert!(
+        !solid(&fills, mid(dip.0, dip.1, 0.75)),
+        "not a wall above the dip"
+    );
+    assert!(solid(&fills, mid(dip.0, dip.1, -0.25)), "the dip's floor");
+    assert!(
+        solid(&fills, mid(rise.0, rise.1, 1.25)),
+        "a rise lifts its own"
+    );
+    assert!(!solid(&fills, mid(rise.0, rise.1, 1.0)));
+    assert!(
+        solid(&fills, edge_mid(edge, 0, Facing::North, 0.95)),
+        "the wall beside a dip reaches the ceiling"
+    );
+    let lines = extract(&town, id, Level::GROUND, &world, &ground);
+    let ceiling_at = |x: u16, y: u16| {
+        let corner = (f32::from(x), f32::from(y));
+        let heights: Vec<f32> = lines
+            .iter()
+            .filter(|s| s.kind == SegKind::Ceiling && (s.a[0], s.a[2]) == corner)
+            .map(|s| s.a[1])
+            .collect();
+        assert_eq!(heights.len(), 2, "a cell's two ceiling lines");
+        heights
+    };
+    assert_eq!(
+        ceiling_at(dip.0, dip.1),
+        [1.0, 1.0],
+        "level with its neighbours"
+    );
+    assert_eq!(ceiling_at(rise.0, rise.1), [1.25, 1.25]);
+    let wall_top = lines
+        .iter()
+        .filter(|s| s.kind == SegKind::Wall && s.a[2] == 0.0 && s.b[2] == 0.0)
+        .filter(|s| s.a[0].min(s.b[0]) == f32::from(edge))
+        .map(|s| s.a[1].max(s.b[1]))
+        .fold(f32::MIN, f32::max);
+    assert_eq!(wall_top, 1.0, "the wall's lines too");
+}

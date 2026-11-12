@@ -1,6 +1,6 @@
 # Piles you can find and take (a loot window), and a ceiling that stays flat over a dip
 
-Status: **approved 2026-11-12, not started** (on `W-2_look_and_engine`).
+Status: **approved 2026-11-12; step 1 done, step 2 next** (on `W-2_look_and_engine`).
 
 ## Context
 

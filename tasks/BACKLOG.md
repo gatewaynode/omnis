@@ -59,6 +59,14 @@ Left, waiting on a planned change:
   says the client draws a blank seed from OS entropy; `omnis-vector/src/shell/screen.rs:280` draws it from
   `SystemTime` nanoseconds through `splitmix64`. Harmless for a seed; unusable for a key. `getrandom` 0.4.3 is
   already in the tree for the day a key needs it (`tasks/plans/study-accounts.md`). Fix the sentence or the call.
+- **Ceiling height controls** (owner, 2026-11-12, from the hand test of Bevy 0.20): a ceiling's height is
+  derived today, a wall above the floor and never below a wall above the level's own height
+  (`omnis-vector/src/ground.rs` `Ground::roof`), so a dip gains headroom and a rise lifts its ceiling. Wanted
+  later: a ceiling height an author sets, per cell or per room, in the map data and the editor (a vault, a
+  crawlway, a cave roof), with the engine's sight rule read against it.
+- **Hidden piles** (2026-11-12): a ground pile has no `hidden` field, so Search has nothing to find in one; it
+  lists the piles in reach. A cache the party must search for is an object kind with a hide difficulty today.
+  A `hidden` on a pile would be a small addition if the owner wants loose loot to be findable.
 
 ## Dependencies
 - **The seed's clock entropy** (`crates/omnis-vector/src/shell/screen.rs:281`, `SystemTime`) against ARCHITECTURE §11's
