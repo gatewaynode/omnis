@@ -3,8 +3,8 @@
     packs: [
         (
             id: "base",
-            version: "0.1.1",
-            hash: 5085736799993279299,
+            version: "0.1.2",
+            hash: 4519621875703153437,
         ),
         (
             id: "test",
@@ -65,5 +65,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 15315213173677381429,
+    fingerprint: 2616226422192702828,
 )

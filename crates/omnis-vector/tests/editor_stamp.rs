@@ -325,7 +325,10 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
         .find(|g| (g.x, g.y) == (6, 2))
         .expect("the pile");
     assert_eq!(g.items, vec![(item.clone(), 1)]);
-    assert_eq!(message(&app), "Ground pile placed at (6, 2)");
+    assert_eq!(
+        message(&app),
+        format!("Ground pile ({}) placed at (6, 2)", stamp::short(&item))
+    );
     valid(&app);
     // A lore: a free id, the chosen text key, one the packs define.
     choose(&mut app, Entry::Stamp(Placing::Lore));
@@ -372,12 +375,10 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
     assert_eq!(message(&app), "Portal 'portal_8_2' placed at (8, 2)");
     valid(&app);
     assert_eq!(depth(&app), steps + 3, "one step each");
-    // A second portal or pile on its tile is refused.
+    // A second portal on its tile is refused (a second pile takes the first's place:
+    // `editor_pick`).
     click(&mut app, (8, 2));
     assert_eq!(message(&app), "a portal is already at (8, 2)");
-    choose(&mut app, Entry::Stamp(Placing::Ground));
-    click(&mut app, (6, 2));
-    assert_eq!(message(&app), "a ground pile is already at (6, 2)");
     assert_eq!(depth(&app), steps + 3);
 }
 

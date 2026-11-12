@@ -372,6 +372,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         automap: Default::default(),
         known: Default::default(),
+        quiet: 0,
         mode: omnis_sim::Mode::Explore,
         settings: Default::default(),
         turn: 0,

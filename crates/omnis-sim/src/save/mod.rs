@@ -151,6 +151,9 @@ pub struct Checkpoint {
     /// The hidden things it has found and the lore it has been told.
     #[serde(default, skip_serializing_if = "Knowledge::is_empty")]
     pub known: Knowledge,
+    /// The steps left with no roll on a map's random table.
+    #[serde(default, skip_serializing_if = "crate::world::is_zero")]
+    pub quiet: u16,
     /// What the party is doing.
     pub mode: Mode,
     /// The difficulty options.

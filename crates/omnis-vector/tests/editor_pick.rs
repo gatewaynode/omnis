@@ -585,3 +585,59 @@ fn the_search_field_takes_the_keyboard_and_keeps_it_while_the_rows_change() {
     assert!(text.contains("[ ] test:monster:giant_rat"), "{text}");
     assert!(!text.contains("goblin"), "{text}");
 }
+
+/// From the owner's hand test of 2026-11-12: a first click dropped the packs' first item, the
+/// loot was then chosen and the cell clicked again, and the second click was refused, so the
+/// pile kept one arrow. A pile stamped on a cell that has one takes its place, one undo step,
+/// and the inspector says what a pile holds.
+#[test]
+fn a_pile_stamped_on_a_pile_takes_its_place_and_the_inspector_lists_what_it_holds() {
+    let mut app = in_editor("test:map:town");
+    choose(&mut app, Entry::Stamp(Placing::Ground));
+    click(&mut app, (6, 2));
+    let first = stamp::options(Placing::Ground, &data(&app))[0].clone();
+    let piles = |app: &App| -> Vec<Vec<(String, u16)>> {
+        let def = editing(app).def().unwrap();
+        def.ground
+            .iter()
+            .filter(|g| (g.x, g.y) == (6, 2))
+            .map(|g| g.items.clone())
+            .collect()
+    };
+    assert_eq!(piles(&app), [vec![(first.clone(), 1)]]);
+    let steps = editing(&app).status.undo;
+    pick(
+        &mut app,
+        Placing::Ground,
+        &["base:item:dagger", "base:item:longsword"],
+    );
+    press_ui(&mut app, Pressable(edit(EditAct::PickFinish)));
+    let ControlId::Edit(dagger) = count_of(&app, 0, 0) else {
+        unreachable!()
+    };
+    arrow(&mut app, dagger, true);
+    press_ui(&mut app, Pressable(edit(EditAct::PropsFinish)));
+    click(&mut app, (6, 2));
+    assert_eq!(
+        piles(&app),
+        [vec![
+            ("base:item:dagger".to_owned(), 2),
+            ("base:item:longsword".to_owned(), 1)
+        ]],
+        "one pile, the one chosen"
+    );
+    assert_eq!(
+        message(&app),
+        "Ground pile (dagger x2, longsword) replaced at (6, 2)"
+    );
+    assert_eq!(editing(&app).status.undo, steps + 1, "one step");
+    valid(&app);
+    let listed = omnis_vector::editor::view::tools(editing(&app), &data(&app));
+    let text = format!("{listed:?}");
+    assert!(
+        text.contains("Ground pile (dagger x2, longsword)"),
+        "{text}"
+    );
+    press_edit(&mut app, EditAct::Undo);
+    assert_eq!(piles(&app), [vec![(first, 1)]], "the pile before is back");
+}

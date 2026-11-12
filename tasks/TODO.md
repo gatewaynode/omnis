@@ -548,6 +548,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     shows one when opened on it, and the Inventory still lists it); ask the owner where it opens from (my
     recommendation: a "Take from..." under an open container on the verbs screen, and a click on it once
     objects are clickable). Not seen in a window by me.
+  - [x] From the owner's try of steps 2 and 3 (2026-11-12: "now I can get to the loot pile"), two reports,
+    both answered by the owner the same day ("Picker then click; do both changes and the quiet period at 8"):
+    - [x] The pile held one arrow whatever loot was chosen: the first click dropped the packs' first item and
+      the second click, with the loot chosen, was refused. A pile stamped on a cell that has one now takes its
+      place (one undo step, "replaced at"), and the inspector says what a pile holds ("Ground pile (dagger x2,
+      longsword)"). Test `editor_pick::a_pile_stamped_on_a_pile_takes_its_place_...`.
+    - [x] Random encounters felt far above 3%: the roll is right (150,000 probe steps: 2.95%, 2.8% straight
+      after one), independent rolls cluster. The quiet period: rules value `encounter_quiet_steps` (base 8),
+      `World::quiet`, no roll and no draw for that many steps after any encounter begins. Base resealed at
+      0.1.2, the replays rebaselined. Tests `encounter::after_an_encounter_the_table_is_quiet_...` and
+      `encounter::a_placed_group_starts_the_quiet_...`.
   - [ ] 4. Store and destroy: `ItemCommand::Stash` and `ItemCommand::Destroy` (`from: ItemPlace`),
     `Event::ItemDestroyed`, every pin; the two buttons, Destroy asked first.
   - [ ] `tasks/acceptance/loot-and-ceiling.md`.

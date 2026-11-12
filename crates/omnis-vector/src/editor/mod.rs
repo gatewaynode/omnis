@@ -396,9 +396,12 @@ impl Editor {
                 key: PlaceKey::Object { id: o.id.clone() },
             });
         }
-        for _ in def.ground.iter().filter(|g| is_here(g.level, g.x, g.y)) {
+        for g in def.ground.iter().filter(|g| is_here(g.level, g.x, g.y)) {
             out.push(Here {
-                label: "Ground pile".to_owned(),
+                label: format!(
+                    "Ground pile ({})",
+                    stamp::line(&stamp::details(&[Place::Ground(g.clone())]))
+                ),
                 key: PlaceKey::Ground { level, x, y },
             });
         }

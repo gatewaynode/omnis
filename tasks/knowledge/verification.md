@@ -77,9 +77,9 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `247886029114634643`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `2616226422192702828` (`244eb411d2c9856c`)
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `14419409718594269417` under the golden seed, **against the frozen fixture
+  fight `10816280244177016683` (`961b2593313f176b`) under the golden seed, since base 0.1.2 (2026-11-12, `encounter_quiet_steps`), **against the frozen fixture
   `crates/omnis-sim/tests/packs/test`** (id `test`, 0.2.9, hash 14523718773761627429: `packs/test` as committed at
   `8d58c3e2`; since 2026-11-07 the owner's canvas under `packs/` is a pack of its own and moves no test; the replays
   move only when the fixture is re-sealed on purpose. History: that day the canvas reached 0.2.18, hash

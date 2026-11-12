@@ -10,10 +10,14 @@ click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `shell/aim.rs`, `Does::Loot`, `Ef
 `tasks/acceptance/loot-and-ceiling.md`. **Open with the owner from step 3**: an open container has no way
 into the loot window yet (recommended: "Take from..." under an open container on the verbs screen).
 `shell/screen.rs` stands at 1000 lines: the next addition there moves something out first.
+**From the owner's try of steps 2 and 3** ("now I can get to the loot pile"), built the same day, not yet tried:
+a pile stamped on a cell that has one replaces it and the inspector lists a pile's contents (`editor/stamp.rs`);
+the quiet after an encounter (`encounter_quiet_steps` 8 in base, `World::quiet`, base resealed at 0.1.2, the
+replays rebaselined; the roll itself measured right at 2.95%). `editor/mod.rs` is over 1000 lines (1037).
 The plan came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
 "the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
 button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
-`d67ba116`, `3c00f762`, `74772b2a`. Gate 1275. **Still to hear from the owner**: the word "accepted" for 0.20,
+`d67ba116`, `3c00f762`, `74772b2a`. Gate 1278. **Still to hear from the owner**: the word "accepted" for 0.20,
 and the departure (`controls::Control` with own left-button observers, not Bevy's `ui_widgets::Button`).
 The owner's edits to `packs/the_lower_kingdoms` (dungeon heights, a pile at (4, 23), version 0.2.22) are
 uncommitted and theirs: never staged. After this plan: ask the owner for the size of the rendering direction
@@ -219,7 +223,7 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `d48a913cec6c5735`, fight `9f52f48c5364e17f` since base was resealed at 0.1.1 on 2026-11-11 (before: `0370ab07b628f193`, `c81c08bde3a070e9`; against the frozen fixture at 0.2.9, hash
+- **Replays:** walk `244eb411d2c9856c`, fight `961b2593313f176b` since base was resealed at 0.1.2 on 2026-11-12 for `encounter_quiet_steps` (before: `d48a913cec6c5735`, `9f52f48c5364e17f` at 0.1.1, 2026-11-11; `0370ab07b628f193`, `c81c08bde3a070e9`; against the frozen fixture at 0.2.9, hash
   14523718773761627429, since 2026-11-07; the owner's canvas moved on to 0.2.18 and beyond and moves them no more;
   earlier that day 0.2.9 for the owner's pack, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at

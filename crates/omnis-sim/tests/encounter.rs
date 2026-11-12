@@ -439,3 +439,107 @@ fn random_encounters_draw_from_their_own_stream() {
         assert_eq!(state.retreat.facing, Facing::South);
     }
 }
+
+/// A step back and forth on the meadow with the table always firing; the encounter it starts
+/// is put aside so the walk goes on. The checks rolled and whether an encounter began.
+fn pace(world: &mut World, data: &Data, step: usize) -> (usize, bool) {
+    if step > 0 {
+        apply(world, data, Command::Turn(omnis_core::Rotation::Around)).unwrap();
+    }
+    let events = apply(world, data, Command::Step(Direction::Forward)).unwrap();
+    world.mode = Mode::Explore;
+    (
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::EncounterCheck { .. }))
+            .count(),
+        events
+            .iter()
+            .any(|e| matches!(e, Event::EncounterStarted { .. })),
+    )
+}
+
+/// Owner, 2026-11-12: for `encounter_quiet_steps` steps after an encounter begins no random
+/// table is rolled; the step after them rolls again.
+#[test]
+fn after_an_encounter_the_table_is_quiet_for_the_rule_s_steps() {
+    let mut data = data();
+    assert_eq!(data.rules.value("encounter_quiet_steps"), Some(8));
+    data.rules.set_slot("encounter.random", "true").unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    assert_eq!(world.quiet, 0);
+    assert_eq!(
+        pace(&mut world, &data, 0),
+        (1, true),
+        "the first step fires"
+    );
+    assert_eq!(world.quiet, 8);
+    let encounter = StreamName::new("encounter");
+    let draws = world.rngs[&encounter].draws();
+    for step in 1..=8 {
+        assert_eq!(pace(&mut world, &data, step), (0, false), "step {step}");
+        assert_eq!(usize::from(world.quiet), 8 - step);
+    }
+    assert_eq!(
+        world.rngs[&encounter].draws(),
+        draws,
+        "a quiet step draws nothing"
+    );
+    assert_eq!(
+        pace(&mut world, &data, 9),
+        (1, true),
+        "the ninth rolls again"
+    );
+    assert_eq!(world.quiet, 8);
+    // A pack tunes it: none is a roll on every step, as before.
+    data.rules.insert_value("encounter_quiet_steps", 0);
+    let mut world = common::world(&data);
+    party_of(&mut world, &data, 4);
+    assert_eq!(pace(&mut world, &data, 0), (1, true));
+    assert_eq!(world.quiet, 0);
+    assert_eq!(pace(&mut world, &data, 1), (1, true));
+}
+
+/// A placed group starts the quiet too, a placed group is met during it, and a save keeps it.
+#[test]
+fn a_placed_group_starts_the_quiet_is_met_during_it_and_a_save_keeps_it() {
+    let data = data();
+    let mut world = common::new_world(&data, 7, Settings::default());
+    party_of(&mut world, &data, 4);
+    let placement = &data.maps[&dungeon(&data)].encounters[0];
+    world.position = Position {
+        map: dungeon(&data),
+        level: omnis_core::Level::GROUND,
+        x: placement.x,
+        y: placement.y - 1,
+        facing: Facing::South,
+    };
+    let fresh = world.to_ron().unwrap();
+    assert!(!fresh.contains("quiet"), "nothing written at zero");
+    let events = apply(&mut world, &data, Command::Step(Direction::Forward)).unwrap();
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::EncounterStarted {
+            source: EncounterSource::Fixed(_),
+            ..
+        }
+    )));
+    assert_eq!(world.quiet, 8);
+    let back = omnis_sim::save::join(omnis_sim::save::split(&world, &data), &data, false).unwrap();
+    assert_eq!(back.quiet, 8, "the checkpoint carries it");
+    let read = World::from_ron(&world.to_ron().unwrap(), &data, false).unwrap();
+    assert_eq!(read.quiet, 8);
+    // Back off the tile and onto it again, the group not cleared: it is met, quiet or not.
+    world.mode = Mode::Explore;
+    world.position.y -= 1;
+    world.quiet = 5;
+    let events = apply(&mut world, &data, Command::Step(Direction::Forward)).unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::EncounterStarted { .. })),
+        "{events:?}"
+    );
+    assert_eq!(world.quiet, 8, "and the quiet starts over");
+}

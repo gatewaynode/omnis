@@ -342,7 +342,7 @@ numbers until M8.5 7h) cut a world into the parts the save model keeps apart (PR
 - `RegionBase` holds, for each region play has touched, its maps' states, its clock, its side of each contact,
   and the streams that name it.
 - `Checkpoint` holds the party: members, time, the flags a pack declares the party's, its side of each contact, the other streams, the bus, position,
-  automap, mode, settings and turn.
+  automap, mode, settings, turn and `quiet` (the steps left with no random roll; left out at zero).
 
 A region nothing has changed has no base, so a new world splits into its checkpoint alone. `join` refuses a key
 held by two parts (`JoinError::Duplicate`) and checks the result as a load does (`JoinError::Load`). The log and
@@ -919,7 +919,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `EncounterCheck` | `roll` (d100 `RollTrace`), `chance`, `fired` | A step rolled for a random encounter. |
+| `EncounterCheck` | `roll` (d100 `RollTrace`), `chance`, `fired` | A step rolled for a random encounter. None during the quiet after an encounter (rules value `encounter_quiet_steps`): those steps roll nothing and draw nothing. |
 | `EncounterStarted` | `source`, `stacks` (`[[monster id, count]]`), `disposition`, `counts` (`[RollTrace]`), `stealth` (`Roll` or null), `perception`, `noticed` | Monsters stand before the party; unnoticed means the party is surprised. |
 | `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`, `{"Skill": Skill}`, `{"Ability": Ability}`, the last two from `Act`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
 | `Bribed` | `cost` (copper) | The monsters took the money and left. |
@@ -1194,7 +1194,14 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-12 (latest, Tier 1 only): `piles_in_reach(&World, &Data)`, the piles within reach each where it lies,
+- 2026-11-12 (latest, the quiet after an encounter; owner's direction): the rules value
+  `encounter_quiet_steps` (base: 8). When an encounter begins, placed, random or an ambush, the world's `quiet`
+  is set to it; each step after that is not onto a placed group takes one off and rolls no random table, with no
+  `EncounterCheck` and no draw on the `encounter` stream. A pack without the value, or with 0, rolls on every
+  step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
+  an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
+  goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-12 (Tier 1 only): `piles_in_reach(&World, &Data)`, the piles within reach each where it lies,
   for a client that lets a drawn pile be clicked. No op and no wire change.
 - 2026-11-12 (a pile in reach): no shape changes. `PickUp` and `ObjectsView.ground` reach as `Act`
   does: the pile on the party's cell, then the one in the cell it faces unless a wall, a shut door or a cliff

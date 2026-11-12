@@ -33,6 +33,9 @@
         "monster_front_stacks": (priority: 0, value: 2),
         "death_save_dc": (priority: 0, value: 10),
         "combat_round_minutes": (priority: 0, value: 1),
+        // The quiet after an encounter (owner, 2026-11-12): for this many steps after one
+        // begins, no map's random table is rolled. 0 rolls on every step.
+        "encounter_quiet_steps": (priority: 0, value: 8),
         // 1 rolls the monsters' Stealth against the party's best passive Perception when a
         // group is met; an unnoticed party skips the choice and starts the fight surprised.
         // Off (0) until the fight systems have been played: a first placement that ends

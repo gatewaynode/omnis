@@ -82,6 +82,7 @@ pub(crate) fn assemble(split: Split) -> Result<World, JoinError> {
         maps: BTreeMap::new(),
         automap: checkpoint.automap,
         known: checkpoint.known,
+        quiet: checkpoint.quiet,
         mode: checkpoint.mode,
         flags: checkpoint.flags,
         settings: checkpoint.settings,

@@ -252,6 +252,12 @@ impl Settings {
     }
 }
 
+/// Whether a count is nothing (serde's skip for a field that is left out at zero).
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub(crate) const fn is_zero(n: &u16) -> bool {
+    *n == 0
+}
+
 /// The world.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct World {
@@ -284,6 +290,10 @@ pub struct World {
     /// the party's knowledge, not the map's.
     #[serde(default, skip_serializing_if = "Knowledge::is_empty")]
     pub known: Knowledge,
+    /// The steps left with no roll on a map's random table: set when an encounter begins to
+    /// the rules value `encounter_quiet_steps`, one less each step after (owner, 2026-11-12).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub quiet: u16,
     /// What the party is doing.
     pub mode: Mode,
     /// Named integer flags.
@@ -433,6 +443,7 @@ impl World {
             maps: BTreeMap::new(),
             automap: Automap::default(),
             known: Knowledge::default(),
+            quiet: 0,
             mode: Mode::Explore,
             flags: BTreeMap::new(),
             settings,

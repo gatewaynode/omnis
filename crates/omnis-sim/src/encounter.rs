@@ -128,6 +128,10 @@ pub(crate) fn trigger(
             e.disposition,
             Vec::new(),
         )
+    } else if world.quiet > 0 {
+        // The quiet after an encounter: no roll, no draw, one step less of it.
+        world.quiet -= 1;
+        return Ok(());
     } else if let Some(random) = &map.random {
         match random_roll(world, data, random, events)? {
             Some(picked) => picked,
@@ -378,6 +382,7 @@ fn begin(
         noticed,
     });
     roller.store(world);
+    world.quiet = quiet_steps(data);
     let state = EncounterState {
         source,
         stacks: built,
@@ -390,6 +395,14 @@ fn begin(
     } else {
         combat::start(world, data, state, Surprise::Party, events)
     }
+}
+
+/// How many steps after an encounter begins no random table is rolled (rules value
+/// `encounter_quiet_steps`; none without it, as in a pack that does not write it).
+fn quiet_steps(data: &Data) -> u16 {
+    data.rules
+        .value("encounter_quiet_steps")
+        .map_or(0, |n| u16::try_from(n.max(0)).unwrap_or(u16::MAX))
 }
 
 /// The encounter, taken out of the world (the mode becomes Explore until put back).

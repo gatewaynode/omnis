@@ -134,17 +134,24 @@ impl Stamps {
                 None => format!("nothing chosen: the packs have no {}", kind.what()),
             };
         }
-        held.iter()
-            .map(|(id, n)| {
-                if *n > 1 {
-                    format!("{} x{n}", short(id))
-                } else {
-                    short(id).to_owned()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
+        line(&held)
     }
+}
+
+/// Details with their counts in a line: the last segments, "x N" after a count above one.
+#[must_use]
+pub fn line(details: &[(String, u32)]) -> String {
+    details
+        .iter()
+        .map(|(id, n)| {
+            if *n > 1 {
+                format!("{} x{n}", short(id))
+            } else {
+                short(id).to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// The places a stamp of `kind` holds for `chosen`, carrying what `prev` held for a detail kept
@@ -348,8 +355,10 @@ impl Editor {
     /// Drop the palette's stamp on `cell` of the shown level, one undo step, and put the cursor
     /// there: each held place is filled into the kind's form at the cell (a fresh id, minted
     /// apart from the map's and the others dropped with it), requested as Apply would, and all
-    /// are placed together. A refusal (the cell already holds a tile-keyed kind or an encounter,
-    /// the packs have nothing of the kind) is said and changes nothing; what landed is said,
+    /// are placed together. A pile dropped on a cell that has one takes its place (owner,
+    /// 2026-11-12: the second click is the author setting the loot, not a mistake). A refusal
+    /// (the cell already holds a portal, a site or an encounter, the packs have nothing of the
+    /// kind) is said and changes nothing; what landed is said,
     /// with the loader's first word on the map as it now stands. Nothing unless the entry is a
     /// stamp. Whether the map changed.
     pub fn stamp(&mut self, data: &Data, cell: (u16, u16)) -> bool {
@@ -372,13 +381,25 @@ impl Editor {
             ));
             return false;
         }
+        // A pile on the cell is replaced: the form's fields are read with the tile's key
+        // unchecked, and the document's upsert puts the new pile where the old one was.
+        let replaced = kind == Placing::Ground
+            && def
+                .ground
+                .iter()
+                .any(|g| (g.level, g.x, g.y) == (at.level, x, y));
         let mut minted: Vec<String> = Vec::new();
         let mut places = Vec::new();
         for place in &held {
             let Some(form) = Form::for_place(place, &def, data, at, &minted) else {
                 continue;
             };
-            match form.request(&def) {
+            let asked = if replaced {
+                form.value()
+            } else {
+                form.request(&def)
+            };
+            match asked {
                 Ok(Change::Place(place)) => {
                     minted.extend(id_of(&place));
                     places.push(place);
@@ -416,7 +437,8 @@ impl Editor {
         } else {
             landed.join(", ")
         };
-        self.report(format!("{label} placed at ({x}, {y})"));
+        let done = if replaced { "replaced" } else { "placed" };
+        self.report(format!("{label} {done} at ({x}, {y})"));
         true
     }
 }
