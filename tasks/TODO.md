@@ -491,7 +491,15 @@ no loss, and every later map is built with it.
 ## W2 — The look, and the engine under it (presentation-PRD §11 steps 3 and 5; no PRD §13 phase)
 Done when a region's biosphere sets what the player sees from pack data, the first authored set piece stands in a
 map, mana is in the PRD and in the packs, and the performance floor is read against the finished geometry (X20).
-- [ ] Bevy 0.20 (`tasks/plans/bevy-0.20-migration.md`, not before 2026-11-07). First, so shaders are written once.
+- [ ] Bevy 0.20 (`tasks/plans/bevy-0.20-migration.md`, re-audited and approved 2026-11-12; `=0.20.0`, 0.20.1
+  being under 30 days old until 2026-11-27). First, so shaders are written once. One commit a step:
+  - [x] 0. Housekeeping: the plan rewritten on today's tree, baseline captures on 0.19.1 in the scratchpad.
+  - [ ] 1. The engine moves, behaviour held: the pin, the lock (every moved crate's age checked), the root pins
+    that follow Bevy, `Tonemapping::Linear` on the three cameras, `TextInput` on the text fields, the renamed
+    pointer event; the deprecated `Interaction` and `Button` allowed for this one commit.
+  - [ ] 2. Buttons on `Hovered` and `Pressed` (a press still acts on button down); the allow removed; the test
+    helpers on one `press`; mutation checks.
+  - [ ] 3. Runtime checks against the captures, the documents that name 0.19, `tasks/acceptance/bevy-0.20.md`.
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
   same presentation-PRD amendment so width, fog and relief are in the shader from the start. A plan under

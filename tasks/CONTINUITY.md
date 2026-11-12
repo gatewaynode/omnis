@@ -1,69 +1,50 @@
 # Continuity notes
 
-Written 2026-11-11 for a restart: **the owner is updating the terminal and Xcode's command line tools**, so
-the machine check below comes first. **Rule priority and conflict tracking** was built the same day (plan mode;
-`tasks/acceptance/rule-priority.md`) and **accepted by the owner** ("manually tested. Looks like it is working"). The owner's direction: "We do need to
-start tracking rule conflicts and consider all rules have a required priority value that is used to determine
-rule precedence." Owner's choices: `priority` required on every slot, value and table (none on a file; the
-higher number wins; base writes 0); two definitions of one name at one priority are always a load error; an
-override declares the inputs of the rule it replaces; shown in the rules ops, `validate`, `data.*` and the
-editor.
+Written 2026-11-12. **Bevy 0.20 is under way** on `W-2_look_and_engine` (branched off main after PR #14 merged
+W1). The plan is `tasks/plans/bevy-0.20-migration.md` (rewritten 2026-11-12, approved by the owner); the steps
+are W2's first item in `tasks/TODO.md`: 0 housekeeping and baseline captures (done), 1 the engine moves with
+behaviour held (`=0.20.0`; 0.20.1 is too young until 2026-11-27), 2 buttons on `Hovered` and `Pressed`,
+3 runtime checks and documents. After 0.20 is accepted: ask the owner for the size of the rendering direction
+(its own plan mode).
 
-What stands: `omnis-data/src/rules.rs` (`SlotDef`, `ValueDef`, `TableDef` with `priority`; `merge`, the one
-place files become a rule set; `Standings` by `(RuleKind, name)`, `Standing`, `Beaten`), `Data.standings`,
-`Data.rule_files`; `rules` the 15th row of `catalog::KINDS`; `omnis-sim/src/rules_ops.rs` (the rules ops moved
-out of `ops.rs`, re-exported; `RuleOrigin`, `origin`, `rule_reply`; `RulesView.origins`, `Reply::Rule.origin`);
-`omnis-cli validate` prints `override:` lines; the editor's rules list (`omnis-vector/src/screen/editor_rules.rs`,
-`ScreenId::EditorRules`, `EditAct::{Rules, RulesFilter, RuleFile}`, `Editor::open_rule_file`). Tests:
-`omnis-data/tests/rule_priority.rs`, `omnis-sim/tests/rules_ops.rs`, `omnis-cli/tests/cli.rs`,
-`omnis-vector/tests/editor_rules.rs`. Mutation runners in the scratchpad: `mut-rules/run.py`, `run2.py`,
-`run3.py`.
+**Baseline captures on 0.19.1**: `<scratchpad>/shots-019/` (title, new-game, pause, actions, inventory, log,
+view, walk; made by `<scratchpad>/shots.sh <label>` into `target/shots/<label>/`). The fight and the editor
+have no offscreen capture: those are read through the dev socket or by the owner's hand.
 
-**Pins moved**: base is sealed at 0.1.1, so the golden replays were rebaselined: walk `d48a913cec6c5735`,
-fight `9f52f48c5364e17f` (the compiled rules are byte for byte the ones before). Tests 1250 after step 2.
+**Done and accepted before this**: the `data.*` ops, `strings.rs` as a serializer, rule priority and conflict
+tracking (2026-11-11), and `DevCommand::Pass { minutes }` (accepted 2026-11-12).
 
-**The `data.*` ops are accepted** (owner, 2026-11-11: "It seems to work well"). `strings.rs` is the serializer
-the plan named, at the owner's word the same day (two float aliases on `lint-sim: allow` lines, as
-`omnis-sim/src/query/path.rs`).
+**Lessons of 2026-11-11** (`tasks/LESSONS.md`, four entries): the gate fails when no test ran; look for a
+rule's precedent in the tree before departing from a plan; another checkout never builds into this tree's
+`target/`; a sealed pack's text change rebaselines the replays in the same commit.
 
-**Lessons of the day** (`tasks/LESSONS.md`, four entries of 2026-11-11): the gate fails when no test ran; look
-for a rule's precedent in the tree before departing from a plan; another checkout never builds into this
-tree's `target/`; a sealed pack's text change rebaselines the replays in the same commit.
-
-Before this (2026-11-10): Windows CI accepted, advisory (`tasks/acceptance/windows-ci.md`); the entrances and
-exits enhancement closed 2026-11-08; the fixture and the canvas two packs since 2026-11-07. Rewrite this file
-every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## When you resume
-- **State**: branch `W1-authoring-tools`. Read `git status` and `git log --oneline -8` first; the owner
-  pushes, never me. Nothing of mine runs.
-- **Read first**: this file, `tasks/knowledge/README.md`, `tasks/LESSONS.md` (2026-11-11 is the newest), the
-  open part of `tasks/TODO.md`.
-- **First, the machine check** (the command line tools and the terminal were updated after 2026-11-11):
-  `xcode-select -p` and `DEVELOPER_DIR=/Library/Developer/CommandLineTools` still resolve; `rustc --version`
-  is 1.98.0 with the `x86_64-pc-windows-msvc` std; `scripts/verify.sh` to a scratchpad log prints VERIFY-GREEN
-  with `tests passed 1252 failed 0 ignored 16 errors 0`; a fresh link (`cargo clean -p omnis-cli`, then
-  `cargo run -q -p omnis-cli -- op data.kinds`). A link error after a toolchain change is cleared with
-  `cargo clean`, not by editing code.
-- **Nothing waits on the owner.** Open and told to them: ARCHITECTURE §6.1 describes pack load order as a
-  topological sort with cycle errors, which is not built (build it, or correct the document: their call).
-  Six commits of 2026-11-11 are unpushed (`970e943a` to this one); the owner pushes.
-- **The machine check passed 2026-11-11** after the owner's update of the terminal and the command line tools
-  (the gate green at 1252, a fresh link good). **`DevCommand::Pass { minutes }` is built** the same day and
-  accepted 2026-11-12 (`tasks/TODO.md` W1, the review line; tests 1256).
-- **Next**, in the owner's order of 2026-11-08: the MCP bridge probe, "when needed"; then W1 closes. Otherwise the
-  four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
-- **The machine** (checked 2026-11-11 after the system updates): command line tools in place, Rust 1.98.0 with
-  the `x86_64-pc-windows-msvc` std, a fresh link of `omnis-cli` good. `gh` stays blocked in this sandbox.
+- **State**: read `git branch --show-current`, `git status --short` and `git log --oneline -8` first; the
+  branch is `W-2_look_and_engine`. The owner pushes, never me.
+- **Read first**: this file, `tasks/knowledge/README.md`, `tasks/LESSONS.md`, `tasks/plans/bevy-0.20-migration.md`,
+  W2 in `tasks/TODO.md`, memory `dependency-policy-match-bevy`. Find the step by the ticks in TODO and the log.
+- **Dependencies**: pinned, none published after 2026-10-13 on the day of the move (30 days by the system
+  date), a single-copy tree matching Bevy's own versions; Socket when in doubt.
+- **Open with the owner**: whether W1 is closed (the only open W1 item is `scripts/mcp-probe.py`, "when
+  needed"; I recommended closing and carrying it); ARCHITECTURE §6.1 describes pack load order as a
+  topological sort with cycle errors, which is not built (build it or correct the document); the four Bevy
+  ECS tasks (`tasks/TODO.md`, Open) come after 0.20 unless the owner says otherwise; party creation's remove
+  or edit a member.
+- **The gate's last figure**: `tests passed 1256 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-11).
+- **The machine**: Rust 1.98.0 with the `x86_64-pc-windows-msvc` std; `DEVELOPER_DIR=/Library/Developer/
+  CommandLineTools` for cargo and git. A link error after a toolchain change is cleared with `cargo clean`.
+  `gh` stays blocked in this sandbox.
 - **Per commit, unchanged**: `cargo fmt --all`; clippy workspace all targets with `omnis-vector/test-fixtures`,
-  `-D warnings`; the gate to a scratchpad file, the commit chained on `grep -q VERIFY-GREEN`; `git add` by name
-  (never `-A`; `assets/` and `docs/dnd_supplemental/` are the owner's, never staged; owner world docs under
-  `docs/background` and `docs/locations` commit at once, unedited, own commit); `git commit -F`; Sentrux `scan`
-  on `crates/` once a session, then `rescan` + `check_rules`; the Co-Authored-By trailer the system gives;
-  never push.
+  `--locked`, `-D warnings`; the gate to a scratchpad file, the commit chained on `grep -q VERIFY-GREEN`, the
+  count line read as a number; `git add` by name (never `-A`; `assets/` and `docs/dnd_supplemental/` are the
+  owner's, never staged; owner world docs under `docs/background` and `docs/locations` commit at once,
+  unedited, own commit); `git commit -F`; Sentrux `scan` on `crates/` once a session, then `rescan` +
+  `check_rules`; the Co-Authored-By trailer the system gives; never push.
 
 ## Where we are
-- **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
+- **Branch `W-2_look_and_engine`** (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
   every step accepted; `tasks/acceptance/m5-10.md`); the **boundary tools** followed and were accepted
   (`9486183b`, `tasks/acceptance/boundary-tools.md`). Untracked and never staged: `assets/` and
   `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` and `docs/locations` that
@@ -187,8 +168,7 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   Playtest from the start.
 
 ## Next
-1. The `data.*` ops are built and await the owner's test (`tasks/acceptance/data-ops.md`). Then, in the owner's
-   order of 2026-11-08 if they keep it: the pass-time dev command and the MCP bridge probe when needed. Windows CI is closed and advisory (`tasks/acceptance/windows-ci.md`); a red Windows step on a
+1. Bevy 0.20 (above). Windows CI is closed and advisory (`tasks/acceptance/windows-ci.md`); a red Windows step on a
    later push is a fault for its own commit with a test (grep `.join(` against the 2026-11-08 lesson first). When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
    press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at
    0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and `portal_bank_hidden` included): a test names them
