@@ -1,8 +1,13 @@
 # Continuity notes
 
-Written 2026-11-12. **Next: the loot window and the flat ceiling**, `tasks/plans/loot-window-and-ceiling.md`
-(approved by the owner 2026-11-12; four steps in `tasks/TODO.md` W2; step 1, the ceiling, is done: begin at step 2, reach; was: step 1, the
-ceiling). It came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
+Written 2026-11-12. **Next: step 2 of the loot window and ceiling plan**, `tasks/plans/loot-window-and-ceiling.md`
+(approved by the owner 2026-11-12; four steps in `tasks/TODO.md` W2). Step 1, the ceiling over a dip, is built
+(`ead8e8c0`, `Ground::roof`; not yet tried by the owner). Step 2 is reach: `ground::pick_up` and
+`ObjectsView.ground` over `objects::act::reach` (the party's cell, then the faced cell), tests on
+`objects:map:yard` (pile at (2, 2)), no wire shape changes. Then step 3 (the loot window, `aim.rs`, the
+click, "Pick up..." in Actions) and step 4 (`ItemCommand::Stash`, `Destroy`, `Event::ItemDestroyed`).
+The plan
+ came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
 "the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
 button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
 `d67ba116`, `3c00f762`, `74772b2a`. Gate 1263. **Still to hear from the owner**: the word "accepted" for 0.20,
