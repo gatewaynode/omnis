@@ -8,8 +8,10 @@ step 3, the loot window and the click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `
 `Destroy` with `from: ItemPlace`, `Event::ItemDestroyed` (74 events), `Rejection::NotFromThere` (72), `items::lift`
 over `ground::take` and `container::take`; `LootAct::{Store, Destroy, Confirm, Cancel}`, `Loot.asking`). The
 owner's script is `tasks/acceptance/loot-and-ceiling.md`. **The owner tried it 2026-11-12**: "tested piles now store and release chosen items. I think we can move on."
-(the ceiling, Destroy, the pile stamp and the quiet were not named). **Next: the owner's choice of what follows**
-(asked: the rendering direction's size, or the container's way into the window first). **Open with the owner**: an open
+(the ceiling, Destroy, the pile stamp and the quiet were not named). **Next: the rendering direction, size 1 with size 2
+designed in** (the owner's choice 2026-11-12, as leaning on Bevy more: Bevy meshes and its `Material` trait in
+place of the debug gizmos; BACKLOG "Rendering direction: GPU-first"). Its plan mode comes first: a plan under
+`tasks/plans/` and the presentation-PRD amendment text for size 2's design. **Open with the owner**: an open
 container has no way into the loot window yet (recommended: "Take from..." under an open container on the verbs
 screen); Store and Destroy act on a whole row, with no count asked; `Item` has no "kept" mark, so Destroy is
 never dimmed for a quest item. Pinned counts moved by step 4: `schema_proof.rs` 122 instances and 177 branches,

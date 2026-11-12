@@ -717,3 +717,11 @@
   it set and sends only the device's release.
 - **Rule** (process): a departure from an approved plan is asked before it is built (the lesson of 2026-11-11).
   `controls::Control` in place of Bevy's `Button` was built and reported after; the fault above came with it.
+
+## 2026-11-12: an option described by what it leaves, not by what it adopts
+- **What happened**: the rendering direction was offered as "moving the 3D view off Bevy's per-frame debug
+  lines". The owner read it as leaning on Bevy less ("I thought we were moving to lean on Bevy more, not
+  less?"). The work is the opposite: from Bevy's debug gizmos onto Bevy's meshes and `Material` trait.
+- **Rule**: name an option by the facility it adopts and whose it is ("onto Bevy's meshes and materials"),
+  then what it replaces. Where the owner has a stated direction (lean on Bevy; SRD by default; forward
+  flexibility), say in the option's first line which way it moves against that direction.
