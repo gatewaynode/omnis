@@ -512,7 +512,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     a button taken by the view, a press read while held); a press through Bevy's real picking is tested
     in the editor harness (`editor_pointer.rs`; picking reads `WindowEvent`, not the plain messages).
     Not covered headless: a held movement button through real picking (the owner's hand test).
-  - [ ] 3. Runtime checks against the captures, the documents that name 0.19, `tasks/acceptance/bevy-0.20.md`.
+  - [x] 3. Runtime checks against the captures, the documents that name 0.19, `tasks/acceptance/bevy-0.20.md`
+    (2026-11-12). Review: the title and new-game captures are byte-identical to 0.19.1's; the 3D view's are
+    not an exact baseline (it eases by real time; BACKLOG). The window checks are the owner's script: a window
+    from the agent's shell draws no frames. `check-duplicates.sh` now names a new duplicate before it exits.
+  **Built, awaiting the owner's hand test** (`tasks/acceptance/bevy-0.20.md`). One departure to confirm: the
+  controls carry `controls::Control`, not Bevy's `ui_widgets::Button` (that one presses on any mouse button).
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
   same presentation-PRD amendment so width, fog and relief are in the shader from the start. A plan under

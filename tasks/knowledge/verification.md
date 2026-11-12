@@ -120,7 +120,9 @@ repository root (the root has no rules file).
 ## Tools and commands
 - Client screens (`omnis-vector`): a screen is a Bevy-free description tested on the real packs
   (`tests/common/mod.rs::ctx`, `views`); the shell runs under `MinimalPlugins` (`tests/common/app.rs`:
-  `shell`, `press_ui`, `tap`, `click`, `top`). A picture is the offscreen capture
+  `shell`, `press_ui`, `tap`, `click`, `top`; since Bevy 0.20 a control is pointed at with `set(app, &marker,
+  Pointing::{Rest, Hover, Press})`, `let_go` and `rest`, which write `Hovered` and `Pressed` as picking would, and
+  a press through Bevy's real picking sends `WindowEvent` messages, `editor_pointer.rs`). A picture is the offscreen capture
   (`cargo run -p omnis-vector -- --screenshot <png> [--screen title|new-game|create-party|pause|actions]
   [--walk N] [--size WxH]`), or the `screenshot` op in the owner's session. The `omnis-app` harness
   (`feathers_app`, `OMNIS_DUMP_SCREENS`) went with the crate at P9.

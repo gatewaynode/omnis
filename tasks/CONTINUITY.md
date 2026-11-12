@@ -1,11 +1,12 @@
 # Continuity notes
 
-Written 2026-11-12. **Bevy 0.20 is under way** on `W-2_look_and_engine` (branched off main after PR #14 merged
-W1). The plan is `tasks/plans/bevy-0.20-migration.md` (rewritten 2026-11-12, approved by the owner); the steps
-are W2's first item in `tasks/TODO.md`: 0 housekeeping and baseline captures (done), 1 the engine moves with
-behaviour held (`=0.20.0`; 0.20.1 is too young until 2026-11-27), 2 buttons on `Hovered` and `Pressed`,
-3 runtime checks and documents. After 0.20 is accepted: ask the owner for the size of the rendering direction
-(its own plan mode).
+Written 2026-11-12. **Bevy 0.20.0 is built and awaits the owner's hand test** (`tasks/acceptance/bevy-0.20.md`)
+on `W-2_look_and_engine` (branched off main after PR #14 merged W1): step 0 `84edc6e9`, step 1 `a1117c72` (the
+engine), step 2 `d67ba116` (buttons on `Hovered` and `Pressed`), step 3 the documents. Gate 1261. **To confirm
+with the owner**: the controls carry `controls::Control` with own left-button observers, not Bevy's
+`ui_widgets::Button` (pressed by any mouse button); built without asking first. After acceptance: ask the owner
+for the size of the rendering direction (TODO W2, BACKLOG "GPU-first"; its own plan mode). On 2026-11-27 Bevy
+0.20.1 and six held crates are thirty days old (BACKLOG, Dependencies).
 
 **Baseline captures on 0.19.1**: `<scratchpad>/shots-019/` (title, new-game, pause, actions, inventory, log,
 view, walk; made by `<scratchpad>/shots.sh <label>` into `target/shots/<label>/`). The fight and the editor
@@ -32,7 +33,7 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   topological sort with cycle errors, which is not built (build it or correct the document); the four Bevy
   ECS tasks (`tasks/TODO.md`, Open) come after 0.20 unless the owner says otherwise; party creation's remove
   or edit a member.
-- **The gate's last figure**: `tests passed 1256 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-11).
+- **The gate's last figure**: `tests passed 1261 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-12).
 - **The machine**: Rust 1.98.0 with the `x86_64-pc-windows-msvc` std; `DEVELOPER_DIR=/Library/Developer/
   CommandLineTools` for cargo and git. A link error after a toolchain change is cleared with `cargo clean`.
   `gh` stays blocked in this sandbox.
@@ -247,7 +248,9 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   `hold`), `first`, `click`, `right_click`; `editor_select.rs` has `drag(app, button, from, through)`, `lasso_the_inn`,
   `selected`, `site_at`; `editor_run.rs::choose(tool)` chooses the wall first for a run tool. A choice control has no press entity: step it by `arrow`, never
   `press_edit`/`press_ui`. A written `RelativeCursorPosition` reaches the model on the next `app.update()`.
-  Under Bevy picking a faked `Interaction::Pressed` is reset before the route reads it: drive the model through
+  Since Bevy 0.20 a test points at a control with `set(app, &marker, Pointing::{Rest, Hover, Press})`, `let_go`,
+  `rest` (`Hovered` and `Pressed` by hand); Bevy's real picking reads `WindowEvent` messages, not the plain ones
+  (`editor_pointer.rs`), and a harness with `TextInputPlugin` needs `PointerState`. In `ui_editor_app` tests drive the model through
   `shell::editor::act` in `ui_editor_app` tests. `screen_text` prints an icon as `[button] [icon] "name"` and a
   swatch as its glyph; an overlay's rows print after the editor's.
 

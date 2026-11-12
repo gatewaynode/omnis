@@ -273,7 +273,7 @@ Three depth levels (X17):
   `png`, `bevy_pbr` and `ui`; the `3d` group is not used (presentation-ARCHITECTURE §3, VA1). Its
   run time is tracked.
 - **Dependency policy applies:** pinned, older than 30 days, checksums in the lock. Bevy itself is
-  exempt from N−1 (PRD D9). The 0.20 migration is planned in `tasks/plans/bevy-0.20-migration.md`.
+  exempt from N−1 (PRD D9). The tree moved to 0.20.0 on 2026-11-12 (`tasks/plans/bevy-0.20-migration.md`).
 - **Merging with the mechanics work.** `Cargo.lock` is regenerated, not hand-merged.
 
 ## 10. Risks

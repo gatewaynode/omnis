@@ -49,7 +49,7 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-data` | The pack loader: RON data files, text, rules, tilesets; the only crate that reads files |
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
-| `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
+| `omnis-vector` | The game client (binary `omnis`): Bevy 0.20.0, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
 | `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, world tidy, pack seal, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 | `omnis-icon` | The Lucide icon set (ISC, `assets/svg-icons/`) compiled in and read as strokes: a dependency-free SVG subset reader, path flattening with arcs, every icon by name |

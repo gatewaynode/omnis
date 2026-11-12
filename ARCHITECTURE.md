@@ -655,7 +655,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 - **The seal (M8.5 7h1).** `pack.ron` records `hash`, the FNV-1a 64 of the pack's content at its version (every data and text file in path order, and the manifest's own fields without `hash`; comments and layout in `pack.ron` are not content). The loader refuses a pack that is not sealed or whose content no longer has its hash, so content never changes under one version; `omnis-cli pack seal <dir> [--version x.y.z]` (`omnis_data::seal`) records it, a first seal keeping the version and a changed pack going up a patch number. Every shipped, fixture and bad-pack corpus pack is sealed; a test that writes a pack seals it.
 - Saves record pack fingerprints and the packs' names (in the world's manifest); a save loads on other packs by name, refused when a name it holds is gone (M8.5 7h3, §4.1.1) unless a pack's sealed migration renames, replaces or removes it, offered to the player first (7h6), and a save with no name table loads on other packs only forced.
 - Dependencies: pinned exact versions in `[workspace.dependencies]`; `Cargo.lock` committed. Policy, in priority order (owner direction 2026-09-12):
-  1. **Match Bevy's requirements.** Any crate Bevy already pulls (ron, serde, and so on) is pinned to the version Bevy 0.19 resolves, so the tree stays single-copy. `cargo tree --duplicates` must be empty for those crates; CI checks it.
+  1. **Match Bevy's requirements.** Any crate Bevy already pulls (ron, serde, and so on) is pinned to the version Bevy (0.20.0 since 2026-11-12) resolves, so the tree stays single-copy. `cargo tree --duplicates` must be empty for those crates; CI checks it.
   2. **N-1 and older than 30 days** for crates Bevy does not pull, per `CLAUDE.md`. Bevy itself is exempt (D9). Owner-granted exceptions are recorded in the §13 table with the date and reason; rhai 1.26.1 is the first.
   3. **When in doubt, audit with Socket** (`depscore`) before adding or bumping, and default to whatever Bevy requires.
 
@@ -665,11 +665,11 @@ Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved 
 
 | Crate | Pin | Used by | Note |
 |---|---|---|---|
-| bevy | 0.19.1 | vector | D9 exemption; `default-features = false`; features `2d`, `png`, `bevy_pbr`, `ui` (`presentation-ARCHITECTURE.md` §3). `bevy_feathers` left with `omnis-app` at P9 (2026-10-11) |
+| bevy | 0.20.0 | vector | Since 2026-11-12 (0.19.1 before; every `bevy_*` crate held at 0.20.0 in the lock, 0.20.1 being under thirty days old). D9 exemption; `default-features = false`; features `2d`, `png`, `bevy_pbr`, `ui` (`presentation-ARCHITECTURE.md` §3). `bevy_feathers` left with `omnis-app` at P9 (2026-10-11) |
 | png | 0.18.1 | cli | Added 2026-09-12 for `tileset bake`; the version Bevy's image stack resolves, so no duplicate |
 | serde | 1.0.228 | all | derive |
 | serde_json | 1.0.150 | mcp, vector devtools | protocol only |
-| ron | 0.12.2 | data | Bevy 0.19 pins `ron = "0.12"`; match its resolved version, single copy in the tree (§12) |
+| ron | 0.12.2 | data | Bevy 0.20 requires `ron = "0.12"` (as 0.19 did); match its resolved version, single copy in the tree (§12) |
 | thiserror | 2.0.19 | core | error derives |
 | ~~bevy_egui~~ | none | none | Dropped 2026-09-20 (A11) for Feathers, which left the workspace with `omnis-app` at P9; the editor is `bevy_ui` (§8.2, 2026-10-14) |
 | rhai | 1.26.1 | expr | A4. Owner exception to the N-1 and 30-day rule (2026-09-12): 1.26.1 was released 2026-09-10; the owner reviewed the project and release and judged it not compromised. Context: the N-1 minor, 1.25.x, scores 58 on Socket supply chain against 98 for 1.24.0 and 71 for 1.26.1, with no new dependency, build script, or file-set change to explain it; 1.26.1 also contains fixes to the optimizer, function-pointer argument order, and switch matching found while building the Grain VM. The `grain` feature is not enabled. MSRV 1.66, MIT OR Apache-2.0. Re-audit with Socket at 30 days (2026-10-10). |

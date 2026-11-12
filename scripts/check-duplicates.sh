@@ -23,7 +23,12 @@ if [ -n "$gone" ]; then
 fi
 if [ -n "$new" ]; then
   echo "check-duplicates: new duplicate crates (align the version with Bevy's or record an owner exception):" >&2
-  for c in $new; do cargo tree --workspace --duplicates --prefix none --locked --target all -e normal,build -i "$c" 2>/dev/null | head -20 >&2; done
+  echo "$new" >&2
+  # The trees are a help, not the verdict: a listing that fails (`head` closing the pipe, a name
+  # with two versions) must not end the script before it has said what is new.
+  for c in $new; do
+    (cargo tree --workspace --locked --target all -e normal,build -i "$c" 2>/dev/null || true) | head -20 >&2 || true
+  done
   exit 1
 fi
 echo "check-duplicates: no new duplicates"

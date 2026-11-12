@@ -59,20 +59,30 @@ Left, waiting on a planned change:
   says the client draws a blank seed from OS entropy; `omnis-vector/src/shell/screen.rs:280` draws it from
   `SystemTime` nanoseconds through `splitmix64`. Harmless for a seed; unusable for a key. `getrandom` 0.4.3 is
   already in the tree for the day a key needs it (`tasks/plans/study-accounts.md`). Fix the sentence or the call.
-- **The Bevy 0.20 plan changes tonemapping from `None` to `Linear`** (`tasks/plans/bevy-0.20-migration.md`);
-  presentation-ARCHITECTURE §3 and §8.6 will need the change when it lands.
 
 ## Dependencies
 - **The seed's clock entropy** (`crates/omnis-vector/src/shell/screen.rs:281`, `SystemTime`) against ARCHITECTURE §11's
   "OS entropy": harmless today; `getrandom` is already in the tree for the day a key needs it (D29). From the accounts
   study, question 9 (2026-10-21).
 - **`smartstring` RUSTSEC-2026-0249** (through rhai): to add to ARCHITECTURE §13's dependency notes.
-- **`ttf-parser` 0.25.1 RUSTSEC-2026-0192**: reached only on Linux, through winit's Wayland window decorations
-  (`winit` → `sctk-adwaita` → `ab_glyph` → `owned_ttf_parser`; `cargo tree --target all -i ttf-parser`). It is not in
-  the macOS build. To review against the Bevy 0.20 move (not before 2026-11-07).
+- **`ttf-parser` 0.25.1 RUSTSEC-2026-0192** (an "unmaintained" notice, no patched version): reached only on
+  Linux, through winit's Wayland window decorations (`winit` → `sctk-adwaita` → `ab_glyph` → `owned_ttf_parser`;
+  `cargo tree --target all -i ttf-parser`). It is not in the macOS build. Reviewed with the Bevy 0.20 move
+  (2026-11-12): unchanged, 0.20 keeps winit 0.30 and the same path; Bevy's own text is parley and swash.
 - **`webgl2` is enabled transitively** (found 2026-10-20). Bevy's `2d` and `ui` groups pull `default_platform`,
   which carries `webgl2` (`bevy_internal/webgl` → `bevy_render/webgl` → `wgpu/webgl`). Presumed inert on a native
-  target; not verified. A narrower feature list would drop it; check with the Bevy 0.20 move.
+  target; not verified. Checked with the Bevy 0.20 move (2026-11-12): still enabled the same way.
+- **Bevy 0.20.1** (published 2026-10-28) is thirty days old on 2026-11-27: move the pin and release the `bevy_*`
+  crates held at 0.20.0 in `Cargo.lock`. Its ten commits touch nothing the client uses (ruzstd, serde features, a
+  buffer size, reflection, fog volumes, bsn). Six crates are held back for age with it and can move then:
+  `toml` 1.1.8, `toml_writer` 1.1.3, `toml_datetime` 1.1.2, `serde_spanned` 1.1.2, `lalrpop-util` 0.23.1,
+  `annotate-snippets` 0.12.16.
+- **Copy, cut and paste in text fields** arrived with Bevy 0.20, on an in-app clipboard (the `system_clipboard`
+  feature is off, so nothing reaches the OS clipboard). Whether the editor's RON view should use the system
+  clipboard is the owner's choice; it adds the `arboard` crate.
+- **The offscreen capture depends on frame time** (found 2026-11-12): the view eases for the first frames, so two
+  builds differ by a fraction of a pixel in the floor lines and `--walk` varies run to run. Screens with no 3D
+  view behind them (title, new game) are exact. A capture meant as a baseline needs a fixed time step.
 
 ## Rendering direction: GPU-first (recommendation, 2026-10-20)
 The owner's concern (2026-10-20): an early miscommunication left the rendering built with old techniques. Found in
