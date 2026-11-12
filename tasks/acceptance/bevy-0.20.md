@@ -30,6 +30,13 @@ general"), on `W-2_look_and_engine`. The aim was the engine moved with the game 
 - **The retained-UI checks through the dev socket were not run**: a window launched from the agent's shell
   draws no frames. They are items 3 to 6 below.
 
+## After the first hand test (2026-11-12)
+- **"I lost control of the left click button on the mouse."** A button that opens a screen over itself (Menu,
+  the log, a modal's Finish) stayed pressed: the pointer's release reaches only what is under the pointer. A
+  pressed control takes every click from the view and the plan. `controls::button_up` now lets every control
+  go when the left button comes up. To try: click Menu, close the pause, click in the view: mouse look turns
+  on. Click the running log, close it, click in the view: the same.
+
 ## Known and left
 - Copy, cut and paste work in text fields now, on an in-app clipboard (nothing reaches the system clipboard).
 - A held movement button through Bevy's real picking is not tested headless (item 2 below).

@@ -516,6 +516,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     (2026-11-12). Review: the title and new-game captures are byte-identical to 0.19.1's; the 3D view's are
     not an exact baseline (it eases by real time; BACKLOG). The window checks are the owner's script: a window
     from the agent's shell draws no frames. `check-duplicates.sh` now names a new duplicate before it exits.
+  - [x] The owner's first hand test (2026-11-12): "I lost control of the left click button on the mouse". A
+    button that opens a screen over itself stayed `Pressed` (the pointer's release reaches only what is under
+    it) and took every click from the view. Fixed: `controls::button_up` lets every control go when the left
+    button comes up; `column.rs` has the test; `tasks/LESSONS.md`. Also reported: a ground pile placed in the
+    editor "did not show up upon searching". Search finds hidden objects, not piles (a pile is drawn on its
+    cell and picked up from the Inventory screen); asked of the owner, nothing changed.
   **Built, awaiting the owner's hand test** (`tasks/acceptance/bevy-0.20.md`). One departure to confirm: the
   controls carry `controls::Control`, not Bevy's `ui_widgets::Button` (that one presses on any mouse button).
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation

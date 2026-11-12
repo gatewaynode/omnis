@@ -164,3 +164,51 @@ fn a_click_on_a_button_is_not_a_click_in_the_view() {
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
     assert!(looking(&app), "a click in the view takes the mouse look");
 }
+
+/// The owner's report (2026-11-12, after the move to Bevy 0.20): the left button stopped
+/// working in play. A button that opens a screen over itself is pressed, and the pointer's
+/// release lands on the screen, not on the button: the button stayed pressed, and a pressed
+/// control takes every click from the view. The button coming up lets every control go.
+#[test]
+fn a_button_covered_while_pressed_is_let_go_when_the_mouse_button_comes_up() {
+    use bevy::ui::Pressed;
+    use common::editor::mouse;
+    use omnis_vector::shell::controls::Action;
+    use omnis_vector::shell::movement::Intent;
+    let save = Scratch::new("covered");
+    let mut app = app_in_game(&save.0);
+    app.world_mut()
+        .spawn((Window::default(), bevy::window::PrimaryWindow));
+    app.update();
+    app.update();
+    // As the window does it: the button down on Menu, the pause opens over it, the button up
+    // with no pointer event reaching Menu.
+    set(&mut app, &Action::Menu, Pointing::Press);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    assert_eq!(
+        app.world().resource::<Screens>().nav.top(None),
+        Some(ScreenId::Pause)
+    );
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    let held = {
+        let world = app.world_mut();
+        world
+            .query_filtered::<(), With<Pressed>>()
+            .iter(world)
+            .count()
+    };
+    assert_eq!(held, 0, "nothing is held once the button is up");
+    // Back in the view, the pointer moved off Menu (picking's part), a click is the view's.
+    common::app::let_go(&mut app, &Action::Menu);
+    key(&mut app, KeyCode::Escape, ButtonState::Pressed);
+    app.update();
+    key(&mut app, KeyCode::Escape, ButtonState::Released);
+    app.update();
+    assert!(!app.world().resource::<Intent>().looking);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert!(
+        app.world().resource::<Intent>().looking,
+        "a click in the view"
+    );
+}

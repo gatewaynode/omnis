@@ -33,7 +33,7 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   topological sort with cycle errors, which is not built (build it or correct the document); the four Bevy
   ECS tasks (`tasks/TODO.md`, Open) come after 0.20 unless the owner says otherwise; party creation's remove
   or edit a member.
-- **The gate's last figure**: `tests passed 1261 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-12).
+- **The gate's last figure**: `tests passed 1262 failed 0 ignored 16 errors 0`, VERIFY-GREEN (2026-11-12).
 - **The machine**: Rust 1.98.0 with the `x86_64-pc-windows-msvc` std; `DEVELOPER_DIR=/Library/Developer/
   CommandLineTools` for cargo and git. A link error after a toolchain change is cleared with `cargo clean`.
   `gh` stays blocked in this sandbox.

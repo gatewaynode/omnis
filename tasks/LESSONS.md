@@ -698,3 +698,22 @@
   (`cargo test -p omnis-sim rebaseline -- --ignored`) and the plan says so. "Replays stay at their pins" holds
   only when no sealed pack's text changes; equality of behaviour is then shown another way (here `rules.list`
   compared across the two commits).
+
+## 2026-11-12 — Replacing an engine facility: list what it did without being asked, and test each
+- **What happened**: Bevy 0.20 deprecated `Interaction`; the controls moved to `Hovered` and `Pressed`, kept by
+  pointer observers copied from Bevy's own button. The owner's first playtest lost the left button. The old
+  `Interaction` went back to rest when the mouse button came up, wherever the pointer was. A pointer release
+  reaches only the node under the pointer, and a button that opens a screen over itself (Menu, the log, a
+  modal's Finish) is under nothing by then: it stayed `Pressed`, and `over_control` gave every later click to
+  it. I had found one such implicit behaviour (the left button only) and stopped looking. Every headless test
+  let the control go by hand, so none could show it, and the one test through real picking pressed a control
+  that is redrawn.
+- **Rule**: before a facility is replaced, write down everything it did implicitly, from its source (here
+  `ui_focus_system`: left button only, reset on release anywhere, reset when hidden, one press a frame), and
+  give each line a test that fails without it. "The engine's own widget does it this way" is not evidence the
+  behaviour is the one this client had.
+- **Rule**: a state that an input device sets is cleared by the device (`ButtonInput::just_released`), not only
+  by events that must find their target. A test helper that sets such a state by hand has a twin that leaves
+  it set and sends only the device's release.
+- **Rule** (process): a departure from an approved plan is asked before it is built (the lesson of 2026-11-11).
+  `controls::Control` in place of Bevy's `Button` was built and reported after; the fault above came with it.

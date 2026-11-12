@@ -192,6 +192,23 @@ fn pointer_lost(
     }
 }
 
+/// The left button comes up: every control is let go, wherever the pointer is by then. The
+/// pointer's own release reaches only what lies under it, and a button that opened a screen
+/// over itself (Menu, the log, a modal's Finish) lies under nothing: it stayed pressed, and a
+/// pressed control takes the view's and the plan's clicks (the owner's report, 2026-11-12). At
+/// the frame's end, so a press and its release in one frame are still a press.
+fn button_up(
+    mouse: Option<Res<ButtonInput<MouseButton>>>,
+    held: Query<Entity, (With<Control>, With<Pressed>)>,
+    mut commands: Commands,
+) {
+    if mouse.is_some_and(|m| m.just_released(MouseButton::Left)) {
+        for control in &held {
+            commands.entity(control).remove::<Pressed>();
+        }
+    }
+}
+
 /// The movement pad, bottom left, and the other actions, bottom right.
 pub struct ControlsPlugin;
 
@@ -201,6 +218,7 @@ impl Plugin for ControlsPlugin {
             .add_observer(pointer_up)
             .add_observer(drag_end)
             .add_observer(pointer_lost)
+            .add_systems(PostUpdate, button_up)
             .add_systems(Startup, (spawn, super::notice::spawn))
             .add_systems(
                 Update,
