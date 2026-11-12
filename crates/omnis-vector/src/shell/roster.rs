@@ -77,7 +77,7 @@ pub(super) fn route(
     session: Option<Res<Session>>,
     mut screens: ResMut<Screens>,
     showing: Res<Showing>,
-    buttons: Query<(&Interaction, &Side), Changed<Interaction>>,
+    buttons: Query<&Side, super::controls::Pressing>,
 ) {
     let Some(session) = session else {
         screens.forms.selected = None;
@@ -91,11 +91,7 @@ pub(super) fn route(
     if !shown(Some(&session), &screens, *showing) {
         return;
     }
-    let Some(id) = buttons
-        .iter()
-        .find(|(i, _)| **i == Interaction::Pressed)
-        .map(|(_, s)| s.0)
-    else {
+    let Some(id) = buttons.iter().next().map(|s| s.0) else {
         return;
     };
     let mut selected = screens.forms.selected;

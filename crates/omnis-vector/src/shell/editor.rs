@@ -12,6 +12,7 @@
 //! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
 //! painted, and the rest stands.
 
+use super::controls::{Over, Pressing, over_control};
 use super::screen::{Arrow, Screens, Slid};
 use super::screen_draw::{
     EditorPress, Mark, Placed, Scrolls, WHEEL_LINE, build, colour, shade, sync,
@@ -546,11 +547,11 @@ struct Inputs<'w> {
 
 #[allow(clippy::too_many_arguments)]
 fn route(
-    buttons: Query<(&Interaction, &EditorPress), Changed<Interaction>>,
-    arrows: Query<(&Interaction, &Arrow), Changed<Interaction>>,
+    buttons: Query<&EditorPress, Pressing>,
+    arrows: Query<&Arrow, Pressing>,
     input: Inputs,
     pane: Query<(&RelativeCursorPosition, &ComputedNode), With<Column>>,
-    interactions: Query<&Interaction>,
+    controls: Over,
     focus: Option<ResMut<InputFocus>>,
     fields: Query<(Ref<EditableText>, &EditorPress)>,
     mut slid: ResMut<Slid>,
@@ -617,15 +618,12 @@ fn route(
             editing.set_field(i, n);
         }
     }
-    let pressed = buttons
-        .iter()
-        .find(|(i, _)| **i == Interaction::Pressed)
-        .map(|(_, p)| (p.0, 0_i8));
+    let pressed = buttons.iter().next().map(|p| (p.0, 0_i8));
     let stepped = || {
         arrows
             .iter()
-            .find(|(i, a)| **i == Interaction::Pressed && matches!(a.0, ControlId::Edit(_)))
-            .map(|(_, a)| (a.0, if a.1 { 1 } else { -1 }))
+            .find(|a| matches!(a.0, ControlId::Edit(_)))
+            .map(|a| (a.0, if a.1 { 1 } else { -1 }))
     };
     let mut asked = Asked::Nothing;
     if !covered
@@ -641,7 +639,7 @@ fn route(
                 pane_size(Some(node), &editing),
             )
         });
-        let over_button = interactions.iter().any(|i| *i != Interaction::None);
+        let over_button = over_control(&controls);
         // Bevy's `normalized` runs from (-0.5, -0.5) at the pane's top left to (0.5, 0.5) at its
         // bottom right; the plan's pixels run from its top left.
         let pixel = plan.filter(|_| !over_button).map(|(at, size)| {

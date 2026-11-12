@@ -3,6 +3,7 @@
 //! walks and faces as before, and a step returns the view to level as the setting says.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::input::mouse::MouseMotion;
@@ -117,9 +118,9 @@ fn the_mouse_and_page_keys_pitch_the_view_and_home_and_the_button_level_it() {
     app.update();
     assert!(pitch(&app) > 0.2, "PageUp looks up: {}", pitch(&app));
 
-    set(&mut app, &Action::Level, Interaction::Pressed);
+    set(&mut app, &Action::Level, Pointing::Press);
     app.update();
-    set(&mut app, &Action::Level, Interaction::None);
+    set(&mut app, &Action::Level, Pointing::Rest);
     assert_eq!(pitch(&app), 0.0, "the Level button levels");
 
     key(&mut app, KeyCode::PageDown, ButtonState::Pressed);

@@ -108,7 +108,7 @@ impl Plugin for MovementPlugin {
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
-    interactions: Query<&Interaction>,
+    controls: super::controls::Over,
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut intent: ResMut<Intent>,
     showing: Option<Res<Showing>>,
@@ -122,7 +122,7 @@ fn grab_cursor(
         intent.looking,
         LookInput {
             left_click: mouse.just_pressed(MouseButton::Left),
-            over_button: interactions.iter().any(|i| *i != Interaction::None),
+            over_button: super::controls::over_control(&controls),
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
             panel: showing.is_some_and(|s| s.0)

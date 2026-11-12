@@ -6,6 +6,7 @@
 //! file.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -486,7 +487,7 @@ fn save_is_refused_in_the_loader_s_words_while_invalid_and_writes_reseals_and_re
     set(
         &mut app,
         &Pressable(ControlId::Edit(EditAct::Save)),
-        Interaction::Pressed,
+        Pointing::Press,
     );
     app.update();
     app.update();

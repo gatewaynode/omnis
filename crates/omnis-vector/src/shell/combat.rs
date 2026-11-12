@@ -9,7 +9,7 @@
 
 use super::capture::{CaptureSize, Offscreen};
 use super::cinema::Screen;
-use super::controls::{Action, Corner, GREEN, SHADES};
+use super::controls::{Action, Corner, GREEN, Pressing, SHADES};
 use super::minimap::Minimap;
 use super::render::ViewCamera;
 use super::screen::{Arrow, FightPress, Screens, ctx};
@@ -200,8 +200,8 @@ const DIGITS: [KeyCode; 9] = [
 /// says what happened). The menu goes back to the turn's list first when the turn passed.
 #[allow(clippy::too_many_arguments)]
 fn route(
-    buttons: Query<(&Interaction, &FightPress), Changed<Interaction>>,
-    arrows: Query<(&Interaction, &Arrow), Changed<Interaction>>,
+    buttons: Query<&FightPress, Pressing>,
+    arrows: Query<&Arrow, Pressing>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     window: Query<&Window, With<PrimaryWindow>>,
@@ -216,15 +216,12 @@ fn route(
             return;
         };
         fight::settle(game, &mut screens.forms.fight);
-        let pressed = buttons
-            .iter()
-            .find(|(i, _)| **i == Interaction::Pressed)
-            .map(|(_, p)| (p.0, Payload::Press));
+        let pressed = buttons.iter().next().map(|p| (p.0, Payload::Press));
         let stepped = || {
             arrows
                 .iter()
-                .find(|(i, a)| **i == Interaction::Pressed && matches!(a.0, ControlId::Fight(_)))
-                .map(|(_, a)| (a.0, if a.1 { Payload::Right } else { Payload::Left }))
+                .find(|a| matches!(a.0, ControlId::Fight(_)))
+                .map(|a| (a.0, if a.1 { Payload::Right } else { Payload::Left }))
         };
         let keyed = || {
             let n = DIGITS.iter().position(|k| keys.just_pressed(*k))?;

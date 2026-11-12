@@ -1,7 +1,7 @@
 //! A session at the dungeon's placed group, met by walking into it, and its turns.
 
 use super::app::{met_with, set};
-use bevy::prelude::Interaction;
+use crate::common::app::Pointing;
 use omnis_sim::{ActorRef, CombatCommand, Command, EncounterChoice, Mode, combat_view};
 use omnis_vector::combat_menu::{Act, Step};
 use omnis_vector::screen::ControlId;
@@ -69,8 +69,9 @@ pub fn step(app: &bevy::prelude::App) -> Step {
 pub fn enabled(app: &mut bevy::prelude::App) -> Vec<Act> {
     let acts = entries(app);
     let world = app.world_mut();
-    let mut query =
-        world.query_filtered::<&FightPress, bevy::prelude::With<bevy::ui_widgets::Button>>();
+    let mut query = world
+        .query_filtered::<&FightPress, bevy::prelude::With<omnis_vector::shell::controls::Control>>(
+        );
     let live: Vec<ControlId> = query.iter(world).map(|p| p.0).collect();
     acts.into_iter()
         .filter(|(id, _)| live.contains(id))
@@ -86,13 +87,7 @@ pub fn press(app: &mut bevy::prelude::App, act: &Act) {
         .find(|(_, a)| a == act)
         .map(|(id, _)| id)
         .unwrap_or_else(|| panic!("an entry {act:?}"));
-    set(app, &FightPress(id), Interaction::Pressed);
+    set(app, &FightPress(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&FightPress, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &FightPress(id));
 }

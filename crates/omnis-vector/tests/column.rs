@@ -4,6 +4,7 @@
 //! `roster.rs`.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -30,28 +31,16 @@ fn shown(app: &mut App) -> bool {
 }
 
 fn press_side(app: &mut App, id: ControlId) {
-    set(app, &Side(id), Interaction::Pressed);
+    set(app, &Side(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&Side, &mut Interaction)>();
-    for (s, mut i) in buttons.iter_mut(world) {
-        if s.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Side(id));
     app.update();
 }
 
 fn press(app: &mut App, id: ControlId) {
-    set(app, &Pressable(id), Interaction::Pressed);
+    set(app, &Pressable(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&Pressable, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Pressable(id));
     app.update();
 }
 
@@ -148,4 +137,30 @@ fn the_column_stands_beside_a_fight() {
         .name
         .clone();
     assert!(text.contains(&name), "{text}");
+}
+
+/// A click with the pointer on a button is the button's: it does not also take the view's
+/// mouse look. Off the buttons the same click does.
+#[test]
+fn a_click_on_a_button_is_not_a_click_in_the_view() {
+    use common::editor::mouse;
+    use omnis_vector::shell::controls::Action;
+    use omnis_vector::shell::movement::Intent;
+    let save = Scratch::new("over");
+    let mut app = app_in_game(&save.0);
+    // Mouse look holds the window's cursor: headless there is no window until one is made.
+    app.world_mut()
+        .spawn((Window::default(), bevy::window::PrimaryWindow));
+    app.update();
+    app.update();
+    let looking = |app: &App| app.world().resource::<Intent>().looking;
+    assert!(!looking(&app));
+    set(&mut app, &Action::Log, Pointing::Hover);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert!(!looking(&app), "the pointer was on a button");
+    set(&mut app, &Action::Log, Pointing::Rest);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert!(looking(&app), "a click in the view takes the mouse look");
 }

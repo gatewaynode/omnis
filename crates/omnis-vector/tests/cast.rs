@@ -2,6 +2,7 @@
 //! makes. Real packs, the fixed party, the town's start.
 
 use crate::common;
+use crate::common::app::Pointing;
 use common::ctx;
 
 use bevy::prelude::*;
@@ -211,17 +212,13 @@ fn a_cast_from_the_column_keeps_the_screen_open_and_reports() {
     let ilvara = app.world().resource::<Session>().views.party.members[2].member;
     let press_ui = |app: &mut App, side: Option<Side>, pressable: Option<Pressable>| {
         if let Some(m) = side {
-            common::app::set(app, &m, Interaction::Pressed);
+            common::app::set(app, &m, Pointing::Press);
         }
         if let Some(m) = pressable {
-            common::app::set(app, &m, Interaction::Pressed);
+            common::app::set(app, &m, Pointing::Press);
         }
         app.update();
-        let world = app.world_mut();
-        let mut q = world.query::<&mut Interaction>();
-        for mut i in q.iter_mut(world) {
-            *i = Interaction::None;
-        }
+        common::app::rest(app);
         app.update();
     };
     press_ui(&mut app, Some(Side(ControlId::Member(ilvara))), None);

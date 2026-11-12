@@ -2,6 +2,7 @@
 //! the party does with its items. Real packs, the fixed party, the town's start.
 
 use crate::common;
+use crate::common::app::Pointing;
 use common::ctx;
 
 use bevy::input::ButtonState;
@@ -486,15 +487,9 @@ fn top(app: &App) -> Option<ScreenId> {
 
 /// Press a button carrying `marker`, then let it go.
 fn press_ui<C: Component + PartialEq + core::fmt::Debug + Copy>(app: &mut App, marker: C) {
-    common::app::set(app, &marker, Interaction::Pressed);
+    common::app::set(app, &marker, Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut q = world.query::<(&C, &mut Interaction)>();
-    for (c, mut i) in q.iter_mut(world) {
-        if *c == marker {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &marker);
     app.update();
 }
 

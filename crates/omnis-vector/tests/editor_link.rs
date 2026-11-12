@@ -8,6 +8,7 @@
 //! on this map, with the other map's id.
 
 use crate::common;
+use crate::common::app::Pointing;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::{press_ui, set};
@@ -409,15 +410,9 @@ fn a_link_switched_to_another_portal_is_drawn_anew_so_the_window_s_frame_keeps_i
 /// button down in one frame, the control let go and the button up in the next (`press_ui`
 /// carries no mouse button, so the plan's frame never saw one).
 fn real_click(app: &mut App, id: ControlId) {
-    set(app, &Pressable(id), Interaction::Pressed);
+    set(app, &Pressable(id), Pointing::Press);
     mouse(app, MouseButton::Left, ButtonState::Pressed);
-    let world = app.world_mut();
-    let mut controls = world.query::<(&Pressable, &mut Interaction)>();
-    for (c, mut i) in controls.iter_mut(world) {
-        if c.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Pressable(id));
     mouse(app, MouseButton::Left, ButtonState::Released);
     app.update();
 }

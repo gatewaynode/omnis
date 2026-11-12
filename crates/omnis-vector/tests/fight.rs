@@ -2,24 +2,25 @@
 //! fight does not walk on, and can start again. The fight itself is `tests/combat.rs`.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::prelude::*;
-use bevy::ui_widgets::Button;
 use common::app::{app, set};
 use omnis_vector::screen::ControlId;
 use omnis_vector::shell::controls::Action;
+use omnis_vector::shell::controls::Control;
 use omnis_vector::shell::screen::Pressable;
 use omnis_vector::shell::session::Session;
 
 /// The orders of the notice's buttons that can be pressed, in screen order.
 fn enabled(app: &mut App) -> Vec<Pressable> {
     let world = app.world_mut();
-    let mut query = world.query_filtered::<&Pressable, With<Button>>();
+    let mut query = world.query_filtered::<&Pressable, With<Control>>();
     query.iter(world).copied().collect()
 }
 
 fn press(app: &mut App, control: &Pressable) {
-    set(app, control, Interaction::Pressed);
+    set(app, control, Pointing::Press);
     app.update();
 }
 
@@ -42,11 +43,11 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     // Load last save is dim: these tests save nowhere.
     assert_eq!(enabled(&mut app), vec![start_again, to_title]);
     // A fallen party does not walk.
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     for _ in 0..30 {
         app.update();
     }
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     assert_eq!(app.world().resource::<Session>().world.position, start);
     press(&mut app, &start_again);
     app.update();

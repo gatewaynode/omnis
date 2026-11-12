@@ -11,7 +11,6 @@ use crate::common;
 use bevy::input::ButtonState;
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
-use bevy::ui_widgets::Button;
 use common::app::press_ui;
 use common::editor::{
     arrow, editing, held, in_editor, in_editor_on, mouse, point_at, press_edit, top_screen, type_ui,
@@ -25,6 +24,7 @@ use omnis_vector::editor::form::Form;
 use omnis_vector::editor::forms::Placing;
 use omnis_vector::editor::stamp;
 use omnis_vector::screen::{ControlId, Kind, ScreenId};
+use omnis_vector::shell::controls::Control;
 use omnis_vector::shell::editor::Editing;
 use omnis_vector::shell::screen::Pressable;
 use omnis_vector::shell::screen_text::screen_text;
@@ -63,7 +63,7 @@ fn row_of(app: &App, kind: Placing, id: &str) -> EditAct {
 /// Whether the top screen draws a live control `id` (a dim one is no `Button`).
 fn pressable(app: &mut App, id: ControlId) -> bool {
     let world = app.world_mut();
-    let mut nodes = world.query::<(&Pressable, Has<Button>)>();
+    let mut nodes = world.query::<(&Pressable, Has<Control>)>();
     nodes.iter(world).any(|(p, live)| p.0 == id && live)
 }
 

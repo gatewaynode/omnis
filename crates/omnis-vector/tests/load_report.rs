@@ -4,6 +4,7 @@
 //! The Debug page's Reload packs (M8.5 7h5) fits the running world to the packs on disk by
 //! name, and opens the same screen when they lack a name the world holds.
 
+use crate::common::app::Pointing;
 use crate::common::app::{config, set, shell, tap};
 use crate::common::{map, objects_data, place, town_session};
 use bevy::prelude::*;
@@ -67,15 +68,9 @@ impl Drop for Scratch {
 }
 
 fn press(app: &mut App, id: ControlId) {
-    set(app, &Pressable(id), Interaction::Pressed);
+    set(app, &Pressable(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&Pressable, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Pressable(id));
 }
 
 fn top(app: &App) -> Option<ScreenId> {

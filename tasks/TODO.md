@@ -503,8 +503,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     14% of channel values, nearly all by two levels or fewer (read as dither, which `None` drew without;
     not yet confirmed by eye); the `walk` capture varies run to run and is no baseline; `check-duplicates.sh` dies
     silently when a new duplicate appears (the loop's `head` under `pipefail`), to fix with step 3.
-  - [ ] 2. Buttons on `Hovered` and `Pressed` (a press still acts on button down); the allow removed; the test
-    helpers on one `press`; mutation checks.
+  - [x] 2. Buttons on `Hovered` and `Pressed` (2026-11-12): `controls::Control` (a live control; `pressable()`,
+    `Pressing`, `Over`/`over_control`) with its own left-button observers keeping `Pressed`. Not Bevy's
+    `ui_widgets::Button`, a departure from the plan found at the build: that one is pressed by any mouse
+    button, and the right button here is the action key and the editor's pick. A press still acts on button
+    down. The tests' ten hand-written helpers are one `set`/`let_go`/`rest` over `Pointing`. Review: gate
+    1261; ten mutation checks caught (three survived first and got tests: the shade on release, a click on
+    a button taken by the view, a press read while held); a press through Bevy's real picking is tested
+    in the editor harness (`editor_pointer.rs`; picking reads `WindowEvent`, not the plain messages).
+    Not covered headless: a held movement button through real picking (the owner's hand test).
   - [ ] 3. Runtime checks against the captures, the documents that name 0.19, `tasks/acceptance/bevy-0.20.md`.
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the

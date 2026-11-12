@@ -62,7 +62,7 @@ fn the_rules_button_lists_every_rule_with_its_file_and_a_search_narrows_it() {
     ))));
     let world = app.world_mut();
     // A dim control is drawn and takes no interaction.
-    let mut buttons = world.query::<(&Pressable, Has<Interaction>)>();
+    let mut buttons = world.query::<(&Pressable, Has<omnis_vector::shell::controls::Control>)>();
     let found: Vec<bool> = (buttons.iter(world))
         .filter(|(p, _)| **p == total)
         .map(|(_, pressable)| pressable)

@@ -163,22 +163,73 @@ pub fn app_in_game(save: &str) -> App {
     )
 }
 
-/// Set the interaction of every button carrying `marker`, as the UI's picking would.
+/// Where the pointer is on a control, as a test sets it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pointing {
+    /// Elsewhere.
+    Rest,
+    /// Over the control.
+    Hover,
+    /// Over it with the left button down.
+    Press,
+}
+
+fn point<C: Component + PartialEq>(app: &mut App, marker: &C, pointing: Pointing) -> bool {
+    use bevy::picking::hover::Hovered;
+    use bevy::ui::Pressed;
+    use omnis_vector::shell::controls::Control;
+    let world = app.world_mut();
+    let mut query = world.query_filtered::<(Entity, &C), With<Control>>();
+    let found: Vec<Entity> = query
+        .iter(world)
+        .filter(|(_, c)| *c == marker)
+        .map(|(e, _)| e)
+        .collect();
+    for &entity in &found {
+        let mut control = world.entity_mut(entity);
+        // As the window's picking does it: `Hovered` is written only when it changes.
+        let over = pointing != Pointing::Rest;
+        if control.get::<Hovered>().map(Hovered::get) != Some(over) {
+            control.insert(Hovered(over));
+        }
+        if pointing == Pointing::Press {
+            control.insert(Pressed);
+        } else {
+            control.remove::<Pressed>();
+        }
+    }
+    !found.is_empty()
+}
+
+/// Put the pointer on every live control carrying `marker`, as the window's picking would. A
+/// dim control is not live and fails this.
 pub fn set<C: Component + PartialEq + core::fmt::Debug>(
     app: &mut App,
     marker: &C,
-    interaction: Interaction,
+    pointing: Pointing,
 ) {
+    assert!(point(app, marker, pointing), "a {marker:?} button exists");
+}
+
+/// Take the pointer off the controls carrying `marker`, if any still stand (a screen that
+/// closed has none left).
+pub fn let_go<C: Component + PartialEq>(app: &mut App, marker: &C) {
+    point(app, marker, Pointing::Rest);
+}
+
+/// Take the pointer off every control.
+pub fn rest(app: &mut App) {
+    use bevy::picking::hover::Hovered;
+    use bevy::ui::Pressed;
     let world = app.world_mut();
-    let mut query = world.query::<(&C, &mut Interaction)>();
-    let mut found = false;
-    for (c, mut i) in query.iter_mut(world) {
-        if c == marker {
-            *i = interaction;
-            found = true;
-        }
+    let mut query = world.query_filtered::<Entity, With<Pressed>>();
+    let pressed: Vec<Entity> = query.iter(world).collect();
+    for entity in pressed {
+        world
+            .entity_mut(entity)
+            .remove::<Pressed>()
+            .insert(Hovered(false));
     }
-    assert!(found, "a {marker:?} button exists");
 }
 
 /// An app with the party three cells north of the dungeon's placed group, walked into it with
@@ -199,11 +250,11 @@ pub fn met_with(seed: u64) -> App {
         session.pose = Pose::at(session.world.position);
         session.refresh();
     }
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     for _ in 0..80 {
         app.update();
     }
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     app.update();
     assert!(matches!(
         app.world().resource::<Session>().world.mode,
@@ -214,15 +265,9 @@ pub fn met_with(seed: u64) -> App {
 
 /// Press a button carrying `marker`, then let it go, a frame each.
 pub fn press_ui<C: Component + PartialEq + core::fmt::Debug + Copy>(app: &mut App, marker: C) {
-    set(app, &marker, Interaction::Pressed);
+    set(app, &marker, Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut query = world.query::<(&C, &mut Interaction)>();
-    for (c, mut i) in query.iter_mut(world) {
-        if *c == marker {
-            *i = Interaction::None;
-        }
-    }
+    let_go(app, &marker);
     app.update();
 }
 

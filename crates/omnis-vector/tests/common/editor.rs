@@ -3,6 +3,7 @@
 //! buttons as the window would send them.
 
 use super::app::{config, set, shell};
+use crate::common::app::Pointing;
 use bevy::input::ButtonState;
 use bevy::input::mouse::MouseButtonInput;
 use bevy::prelude::*;
@@ -64,30 +65,18 @@ pub fn editing(app: &App) -> &Editing {
 /// Press a control of the editor's layer, then let it go.
 pub fn press_edit(app: &mut App, act: EditAct) {
     let id = ControlId::Edit(act);
-    set(app, &EditorPress(id), Interaction::Pressed);
+    set(app, &EditorPress(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&EditorPress, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &EditorPress(id));
     app.update();
 }
 
 /// Step a choice of the editor's layer right (`true`) or left.
 pub fn arrow(app: &mut App, act: EditAct, right: bool) {
     let marker = Arrow(ControlId::Edit(act), right);
-    set(app, &marker, Interaction::Pressed);
+    set(app, &marker, Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut arrows = world.query::<(&Arrow, &mut Interaction)>();
-    for (a, mut i) in arrows.iter_mut(world) {
-        if *a == marker {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &marker);
     app.update();
 }
 

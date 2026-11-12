@@ -2,6 +2,7 @@
 //! the world through the movement plugin with no window or GPU.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -48,14 +49,14 @@ fn holding_the_forward_button_walks_north() {
     let mut app = app();
     app.update();
     let start = app.world().resource::<Session>().world.position;
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     for _ in 0..60 {
         app.update();
     }
     let moved = app.world().resource::<Session>().world.position;
     assert!(moved.y < start.y, "the party moved north");
     // Released, the party stops.
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     for _ in 0..60 {
         app.update();
     }
@@ -67,7 +68,7 @@ fn holding_the_forward_button_walks_north() {
 fn a_turn_button_held_down_turns_once() {
     let mut app = app();
     app.update();
-    set(&mut app, &Action::TurnLeft, Interaction::Pressed);
+    set(&mut app, &Action::TurnLeft, Pointing::Press);
     for _ in 0..90 {
         app.update();
     }
@@ -81,19 +82,19 @@ fn the_save_button_writes_a_log_that_replays() {
     let path = dir.join("session.ron");
     let mut app = app_logging_to(path.clone());
     app.update();
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     for _ in 0..30 {
         app.update();
     }
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     // The log is saved from the pause, which the Menu button opens.
-    set(&mut app, &Action::Menu, Interaction::Pressed);
+    set(&mut app, &Action::Menu, Pointing::Press);
     app.update();
     app.update();
     set(
         &mut app,
         &omnis_vector::shell::screen::Pressable(omnis_vector::screen::ControlId::SaveLog),
-        Interaction::Pressed,
+        Pointing::Press,
     );
     app.update();
     let message = app
@@ -201,7 +202,7 @@ fn the_views_are_the_world_s_after_every_frame() {
         assert!(session.binder.log.len() > before, "the door opened");
     }
     fresh(&app, "after the door");
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     let mut met = false;
     for frame in 0..120 {
         app.update();
@@ -211,7 +212,7 @@ fn the_views_are_the_world_s_after_every_frame() {
             break;
         }
     }
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     assert!(met, "the rats are met");
     let mut session = app.world_mut().resource_mut::<Session>();
     session.order(Command::Encounter(EncounterChoice::Attack));

@@ -3,6 +3,7 @@
 //! test pack's town.
 
 use crate::common;
+use crate::common::app::Pointing;
 use common::ctx;
 
 use bevy::input::ButtonState;
@@ -593,7 +594,7 @@ fn walking_into_the_guild_opens_its_panel_and_leave_steps_back_out() {
         let shown = screen::content(ScreenId::Service, &shell_ctx(session), &Forms::default());
         assert_eq!(headings(&shown), [["Spells"]]);
     }
-    common::app::set(&mut app, &Pressable(ControlId::Leave), Interaction::Pressed);
+    common::app::set(&mut app, &Pressable(ControlId::Leave), Pointing::Press);
     app.update();
     let session = app.world().resource::<Session>();
     assert!(
@@ -623,11 +624,7 @@ fn escape_in_the_shell_leaves_the_service() {
 fn a_purchase_reports_on_the_panel_and_the_report_goes_with_it() {
     let mut app = app_inside(SMITH, 100_000);
     app.update();
-    common::app::set(
-        &mut app,
-        &Pressable(ControlId::Offer(0)),
-        Interaction::Pressed,
-    );
+    common::app::set(&mut app, &Pressable(ControlId::Offer(0)), Pointing::Press);
     app.update();
     let line = {
         let session = app.world().resource::<Session>();
@@ -643,7 +640,7 @@ fn a_purchase_reports_on_the_panel_and_the_report_goes_with_it() {
         app.world().resource::<Screens>().forms.message.is_some(),
         "the report stays while the panel does"
     );
-    common::app::set(&mut app, &Pressable(ControlId::Leave), Interaction::Pressed);
+    common::app::set(&mut app, &Pressable(ControlId::Leave), Pointing::Press);
     app.update();
     app.update();
     assert_eq!(top(&app), None);

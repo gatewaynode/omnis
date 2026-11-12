@@ -10,7 +10,7 @@ use super::icons::IconOf;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::UiGlobalTransform;
-use bevy::ui_widgets::{Button, SliderRange, SliderValue};
+use bevy::ui_widgets::{SliderRange, SliderValue};
 
 /// What `screen.text` answers when no text is shown.
 pub const NOTHING: &str = "no text is shown";
@@ -102,9 +102,11 @@ fn line(world: &World, entity: Entity, depth: usize) -> Option<String> {
             rect.height()
         ));
     }
-    let pressable = world
-        .get::<ChildOf>(entity)
-        .is_some_and(|parent| world.get::<Button>(parent.parent()).is_some());
+    let pressable = world.get::<ChildOf>(entity).is_some_and(|parent| {
+        world
+            .get::<super::controls::Control>(parent.parent())
+            .is_some()
+    });
     if pressable {
         line.push_str("[button] ");
     }

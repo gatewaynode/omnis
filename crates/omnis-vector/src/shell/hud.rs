@@ -93,7 +93,7 @@ fn spawn(mut commands: Commands) {
                     ..default()
                 },
                 // A click on it opens the full log.
-                Interaction::default(),
+                super::controls::pressable(),
             ))
             .with_children(|column| {
                 for at in 0..LOG_LINES {
@@ -253,12 +253,12 @@ fn log(
 
 /// A click on the running log opens the full log, where it is allowed.
 fn open_log(
-    clicked: Query<&Interaction, (Changed<Interaction>, With<LogColumn>)>,
+    clicked: Query<(), (super::controls::Pressing, With<LogColumn>)>,
     session: Option<Res<Session>>,
     mut screens: ResMut<Screens>,
 ) {
     if let Some(session) = session
-        && clicked.iter().any(|i| *i == Interaction::Pressed)
+        && !clicked.is_empty()
         && screens.nav.allowed(ScreenId::Log, Some(&session.views))
     {
         screens.nav.open(ScreenId::Log, Some(&session.views));

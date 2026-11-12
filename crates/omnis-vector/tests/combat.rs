@@ -4,6 +4,7 @@
 //! and leaving puts the pose where the party is.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -356,7 +357,7 @@ fn the_reactions_switch_turns_them_off_and_the_turn_goes_on() {
     common::app::set(
         &mut app,
         &omnis_vector::shell::screen::Arrow(switch, false),
-        Interaction::Pressed,
+        Pointing::Press,
     );
     app.update();
     let s = session(&app);

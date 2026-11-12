@@ -1,6 +1,6 @@
 //! The on-screen buttons: every action has one, and the keys are shortcuts for them
-//! (presentation-ARCHITECTURE.md §8). Headless-safe: the buttons are plain UI nodes whose `Interaction`
-//! a test can set.
+//! (presentation-ARCHITECTURE.md §8). Headless-safe: the buttons are plain UI nodes whose `Hovered`
+//! and `Pressed` a test can set.
 
 use super::VectorSet;
 use super::movement::Intent;
@@ -8,9 +8,11 @@ use super::screen::Screens;
 use super::session::Session;
 use crate::screen::ScreenId;
 use crate::style::{Role, SHADES as SHADE_RGB};
+use bevy::picking::events::{PointerCancel, PointerDragEnd, PointerPress, PointerRelease};
+use bevy::picking::hover::Hovered;
+use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
-use bevy::ui::FocusPolicy;
-use bevy::ui_widgets::Button;
+use bevy::ui::Pressed;
 use core::f32::consts::FRAC_PI_2;
 
 /// What a button does.
@@ -105,12 +107,89 @@ const fn srgb([r, g, b]: [f32; 3]) -> Color {
     Color::srgb(r, g, b)
 }
 
-/// What makes a node a live control: Bevy's button, the pointer's state on it, and the pointer
-/// stopped from reaching what lies beneath. Every pressable node takes this and nothing else, so
-/// a dim control is one without it.
+/// A live control: a node the pointer can press. It carries the pointer's state as Bevy's own
+/// components, `Hovered` (kept by Bevy's picking) and `Pressed` (kept here, below), and a dim
+/// control is one without it. Not Bevy's `ui_widgets::Button`: that one is pressed by any mouse
+/// button, and here the right button is the action key and the editor's pick.
+#[derive(Component, Clone, Copy, Debug, Default)]
+#[require(Hovered)]
+pub struct Control;
+
+/// What makes a node a live control. Every pressable node takes this and nothing else.
 #[must_use]
 pub fn pressable() -> impl Bundle {
-    (Button, Interaction::default(), FocusPolicy::Block)
+    Control
+}
+
+/// What a dim control loses (`pressable` taken back).
+pub type Unpressable = (Control, Hovered, Pressed);
+
+/// The controls pressed this frame: a press acts once, as the button goes down.
+pub type Pressing = Added<Pressed>;
+
+/// The pointer's state on every live control, for `over_control`.
+pub type Over<'w, 's> = Query<'w, 's, (&'static Hovered, Has<Pressed>), With<Control>>;
+
+/// Whether the pointer is on a live control or holds one down: a click there is the control's,
+/// not the view's or the plan's.
+#[must_use]
+pub fn over_control(controls: &Over) -> bool {
+    controls
+        .iter()
+        .any(|(hovered, pressed)| hovered.get() || pressed)
+}
+
+/// The left button goes down on a control: it is pressed until the button comes up, the drag
+/// ends or the pointer is lost. The press stops here, so a control inside another is the one
+/// pressed.
+fn pointer_down(
+    mut press: On<PointerPress>,
+    controls: Query<Has<Pressed>, With<Control>>,
+    mut commands: Commands,
+) {
+    if let Ok(pressed) = controls.get(press.entity) {
+        press.propagate(false);
+        if press.button == PointerButton::Primary && !pressed {
+            commands.entity(press.entity).insert(Pressed);
+        }
+    }
+}
+
+fn pointer_up(
+    mut release: On<PointerRelease>,
+    controls: Query<(), With<Control>>,
+    mut commands: Commands,
+) {
+    if controls.contains(release.entity) {
+        release.propagate(false);
+        if release.button == PointerButton::Primary {
+            commands.entity(release.entity).remove::<Pressed>();
+        }
+    }
+}
+
+fn drag_end(
+    mut end: On<PointerDragEnd>,
+    controls: Query<(), With<Control>>,
+    mut commands: Commands,
+) {
+    if controls.contains(end.entity) {
+        end.propagate(false);
+        if end.button == PointerButton::Primary {
+            commands.entity(end.entity).remove::<Pressed>();
+        }
+    }
+}
+
+fn pointer_lost(
+    mut cancel: On<PointerCancel>,
+    controls: Query<(), With<Control>>,
+    mut commands: Commands,
+) {
+    if controls.contains(cancel.entity) {
+        cancel.propagate(false);
+        commands.entity(cancel.entity).remove::<Pressed>();
+    }
 }
 
 /// The movement pad, bottom left, and the other actions, bottom right.
@@ -118,7 +197,11 @@ pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn, super::notice::spawn))
+        app.add_observer(pointer_down)
+            .add_observer(pointer_up)
+            .add_observer(drag_end)
+            .add_observer(pointer_lost)
+            .add_systems(Startup, (spawn, super::notice::spawn))
             .add_systems(
                 Update,
                 (press, shade, super::notice::close).in_set(VectorSet::Input),
@@ -134,7 +217,7 @@ impl Plugin for ControlsPlugin {
 const DIM: Color = srgb(Role::Dim.rgb());
 
 /// A button: a bordered box with a label, carrying `marker`. A disabled one is drawn dim and
-/// takes no clicks (it has no `Button`), so what cannot be done is still shown.
+/// takes no clicks (it is no `Control`), so what cannot be done is still shown.
 pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundle, enabled: bool) {
     let colour = if enabled { GREEN } else { DIM };
     let mut entity = parent.spawn((
@@ -219,15 +302,12 @@ fn group(commands: &mut Commands, corner: Corner, rows: &[&[Action]]) {
 
 /// Held buttons add motion every frame they are down; the others fire once per press.
 fn press(
-    buttons: Query<(Ref<Interaction>, &Action)>,
+    buttons: Query<(Ref<Pressed>, &Action)>,
     mut intent: ResMut<Intent>,
     session: Res<Session>,
     mut screens: ResMut<Screens>,
 ) {
-    for (interaction, &action) in &buttons {
-        if *interaction != Interaction::Pressed {
-            continue;
-        }
+    for (pressed, &action) in &buttons {
         if action.held() {
             let motion = &mut intent.motion;
             match action {
@@ -238,7 +318,7 @@ fn press(
             }
             continue;
         }
-        if !interaction.is_changed() {
+        if !pressed.is_added() {
             continue;
         }
         match action {
@@ -260,7 +340,7 @@ fn light(
     mut commands: Commands,
     session: Option<Res<Session>>,
     screens: Res<Screens>,
-    buttons: Query<(Entity, &Action, Has<Button>, &Children)>,
+    buttons: Query<(Entity, &Action, Has<Control>, &Children)>,
     mut borders: Query<&mut BorderColor>,
     mut texts: Query<&mut TextColor>,
 ) {
@@ -274,9 +354,8 @@ fn light(
         if live {
             commands.entity(entity).insert(pressable());
         } else {
-            // No `Interaction` either, so the pointer cannot press it (`button` draws a disabled
-            // one the same way).
-            commands.entity(entity).remove::<(Button, Interaction)>();
+            // The pointer cannot press it (`button` draws a disabled one the same way).
+            commands.entity(entity).remove::<Unpressable>();
         }
         if let Ok(mut border) = borders.get_mut(entity) {
             *border = BorderColor::all(colour);
@@ -289,17 +368,72 @@ fn light(
     }
 }
 
-/// The buttons whose shade changed: a `Button` whose `Interaction` moved this frame.
-type Shaded = (Changed<Interaction>, With<Button>);
+/// What `shade` reads of a control: the pointer's state on it and the background it paints.
+type Shaded<'a> = (
+    Entity,
+    Ref<'a, Hovered>,
+    Option<Ref<'a, Pressed>>,
+    &'a mut BackgroundColor,
+);
 
-/// A button's background follows the pointer: at rest, hovered, pressed. Run while a game plays
-/// (this plugin) and while the editor is open (`shell/editor.rs`), which has no game.
-pub(super) fn shade(mut buttons: Query<(&Interaction, &mut BackgroundColor), Shaded>) {
-    for (interaction, mut colour) in &mut buttons {
-        colour.0 = match interaction {
-            Interaction::None => SHADES[0],
-            Interaction::Hovered => SHADES[1],
-            Interaction::Pressed => SHADES[2],
+/// A button's background follows the pointer: at rest, hovered, pressed, painted when either
+/// changes (and as the button is made). Run while a game plays (this plugin) and while the
+/// editor is open (`shell/editor.rs`), which has no game.
+pub(super) fn shade(
+    mut buttons: Query<Shaded, With<Control>>,
+    mut released: RemovedComponents<Pressed>,
+) {
+    let released: Vec<Entity> = released.read().collect();
+    for (entity, hovered, pressed, mut colour) in &mut buttons {
+        let moved = hovered.is_changed()
+            || pressed.as_ref().is_some_and(Ref::is_added)
+            || released.contains(&entity);
+        if !moved {
+            continue;
+        }
+        colour.0 = match (pressed.is_some(), hovered.get()) {
+            (true, _) => SHADES[2],
+            (false, true) => SHADES[1],
+            (false, false) => SHADES[0],
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Resource, Default)]
+    struct Presses(usize);
+
+    fn count(pressing: Query<(), Pressing>, mut presses: ResMut<Presses>) {
+        presses.0 += pressing.iter().count();
+    }
+
+    /// The routes read `Pressing` and act on what it gives: it gives a control on the frame its
+    /// button goes down and not again while it is held, so a held button is one press. (A
+    /// screen that redraws its controls after a press hides the difference; one that does not
+    /// would act every frame.)
+    #[test]
+    fn a_control_is_pressing_on_the_frame_it_goes_down_and_not_while_held() {
+        let mut app = App::new();
+        app.init_resource::<Presses>().add_systems(Update, count);
+        let control = app.world_mut().spawn(pressable()).id();
+        app.update();
+        assert_eq!(app.world().resource::<Presses>().0, 0, "at rest");
+        app.world_mut().entity_mut(control).insert(Pressed);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<Presses>().0,
+            1,
+            "held for three frames"
+        );
+        app.world_mut().entity_mut(control).remove::<Pressed>();
+        app.update();
+        app.world_mut().entity_mut(control).insert(Pressed);
+        app.update();
+        assert_eq!(app.world().resource::<Presses>().0, 2, "pressed again");
     }
 }

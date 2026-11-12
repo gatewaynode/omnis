@@ -124,11 +124,11 @@ type Words = (
 
 /// The close button drops the notice.
 pub(super) fn close(
-    buttons: Query<&Interaction, (Changed<Interaction>, With<NoticeClose>)>,
+    buttons: Query<(), (super::controls::Pressing, With<NoticeClose>)>,
     session: Option<ResMut<Session>>,
 ) {
     if let Some(mut session) = session
-        && buttons.iter().any(|i| *i == Interaction::Pressed)
+        && !buttons.is_empty()
     {
         session.notice = None;
     }

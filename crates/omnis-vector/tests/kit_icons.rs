@@ -5,6 +5,7 @@
 //! pointer as a game's do. The first icons are the bar's view controls.
 
 use crate::common;
+use crate::common::app::Pointing;
 use bevy::prelude::*;
 use common::app::{set, ui_editor_app};
 use common::editor::{editing, in_editor, press_edit};
@@ -146,13 +147,21 @@ fn an_editor_button_is_narrower_than_a_screen_s_and_shades_under_the_pointer() {
     };
     let shade = |i: usize| Color::srgb(SHADES[i][0], SHADES[i][1], SHADES[i][2]);
     assert_eq!(background(&mut app), shade(0));
-    set(&mut app, &menu, Interaction::Hovered);
+    set(&mut app, &menu, Pointing::Hover);
     app.update();
     assert_eq!(background(&mut app), shade(1), "hovered");
-    set(&mut app, &menu, Interaction::Pressed);
+    set(&mut app, &menu, Pointing::Press);
     app.update();
     assert_eq!(background(&mut app), shade(2), "pressed");
-    set(&mut app, &menu, Interaction::None);
+    // Let go with the pointer still on it: the shade follows the release alone.
+    set(&mut app, &menu, Pointing::Hover);
+    app.update();
+    assert_eq!(
+        background(&mut app),
+        shade(1),
+        "let go, still under the pointer"
+    );
+    set(&mut app, &menu, Pointing::Rest);
     app.update();
     assert_eq!(background(&mut app), shade(0));
 }

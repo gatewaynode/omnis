@@ -3,6 +3,7 @@
 //! party, and the renderer's text as agents read it.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -36,16 +37,10 @@ fn tap(app: &mut App, code: KeyCode) {
 }
 
 fn press(app: &mut App, id: ControlId) {
-    set(app, &Pressable(id), Interaction::Pressed);
+    set(app, &Pressable(id), Pointing::Press);
     app.update();
     // Let go, so the next press is a change; a screen that closed has no button left.
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&Pressable, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Pressable(id));
 }
 
 fn top(app: &App) -> Option<ScreenId> {
@@ -354,13 +349,9 @@ fn the_title_starts_a_game_from_the_form() {
         app.world().resource::<Screens>().forms.new_game.seed_text,
         "42"
     );
-    set(
-        &mut app,
-        &Arrow(ControlId::Rule, true),
-        Interaction::Pressed,
-    );
+    set(&mut app, &Arrow(ControlId::Rule, true), Pointing::Press);
     app.update();
-    set(&mut app, &Arrow(ControlId::Rule, true), Interaction::None);
+    set(&mut app, &Arrow(ControlId::Rule, true), Pointing::Rest);
     app.update();
     assert!(screen_text(app.world()).contains("\"Inns, items, and spells\""));
     press(&mut app, ControlId::Start);
@@ -379,7 +370,7 @@ fn the_pause_holds_the_game() {
     let start = session(&app).views.position;
     tap(&mut app, KeyCode::Escape);
     assert_eq!(top(&app), Some(ScreenId::Pause));
-    set(&mut app, &Button_::Forward, Interaction::Pressed);
+    set(&mut app, &Button_::Forward, Pointing::Press);
     for _ in 0..30 {
         app.update();
     }
@@ -389,18 +380,18 @@ fn the_pause_holds_the_game() {
         "nothing moves under the pause"
     );
     press(&mut app, ControlId::Resume);
-    set(&mut app, &Button_::Forward, Interaction::Pressed);
+    set(&mut app, &Button_::Forward, Pointing::Press);
     for _ in 0..30 {
         app.update();
     }
-    set(&mut app, &Button_::Forward, Interaction::None);
+    set(&mut app, &Button_::Forward, Pointing::Rest);
     assert_ne!(session(&app).views.position, start, "it walks once resumed");
 }
 
 fn pause(app: &mut App) {
-    set(app, &Button_::Menu, Interaction::Pressed);
+    set(app, &Button_::Menu, Pointing::Press);
     app.update();
-    set(app, &Button_::Menu, Interaction::None);
+    set(app, &Button_::Menu, Pointing::Rest);
     assert_eq!(top(app), Some(ScreenId::Pause));
     // The button opens it after this frame's screen was drawn; the next frame draws it.
     app.update();
@@ -587,9 +578,9 @@ fn skill(s: Skill) -> ControlId {
 }
 
 fn step_choice(app: &mut App, id: ControlId) {
-    set(app, &Arrow(id, true), Interaction::Pressed);
+    set(app, &Arrow(id, true), Pointing::Press);
     app.update();
-    set(app, &Arrow(id, true), Interaction::None);
+    set(app, &Arrow(id, true), Pointing::Rest);
     app.update();
 }
 

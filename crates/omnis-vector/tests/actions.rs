@@ -3,6 +3,7 @@
 //! the menu lists only what the simulation would accept.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
@@ -131,7 +132,7 @@ fn shift_space_with_only_a_search_opens_the_menu() {
     assert!(open(&app));
     assert_eq!(labels(&app), ["Search here", "Close"]);
     // The Close button closes it.
-    set(&mut app, &Pressable(ControlId::Close), Interaction::Pressed);
+    set(&mut app, &Pressable(ControlId::Close), Pointing::Press);
     app.update();
     assert!(!open(&app));
     assert_eq!(app.world().resource::<Session>().binder.refusals, 0);
@@ -140,10 +141,10 @@ fn shift_space_with_only_a_search_opens_the_menu() {
 #[test]
 fn the_actions_button_toggles_the_menu_and_moving_or_esc_closes_it() {
     let mut app = at_the_door();
-    set(&mut app, &Action::Actions, Interaction::Pressed);
+    set(&mut app, &Action::Actions, Pointing::Press);
     app.update();
     assert!(open(&app));
-    set(&mut app, &Action::Actions, Interaction::None);
+    set(&mut app, &Action::Actions, Pointing::Rest);
     app.update();
     tap(&mut app, KeyCode::Escape);
     assert!(!open(&app), "Esc closes it");
@@ -154,11 +155,11 @@ fn the_actions_button_toggles_the_menu_and_moving_or_esc_closes_it() {
         let mut session = app.world_mut().resource_mut::<Session>();
         session.pose.yaw = 0.0;
     }
-    set(&mut app, &Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Pointing::Press);
     for _ in 0..40 {
         app.update();
     }
-    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Pointing::Rest);
     assert_ne!(app.world().resource::<Session>().world.position.y, 5);
     assert!(!open(&app), "moving closes it");
 }

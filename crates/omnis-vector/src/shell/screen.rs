@@ -9,7 +9,7 @@
 
 use super::capture::CaptureSize;
 use super::combat::size;
-use super::controls::Corner;
+use super::controls::{Corner, Pressing};
 use super::hud::Hud;
 use super::minimap::Minimap;
 pub use super::screen_draw::{
@@ -335,8 +335,8 @@ struct Host<'w, 's> {
 /// The top screen's input, from its nodes and the keys.
 #[derive(SystemParam)]
 struct Used<'w, 's> {
-    buttons: Query<'w, 's, (&'static Interaction, &'static Pressable), Changed<Interaction>>,
-    arrows: Query<'w, 's, (&'static Interaction, &'static Arrow), Changed<Interaction>>,
+    buttons: Query<'w, 's, &'static Pressable, Pressing>,
+    arrows: Query<'w, 's, &'static Arrow, Pressing>,
     fields: Query<'w, 's, (Entity, Ref<'static, EditableText>, &'static Pressable)>,
     keys: Res<'w, ButtonInput<KeyCode>>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
@@ -432,16 +432,12 @@ fn applied(
     let used = input.used;
     let screen = screen::content(top, ctx, forms);
     let slid = || input.slid.map(|(id, n)| (id, Payload::Set(n)));
-    let pressed = used
-        .buttons
-        .iter()
-        .find(|(i, _)| **i == Interaction::Pressed)
-        .map(|(_, p)| (p.0, Payload::Press));
+    let pressed = used.buttons.iter().next().map(|p| (p.0, Payload::Press));
     let stepped = || {
         used.arrows
             .iter()
-            .find(|(i, _)| **i == Interaction::Pressed)
-            .map(|(_, a)| (a.0, if a.1 { Payload::Right } else { Payload::Left }))
+            .next()
+            .map(|a| (a.0, if a.1 { Payload::Right } else { Payload::Left }))
     };
     let typed = || {
         used.fields.iter().find_map(|(_, field, p)| {

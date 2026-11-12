@@ -4,6 +4,7 @@
 //! while it is open.
 
 use crate::common;
+use crate::common::app::Pointing;
 
 use bevy::prelude::*;
 use common::app::{app_at_title, config, set, shell, tap};
@@ -22,15 +23,9 @@ use omnis_vector::shell::session::{Session, parse};
 use std::path::PathBuf;
 
 fn press(app: &mut App, id: ControlId) {
-    set(app, &Pressable(id), Interaction::Pressed);
+    set(app, &Pressable(id), Pointing::Press);
     app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&Pressable, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
+    crate::common::app::let_go(app, &Pressable(id));
     app.update();
 }
 

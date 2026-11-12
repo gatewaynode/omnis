@@ -225,3 +225,89 @@ fn a_drag_in_the_window_moves_the_start_marker_from_under_the_cursor() {
         editing.grab
     );
 }
+
+/// The window's logical cursor position over the middle of the editor's control `act`.
+fn over_control(app: &mut App, act: EditAct) -> (Entity, Vec2) {
+    use omnis_vector::screen::ControlId;
+    use omnis_vector::shell::screen_draw::EditorPress;
+    let world = app.world_mut();
+    let mut controls = world.query::<(Entity, &EditorPress, &ComputedNode, &UiGlobalTransform)>();
+    controls
+        .iter(world)
+        .find(|(_, press, _, _)| press.0 == ControlId::Edit(act))
+        .map(|(entity, _, node, tf)| (entity, tf.translation * node.inverse_scale_factor()))
+        .expect("the control is laid out")
+}
+
+/// A press through Bevy's own picking (Bevy 0.20: `Interaction` gave way to `Hovered` and
+/// `Pressed`): the left button down on a control presses it and the control acts on that frame;
+/// the right button presses nothing (Bevy's own `Button` would: it takes any button).
+#[test]
+fn the_left_button_presses_the_control_under_the_pointer_and_the_right_does_not() {
+    use bevy::picking::hover::Hovered;
+    use bevy::ui::Pressed;
+    use bevy::window::WindowEvent;
+    use omnis_vector::editor::brush::Tool;
+    let (mut app, window) = ui_editor_app();
+    let tool = |app: &App| app.world().resource::<Editing>().tool;
+    assert_eq!(tool(&app), Tool::Brush, "the tool the editor opens with");
+    // Picking follows the window's events, not the window's own cursor position.
+    let move_to = |app: &mut App, at: Vec2| {
+        app.world_mut()
+            .get_mut::<Window>(window)
+            .expect("the window")
+            .set_cursor_position(Some(at));
+        app.world_mut()
+            .write_message(WindowEvent::CursorMoved(bevy::window::CursorMoved {
+                window,
+                position: at,
+                delta: None,
+            }));
+        app.update();
+        app.update();
+    };
+    let (fill, at) = over_control(&mut app, EditAct::Tool(Tool::Fill));
+    move_to(&mut app, at);
+    assert_eq!(app.world().get::<Hovered>(fill), Some(&Hovered(true)));
+    assert!(app.world().get::<Pressed>(fill).is_none());
+    let button = |app: &mut App, button, state| {
+        // As winit sends it: the message the routes read and the window event picking reads.
+        let input = MouseButtonInput {
+            button,
+            state,
+            window,
+        };
+        app.world_mut().write_message(input);
+        app.world_mut()
+            .write_message(WindowEvent::MouseButtonInput(input));
+        app.update();
+    };
+    button(&mut app, MouseButton::Right, ButtonState::Pressed);
+    assert!(
+        app.world().get::<Pressed>(fill).is_none(),
+        "the right button"
+    );
+    button(&mut app, MouseButton::Right, ButtonState::Released);
+    assert_eq!(tool(&app), Tool::Brush, "a right click chose nothing");
+    button(&mut app, MouseButton::Left, ButtonState::Pressed);
+    // The column is drawn anew for the chosen tool, so the control pressed is gone with its
+    // press; the one drawn in its place under the pointer is hovered, not pressed again.
+    assert_eq!(tool(&app), Tool::Fill, "it acts as the button goes down");
+    app.update();
+    let (fill, _) = over_control(&mut app, EditAct::Tool(Tool::Fill));
+    assert_eq!(app.world().get::<Hovered>(fill), Some(&Hovered(true)));
+    assert!(app.world().get::<Pressed>(fill).is_none(), "one press");
+    button(&mut app, MouseButton::Left, ButtonState::Released);
+    let pressed = {
+        let world = app.world_mut();
+        world
+            .query_filtered::<(), With<Pressed>>()
+            .iter(world)
+            .count()
+    };
+    assert_eq!(pressed, 0, "let go");
+    // The pointer leaves: no control is hovered, and the plan's clicks are the plan's again.
+    let plan = over(&mut app, (5, 3), 0.5, 0.5);
+    move_to(&mut app, plan);
+    assert_eq!(app.world().get::<Hovered>(fill), Some(&Hovered(false)));
+}

@@ -7,7 +7,6 @@
 use crate::common;
 
 use bevy::prelude::*;
-use bevy::ui_widgets::Button;
 use common::app::{app_with, met_with, press_ui, tap, top};
 use common::ctx;
 use omnis_sim::omnis_core::Facing;
@@ -15,6 +14,7 @@ use omnis_sim::omnis_data::Data;
 use omnis_sim::{Command, Event};
 use omnis_vector::screen::{self, ControlId, Effect, Forms, Payload, Refused, Screen, ScreenId};
 use omnis_vector::shell::controls::Action;
+use omnis_vector::shell::controls::Control;
 use omnis_vector::shell::roster::RosterRoot;
 use omnis_vector::shell::screen::{Arrow, Beside, Pressable, Screens};
 use omnis_vector::shell::session::Session;
@@ -230,7 +230,7 @@ fn a_long_rest_shows_its_refusal_too_soon_and_without_food() {
 /// Whether the Camp button can be pressed now.
 fn camp_live(app: &mut App) -> bool {
     let world = app.world_mut();
-    let mut q = world.query::<(&Action, Has<Button>)>();
+    let mut q = world.query::<(&Action, Has<Control>)>();
     q.iter(world)
         .find(|(a, _)| **a == Action::Camp)
         .expect("the Camp button")
