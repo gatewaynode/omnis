@@ -1,6 +1,6 @@
 # The 3D view onto Bevy meshes and Material (rendering size 1, size 2 designed in)
 
-Status: **approved 2026-11-12; steps 0 to 2 done (see `tasks/TODO.md` for two departures in detail), step 3 next** (on `W-2_look_and_engine`).
+Status: **approved 2026-11-12; steps 0 to 3 done (see `tasks/TODO.md` for two departures in detail), step 4 (the swap) next** (on `W-2_look_and_engine`).
 
 
 ## Context

@@ -596,7 +596,18 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     not painted over by a far one. Tests `tests/strokes.rs` (3), `tests/lines.rs` (3); nine mutations caught.
     Captures by `<scratchpad>/pairs.sh` and `pixdiff.py`; the hills, tower and yard through scratch copies of
     the fixture packs with an `entry`.
-  - [ ] 3. Crests and the editor preview through the same path.
+  - [x] 3. Crests and the editor preview through the same path (2026-11-12). Crests are a second mesh a
+    view, found again only when the eye has moved or the scene changed, replaced in place
+    (`lines::hang_crests`, `CrestsAt`). The preview has its own line and crest entities on layer 2 and its own
+    material (sight 8). The quality's width reaches every `LineMaterial` in `apply_quality`. Line entities
+    carry `NoFrustumCulling` (a quad's four vertices all sit on one end, so the mesh's bounds are not the
+    lines'). **Added for verification**: `--editor <map> --screenshot <png>` now captures the editor (it was
+    refused), so the preview can be seen offscreen. Captures, gizmo against mesh: three hill viewpoints with
+    crests 0.05% to 0.10%; the editor with its preview 0 pixels (and a shader tinted red for one run changed
+    only the preview's rectangle, so the picture is the new shader's). Tests: `lines::the_crests_are_found_...`,
+    `editor_preview::the_preview_s_lines_are_meshes_...`, the flag in `editor::the_command_line_...`; nine
+    mutations, eight caught at once and the ninth after the test's expectation stopped using the code under
+    test.
   - [ ] 4. The swap: the gizmo loop and the switch go; timing; presentation docs.
   - [ ] 5. Size 2's design: `tasks/plans/rendering-size-2.md` and the proposed presentation-PRD amendment.
   - [ ] `tasks/acceptance/rendering-size-1.md`.

@@ -127,6 +127,10 @@ fn the_command_line_opens_a_map_in_the_editor() {
         "not with a game"
     );
     assert!(args(&["--windowed"]).unwrap().editor.is_none());
+    // A capture of the editor is the editor's, with no game under it; of anything else, a game's.
+    let shot = args(&["--editor", "x", "--screenshot", "e.png"]).unwrap();
+    assert!(shot.editor.is_some() && !shot.starts_in_game());
+    assert!(args(&["--screenshot", "g.png"]).unwrap().starts_in_game());
 
     let app = in_editor("test:map:town");
     let e = editing(&app);

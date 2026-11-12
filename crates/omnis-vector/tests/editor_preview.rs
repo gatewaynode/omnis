@@ -246,3 +246,76 @@ fn wasd_moves_the_cursor_with_the_window_s_focus_plugins_on() {
         "the arrows too"
     );
 }
+
+/// With the mesh renderer the preview's lines hang on its own entities, on its layer, under a
+/// material of its own that fades over the preview's sight; the grid setting rebuilds the mesh
+/// (rendering size 1, step 3).
+#[test]
+fn the_preview_s_lines_are_meshes_on_its_layer_under_its_own_material() {
+    use bevy::asset::AssetPlugin;
+    use bevy::camera::visibility::RenderLayers;
+    use bevy::prelude::*;
+    use common::app::{config, shell};
+    use omnis_vector::shell::lines::{LineMaterial, LinesPlugin};
+    use omnis_vector::shell::preview::{Preview, PreviewCrests, PreviewLines, PreviewPlugin};
+    use omnis_vector::shell::render::LineRenderer;
+    use omnis_vector::shell::session::Config;
+    use omnis_vector::shell::settings::Current;
+    use omnis_vector::strokes::Strokes;
+    let mut app = shell(
+        Config {
+            editor: Some(Some("test:map:town".to_owned())),
+            ..config()
+        },
+        false,
+    );
+    app.add_plugins(AssetPlugin::default())
+        .init_asset::<Mesh>()
+        .init_asset::<Image>()
+        .init_asset::<StandardMaterial>()
+        .insert_resource(LineRenderer::Mesh)
+        .add_plugins((LinesPlugin, PreviewPlugin));
+    app.update();
+    app.update();
+    let lines = |app: &mut App| {
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<&Mesh3d, With<PreviewLines>>();
+        let handle = q.single(world).expect("the preview's lines").0.clone();
+        world
+            .resource::<Assets<Mesh>>()
+            .get(&handle)
+            .expect("the mesh")
+            .count_vertices()
+    };
+    let expected = |app: &App, grid: bool| {
+        Strokes::of(app.world().resource::<Preview>().scene.strokes(grid)).len() * 4
+    };
+    assert!(expected(&app, true) > expected(&app, false));
+    assert_eq!(lines(&mut app), expected(&app, true));
+
+    let world = app.world_mut();
+    let mut q = world
+        .query_filtered::<(&RenderLayers, &MeshMaterial3d<LineMaterial>), With<PreviewLines>>();
+    let (layer, material) = q.single(world).expect("the preview's lines");
+    assert_eq!(*layer, RenderLayers::layer(2), "the preview's own layer");
+    let material = material.0.clone();
+    let mut q = world.query_filtered::<(
+        &RenderLayers,
+        &MeshMaterial3d<LineMaterial>,
+        Option<&Mesh3d>,
+    ), With<PreviewCrests>>();
+    let (layer, crest_material, crest_mesh) = q.single(world).expect("the preview's crests");
+    assert_eq!(*layer, RenderLayers::layer(2));
+    assert_eq!(crest_material.0, material, "one material a view");
+    assert!(crest_mesh.is_some(), "found once the camera stands");
+    let held = world
+        .resource::<Assets<LineMaterial>>()
+        .get(&material)
+        .expect("the material");
+    assert_eq!(held.fog_end(), preview::SIGHT + 2.0);
+
+    app.world_mut().resource_mut::<Current>().0.grid = false;
+    app.update();
+    app.update();
+    assert_eq!(lines(&mut app), expected(&app, false), "without the grids");
+}

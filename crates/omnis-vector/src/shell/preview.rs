@@ -10,11 +10,13 @@
 
 use super::VectorSet;
 use super::editor::Editing;
-use super::render::{self, CREST, LINE_DEPTH_BIAS, LINE_WIDTH, mesh};
+use super::lines::{self, LineMaterial};
+use super::render::{self, CREST, LINE_DEPTH_BIAS, LINE_WIDTH, LineRenderer, mesh};
 use super::session::Packs;
 use super::settings::Current;
 use crate::editor::preview;
 use crate::scene::Scene;
+use crate::strokes::Strokes;
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -42,6 +44,14 @@ struct PreviewFills;
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct PreviewGizmos;
 
+/// Marks the entity that holds the preview's lines as a mesh, on its layer.
+#[derive(Component)]
+pub struct PreviewLines;
+
+/// Marks the entity that holds the preview's crests.
+#[derive(Component)]
+pub struct PreviewCrests;
+
 /// What the preview last drew: the scene for `(resolve, level)`, kept while the map does not
 /// resolve.
 #[derive(Resource, Default)]
@@ -50,6 +60,8 @@ pub struct Preview {
     pub scene_key: Option<(u64, Level)>,
     /// The scene drawn.
     pub scene: Scene,
+    /// Whether the floor and ceiling grids were shown when the line mesh was built.
+    grid: Option<bool>,
 }
 
 /// The camera, the fills and the lines of the preview; on while the editor is.
@@ -59,20 +71,31 @@ impl Plugin for PreviewPlugin {
     fn build(&self, app: &mut App) {
         // Not in `VectorSet::Draw`: that set runs only while a game session exists.
         app.init_resource::<Preview>()
+            .init_resource::<LineRenderer>()
             .add_systems(Startup, spawn)
             .add_systems(
                 Update,
                 (
                     switch::<true>.run_if(resource_added::<Editing>),
                     switch::<false>.run_if(resource_removed::<Editing>),
-                    (rebuild, place).chain().run_if(resource_exists::<Editing>),
+                    (
+                        rebuild,
+                        place,
+                        crests.run_if(resource_equals(LineRenderer::Mesh)),
+                    )
+                        .chain()
+                        .run_if(resource_exists::<Editing>),
                 )
                     .after(VectorSet::Screens),
             );
         // The lines need the gizmos, which the headless shell has not.
         if app.is_plugin_added::<bevy::gizmos::GizmoPlugin>() {
-            app.init_gizmo_group::<PreviewGizmos>()
-                .add_systems(Update, draw.after(place).run_if(resource_exists::<Editing>));
+            app.init_gizmo_group::<PreviewGizmos>().add_systems(
+                Update,
+                draw.after(place)
+                    .run_if(resource_exists::<Editing>)
+                    .run_if(resource_equals(LineRenderer::Gizmo)),
+            );
         }
     }
 }
@@ -84,10 +107,21 @@ fn spawn(
     mut commands: Commands,
     images: Option<ResMut<Assets<Image>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
+    lines: Option<ResMut<Assets<LineMaterial>>>,
     store: Option<ResMut<GizmoConfigStore>>,
 ) {
-    let (Some(mut images), Some(mut materials), Some(mut store)) = (images, materials, store)
-    else {
+    // The line entities need only their material's store, which a headless test can have.
+    if let Some(mut lines) = lines {
+        let material = lines.add(LineMaterial::new(
+            render::fog_end(preview::SIGHT),
+            LINE_WIDTH,
+            LINE_DEPTH_BIAS,
+        ));
+        let layer = RenderLayers::layer(LAYER);
+        commands.spawn((PreviewLines, lines::bundle(material.clone()), layer.clone()));
+        commands.spawn((PreviewCrests, lines::bundle(material), layer));
+    }
+    let (Some(mut images), Some(mut materials)) = (images, materials) else {
         return;
     };
     let target = images.add(Image::new_target_texture(
@@ -128,10 +162,12 @@ fn spawn(
         Transform::default(),
         RenderLayers::layer(LAYER),
     ));
-    let (config, _) = store.config_mut::<PreviewGizmos>();
-    config.line.width = LINE_WIDTH;
-    config.depth_bias = LINE_DEPTH_BIAS;
-    config.render_layers = RenderLayers::layer(LAYER);
+    if let Some(mut store) = store {
+        let (config, _) = store.config_mut::<PreviewGizmos>();
+        config.line.width = LINE_WIDTH;
+        config.depth_bias = LINE_DEPTH_BIAS;
+        config.render_layers = RenderLayers::layer(LAYER);
+    }
 }
 
 /// The camera on while the editor is open, off otherwise.
@@ -145,27 +181,66 @@ fn switch<const ON: bool>(mut cameras: Query<&mut Camera, With<PreviewCamera>>) 
 /// not resolve the last scene stays (the inspector says why).
 fn rebuild(
     mut commands: Commands,
-    packs: Res<Packs>,
-    editing: Res<Editing>,
+    (packs, editing): (Res<Packs>, Res<Editing>),
     mut preview: ResMut<Preview>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     fills: Query<Entity, With<PreviewFills>>,
+    parts: Query<Entity, With<PreviewLines>>,
+    (renderer, current): (Res<LineRenderer>, Res<Current>),
 ) {
     let key = (editing.resolved_at, editing.level);
-    if preview.scene_key == Some(key) {
+    let grid = current.0.grid;
+    let built = preview.scene_key == Some(key);
+    if built && preview.grid == Some(grid) {
         return;
     }
-    let Some(map) = editing.resolved.as_ref() else {
-        return;
-    };
-    preview.scene_key = Some(key);
-    preview.scene = preview::scene(&packs.data, map, editing.level);
-    if let Some(mut meshes) = meshes {
+    if !built {
+        let Some(map) = editing.resolved.as_ref() else {
+            return;
+        };
+        preview.scene_key = Some(key);
+        preview.scene = preview::scene(&packs.data, map, editing.level);
+    }
+    preview.grid = Some(grid);
+    let Some(mut meshes) = meshes else { return };
+    if !built {
         for entity in &fills {
             let handle = meshes.add(mesh(&preview.scene.fills));
             commands.entity(entity).insert(Mesh3d(handle));
         }
     }
+    if *renderer == LineRenderer::Mesh {
+        for entity in &parts {
+            let strokes = Strokes::of(preview.scene.strokes(grid));
+            let handle = meshes.add(lines::mesh(&strokes));
+            commands.entity(entity).insert(Mesh3d(handle));
+        }
+    }
+}
+
+/// The ground's crests from where the preview's camera stands, found again when it has moved
+/// or the scene changed.
+fn crests(
+    mut commands: Commands,
+    preview: Res<Preview>,
+    meshes: Option<ResMut<Assets<Mesh>>>,
+    cameras: Query<&Transform, With<PreviewCamera>>,
+    part: Query<(Entity, Option<&Mesh3d>), With<PreviewCrests>>,
+    mut at: Local<lines::CrestsAt>,
+) {
+    let (Some(mut meshes), Ok(eye), Ok(part)) = (meshes, cameras.single(), part.single()) else {
+        return;
+    };
+    let reach = render::fog_end(preview::SIGHT);
+    let from = (eye.translation.to_array(), reach, preview.is_changed());
+    lines::hang_crests(
+        &mut commands,
+        &mut meshes,
+        part,
+        &mut at,
+        &preview.scene.ground,
+        from,
+    );
 }
 
 /// The camera at the cursor's cell, its eye over the ground, looking the way the cursor faces.

@@ -4,8 +4,10 @@
 //! quad to a width in pixels, lifts it off the fill it lies on and fades it with distance. The
 //! mesh is built when the scene changes; nothing walks the segments each frame.
 
-use crate::strokes::Strokes;
+use crate::ground::Ground;
+use crate::strokes::{CREST, Strokes};
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
+use bevy::camera::visibility::NoFrustumCulling;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology};
 use bevy::pbr::{MaterialPipeline, MaterialPipelineKey};
 use bevy::prelude::*;
@@ -128,6 +130,73 @@ pub fn mesh(strokes: &Strokes) -> Mesh {
     .with_inserted_attribute(ATTRIBUTE_COLOUR, strokes.colour.clone())
     .with_inserted_attribute(ATTRIBUTE_STYLE, strokes.style.clone())
     .with_inserted_indices(Indices::U32(strokes.indices.clone()))
+}
+
+/// What a line entity carries besides its mesh: the material, and no culling by its bounds,
+/// which a mesh whose vertices all sit on their segment's first end does not describe.
+#[must_use]
+pub fn bundle(material: Handle<LineMaterial>) -> impl Bundle {
+    (
+        MeshMaterial3d(material),
+        Transform::default(),
+        NoFrustumCulling,
+    )
+}
+
+/// The ground's crests seen from `eye` within `reach`, as lines.
+#[must_use]
+pub fn crests(ground: &Ground, eye: [f32; 3], reach: f32) -> Strokes {
+    let mut strokes = Strokes::default();
+    for (a, b) in ground.crests(eye, reach) {
+        strokes.push(a, b, CREST, 1.0);
+    }
+    strokes
+}
+
+/// Where a view's crests were last drawn from, so they are found again only when the eye has
+/// moved or the scene changed.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct CrestsAt {
+    eye: Option<[f32; 3]>,
+    reach: f32,
+    any: bool,
+}
+
+/// The crests of `ground` on `entity` as a mesh, when the eye has moved, the reach changed or
+/// `fresh` says the ground did. The entity's mesh is replaced in place once it has one, and a
+/// view with no crest before and none now is left alone.
+pub fn hang_crests(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    (entity, held): (Entity, Option<&Mesh3d>),
+    at: &mut CrestsAt,
+    ground: &Ground,
+    (eye, reach, fresh): ([f32; 3], f32, bool),
+) {
+    if !fresh && at.eye == Some(eye) && at.reach == reach {
+        return;
+    }
+    let strokes = crests(ground, eye, reach);
+    let was = at.any;
+    *at = CrestsAt {
+        eye: Some(eye),
+        reach,
+        any: !strokes.is_empty(),
+    };
+    if !was && !at.any && held.is_some() {
+        return;
+    }
+    match held {
+        Some(held) => {
+            // The handle is the entity's own and alive, so the insert cannot fail.
+            let _ = meshes.insert(held.0.id(), mesh(&strokes));
+        }
+        None => {
+            commands
+                .entity(entity)
+                .insert(Mesh3d(meshes.add(mesh(&strokes))));
+        }
+    }
 }
 
 /// The line material and its shader.

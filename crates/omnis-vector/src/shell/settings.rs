@@ -6,6 +6,7 @@
 use super::VectorSet;
 use super::capture::CaptureSize;
 use super::combat::size;
+use super::lines::LineMaterial;
 use crate::settings::{Prefs, fits};
 use bevy::camera::Hdr;
 use bevy::post_process::bloom::Bloom;
@@ -60,14 +61,15 @@ pub fn apply_scale(
     }
 }
 
-/// The quality preset on every HDR camera (the 3D view's and the fight's) and every gizmo group,
-/// when the settings change or a camera appears.
+/// The quality preset on every HDR camera (the 3D view's and the fight's), every gizmo group and
+/// every line material, when the settings change or a camera appears.
 pub fn apply_quality(
     mut commands: Commands,
     current: Res<Current>,
     cameras: Query<(Entity, Option<&mut Bloom>), With<Hdr>>,
     added: Query<(), Added<Hdr>>,
     store: Option<ResMut<GizmoConfigStore>>,
+    lines: Option<ResMut<Assets<LineMaterial>>>,
 ) {
     if !current.is_changed() && added.is_empty() {
         return;
@@ -92,6 +94,15 @@ pub fn apply_quality(
     if let Some(mut store) = store {
         for (_, config, _) in store.iter_mut() {
             config.line.width = quality.line_width();
+        }
+    }
+    // Every view's line material: the game's and the editor preview's.
+    if let Some(mut lines) = lines {
+        let ids: Vec<_> = lines.ids().collect();
+        for id in ids {
+            if let Some(mut material) = lines.get_mut(id) {
+                material.params.y = quality.line_width();
+            }
         }
     }
 }

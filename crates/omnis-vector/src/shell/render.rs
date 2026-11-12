@@ -87,6 +87,10 @@ pub enum LineRenderer {
 #[derive(Component)]
 pub struct ViewLines;
 
+/// Marks the entity that holds the view's crests, found again as the eye moves.
+#[derive(Component)]
+pub struct ViewCrests;
+
 /// The view's line material.
 #[derive(Resource)]
 pub struct ViewMaterial(pub Handle<LineMaterial>);
@@ -135,7 +139,7 @@ impl Plugin for RenderPlugin {
                     rebuild,
                     follow,
                     draw.run_if(resource_equals(LineRenderer::Gizmo)),
-                    tune.run_if(resource_equals(LineRenderer::Mesh)),
+                    (tune, crests).run_if(resource_equals(LineRenderer::Mesh)),
                 )
                     .chain()
                     .in_set(VectorSet::Draw),
@@ -193,30 +197,51 @@ fn spawn_fills(mut commands: Commands, mut materials: ResMut<Assets<StandardMate
 /// first scene.
 fn spawn_lines(mut commands: Commands, mut materials: ResMut<Assets<LineMaterial>>) {
     let material = materials.add(LineMaterial::new(fog_end(0.0), LINE_WIDTH, LINE_DEPTH_BIAS));
-    commands.spawn((
-        ViewLines,
-        MeshMaterial3d(material.clone()),
-        Transform::default(),
-    ));
+    commands.spawn((ViewLines, lines::bundle(material.clone())));
+    commands.spawn((ViewCrests, lines::bundle(material.clone())));
     commands.insert_resource(ViewMaterial(material));
 }
 
-/// The fog's end follows the party's sight and the width follows the quality.
+/// The fog's end follows the party's sight (the width follows the quality in
+/// `settings::apply_quality`).
 fn tune(
     session: Res<Session>,
-    current: Res<Current>,
     material: Res<ViewMaterial>,
     mut materials: ResMut<Assets<LineMaterial>>,
 ) {
     let end = fog_end(f32::from(session.views.sight));
-    let width = current.0.quality.line_width();
     let stale = materials
         .get(&material.0)
-        .is_some_and(|m| m.fog_end() != end || m.width() != width);
+        .is_some_and(|m| m.fog_end() != end);
     if stale && let Some(mut m) = materials.get_mut(&material.0) {
         m.params.x = end;
-        m.params.y = width;
     }
+}
+
+/// The ground's crests from where the camera stands, found again when it has moved or the
+/// scene changed.
+fn crests(
+    mut commands: Commands,
+    session: Res<Session>,
+    lines: Res<Lines>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    camera: Query<&Transform, With<ViewCamera>>,
+    part: Query<(Entity, Option<&Mesh3d>), With<ViewCrests>>,
+    mut at: Local<lines::CrestsAt>,
+) {
+    let (Ok(eye), Ok(part)) = (camera.single(), part.single()) else {
+        return;
+    };
+    let reach = fog_end(f32::from(session.views.sight));
+    let from = (eye.translation.to_array(), reach, lines.is_changed());
+    lines::hang_crests(
+        &mut commands,
+        &mut meshes,
+        part,
+        &mut at,
+        &lines.scene.ground,
+        from,
+    );
 }
 
 fn line_style(store: Option<ResMut<GizmoConfigStore>>) {

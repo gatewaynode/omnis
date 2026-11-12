@@ -138,7 +138,8 @@ impl Config {
     pub fn starts_in_game(&self) -> bool {
         match self.screen {
             Some(screen) => screen.in_game(),
-            None => self.play || self.screenshot.is_some(),
+            // A capture is of the game view, unless it is of the editor.
+            None => self.play || (self.screenshot.is_some() && self.editor.is_none()),
         }
     }
 }
@@ -154,7 +155,8 @@ impl Config {
 /// report the frame times), `--lines gizmo|mesh` (which renderer draws the view's lines while both
 /// exist), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
-/// `--no-dev-socket`, and `--editor [map-id]` (start in the editor, with that map open).
+/// `--no-dev-socket`, and `--editor [map-id]` (start in the editor, with that map open; with
+/// `--screenshot` the capture is of the editor).
 ///
 /// # Errors
 /// A message naming the bad argument.
@@ -266,9 +268,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
         return Err("--timing times a capture: it needs --screenshot".to_owned());
     }
     if config.editor.is_some() && (config.starts_in_game() || config.screen.is_some()) {
-        return Err(
-            "--editor starts with no game: not with --seed, --screen or --screenshot".to_owned(),
-        );
+        return Err("--editor starts with no game: not with --seed or --screen".to_owned());
     }
     Ok(config)
 }
