@@ -41,5 +41,6 @@ pub mod settings;
 pub mod shapes;
 pub mod shell;
 pub mod sim;
+pub mod strokes;
 pub mod style;
 pub mod trial;

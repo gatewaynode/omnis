@@ -580,11 +580,22 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   `tasks/plans/` and the amendment text come with the choice.
   - Plan approved 2026-11-12: `tasks/plans/rendering-size-1.md`. The owner also chose to keep the line width
     now (each segment a quad widened in the shader), since a plain line list is 1 pixel wide.
-  - [ ] Baseline captures and timing of the gizmo renderer (scratchpad).
-  - [ ] 0. Spike, thrown away: a quad through a minimal `LineMaterial` and embedded `.wesl`, offscreen.
-  - [ ] 1. `strokes.rs`: the vertex buffers, `Scene::structure`/`grid`, `colour` moved.
-  - [ ] 2. `shell/lines.rs`, `lines.wesl`, the game view's entities beside the gizmos (`--lines gizmo|mesh`);
-    capture pairs compared.
+  - [x] Baseline: not taken apart; `--lines gizmo|mesh` gives both renderers from one binary, which is the
+    better comparison. Timing waits for step 4 (release build).
+  - [x] 0. Spike (2026-11-12): the embedded WESL loaded and drew on this machine (Metal) at the first try; it
+    was kept as step 2's shader, not thrown away.
+  - [x] 1. `strokes.rs` (2026-11-12): the vertex buffers, `colour` and `CREST` moved from `render.rs`.
+  - [x] 2. `shell/lines.rs`, `lines.wesl`, the game view's line entity beside the gizmos (`--lines gizmo|mesh`,
+    default gizmo); capture pairs compared (2026-11-12, one commit with step 1). Pixels differing by more than
+    8 of 255, gizmo against mesh, standing: town 0.33% (1600x900) and 0.24% (1920x1080), hills 0.05%, tower
+    0.27%, yard 0.34% and 0.11% (1280x720); the differences are the frame-rate text and lines that now fade
+    along their length. **Two departures from the plan's detail**, for the same look: one line mesh, not
+    structure and grid apart (of two lines in one place the gizmos showed the first drawn, so the mesh keeps
+    the scene's order and the grid setting rebuilds it; `Scene::structure`/`grid` were not needed); and the
+    material writes depth and tests `Greater` in `specialize`, as the gizmo pipeline does, so a near line is
+    not painted over by a far one. Tests `tests/strokes.rs` (3), `tests/lines.rs` (3); nine mutations caught.
+    Captures by `<scratchpad>/pairs.sh` and `pixdiff.py`; the hills, tower and yard through scratch copies of
+    the fixture packs with an `entry`.
   - [ ] 3. Crests and the editor preview through the same path.
   - [ ] 4. The swap: the gizmo loop and the switch go; timing; presentation docs.
   - [ ] 5. Size 2's design: `tasks/plans/rendering-size-2.md` and the proposed presentation-PRD amendment.

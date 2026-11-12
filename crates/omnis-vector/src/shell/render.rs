@@ -4,13 +4,15 @@
 
 use super::VectorSet;
 use super::capture::Offscreen;
+use super::lines::{self, LineMaterial};
 use super::movement::View;
 use super::session::Session;
 use super::settings::Current;
 use crate::fill::Tri;
-use crate::geometry::{SegKind, Segment};
 use crate::ground::{ease_eye, eye};
 use crate::scene::Scene;
+use crate::strokes::Strokes;
+pub(super) use crate::strokes::{CREST, colour};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -36,6 +38,8 @@ pub(super) const FOV: f32 = 0.96;
 #[derive(Resource, Default)]
 pub struct Lines {
     map: Option<(MapId, Level)>,
+    /// Whether the floor and ceiling grids were shown when the line mesh was built.
+    grid: bool,
     scene: Scene,
 }
 
@@ -66,6 +70,26 @@ pub struct ViewCamera;
 /// Marks the entity that holds the scene's fills.
 #[derive(Component)]
 pub struct Fills;
+
+/// Which renderer draws the view's lines while both exist (rendering size 1, step 2): the
+/// gizmos until the meshes' captures match them.
+#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LineRenderer {
+    /// Bevy's gizmos, a line a segment each frame.
+    #[default]
+    Gizmo,
+    /// Retained meshes through [`LineMaterial`].
+    Mesh,
+}
+
+/// Marks the entity that holds the view's lines as a mesh: one mesh in the scene's order, since
+/// of two lines in the same place the first shows.
+#[derive(Component)]
+pub struct ViewLines;
+
+/// The view's line material.
+#[derive(Resource)]
+pub struct ViewMaterial(pub Handle<LineMaterial>);
 
 /// The fills as a mesh: a triangle list, each triangle its own three vertices with its face's
 /// normal (the material is unlit, so the normals only keep the vertex layout whole).
@@ -100,10 +124,21 @@ impl Plugin for RenderPlugin {
         app.init_resource::<Lines>()
             .init_resource::<Current>()
             .insert_resource(ClearColor(Color::BLACK))
-            .add_systems(Startup, (spawn_camera, spawn_fills, line_style))
+            .init_resource::<LineRenderer>()
+            .add_systems(
+                Startup,
+                (spawn_camera, spawn_fills, spawn_lines, line_style),
+            )
             .add_systems(
                 Update,
-                (rebuild, follow, draw).chain().in_set(VectorSet::Draw),
+                (
+                    rebuild,
+                    follow,
+                    draw.run_if(resource_equals(LineRenderer::Gizmo)),
+                    tune.run_if(resource_equals(LineRenderer::Mesh)),
+                )
+                    .chain()
+                    .in_set(VectorSet::Draw),
             );
     }
 }
@@ -154,7 +189,39 @@ fn spawn_fills(mut commands: Commands, mut materials: ResMut<Assets<StandardMate
     commands.spawn((Fills, MeshMaterial3d(material), Transform::default()));
 }
 
-fn line_style(mut store: ResMut<GizmoConfigStore>) {
+/// The view's line material and the entities its meshes hang on; the meshes come with the
+/// first scene.
+fn spawn_lines(mut commands: Commands, mut materials: ResMut<Assets<LineMaterial>>) {
+    let material = materials.add(LineMaterial::new(fog_end(0.0), LINE_WIDTH, LINE_DEPTH_BIAS));
+    commands.spawn((
+        ViewLines,
+        MeshMaterial3d(material.clone()),
+        Transform::default(),
+    ));
+    commands.insert_resource(ViewMaterial(material));
+}
+
+/// The fog's end follows the party's sight and the width follows the quality.
+fn tune(
+    session: Res<Session>,
+    current: Res<Current>,
+    material: Res<ViewMaterial>,
+    mut materials: ResMut<Assets<LineMaterial>>,
+) {
+    let end = fog_end(f32::from(session.views.sight));
+    let width = current.0.quality.line_width();
+    let stale = materials
+        .get(&material.0)
+        .is_some_and(|m| m.fog_end() != end || m.width() != width);
+    if stale && let Some(mut m) = materials.get_mut(&material.0) {
+        m.params.x = end;
+        m.params.y = width;
+    }
+}
+
+fn line_style(store: Option<ResMut<GizmoConfigStore>>) {
+    // Headless there are no gizmos to style.
+    let Some(mut store) = store else { return };
     let (config, _) = store.config_mut::<DefaultGizmoConfigGroup>();
     config.line.width = LINE_WIDTH;
     config.depth_bias = LINE_DEPTH_BIAS;
@@ -166,11 +233,15 @@ fn rebuild(
     mut lines: ResMut<Lines>,
     mut meshes: ResMut<Assets<Mesh>>,
     fills: Query<Entity, With<Fills>>,
+    parts: Query<Entity, With<ViewLines>>,
+    (renderer, current): (Res<LineRenderer>, Res<Current>),
 ) {
     let (map, level) = (session.views.position.map, session.views.position.level);
-    if lines.map == Some((map, level)) && !session.reshape {
+    let grid = current.0.grid;
+    if lines.map == Some((map, level)) && !session.reshape && lines.grid == grid {
         return;
     }
+    lines.grid = grid;
     session.reshape = false;
     if session.data.maps.contains_key(&map) {
         lines.scene = Scene::build(&session.data, map, level, &session.world);
@@ -178,6 +249,13 @@ fn rebuild(
         for entity in &fills {
             let handle = meshes.add(mesh(&lines.scene.fills));
             commands.entity(entity).insert(Mesh3d(handle));
+        }
+        if *renderer == LineRenderer::Mesh {
+            for entity in &parts {
+                let strokes = Strokes::of(lines.scene.strokes(grid));
+                let handle = meshes.add(lines::mesh(&strokes));
+                commands.entity(entity).insert(Mesh3d(handle));
+            }
         }
     }
 }
@@ -210,47 +288,6 @@ fn follow(
 pub fn rotation(yaw: f32, pitch: f32) -> Quat {
     Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)
 }
-
-/// Line colour by kind: walls bright green, doors amber, solid and impassable terrain in the
-/// terrain's colour, the floor and ceiling grids dim. Values above 1.0 bloom.
-pub(super) fn colour(segment: &Segment) -> (f32, f32, f32) {
-    let (r, g, b) = segment.rgb;
-    let t = |k: f32| {
-        (
-            f32::from(r) / 255.0 * k,
-            f32::from(g) / 255.0 * k,
-            f32::from(b) / 255.0 * k,
-        )
-    };
-    match segment.kind {
-        SegKind::Wall => (0.15, 3.0, 0.5),
-        SegKind::Door => (3.2, 1.6, 0.2),
-        // A portal's floor mark in the doors' amber (owner, 2026-10-24); an activity's
-        // placeholder smiley in a plain gold until it has a look of its own.
-        SegKind::Portal => (3.2, 1.6, 0.2),
-        SegKind::Activity => (2.6, 2.3, 0.5),
-        SegKind::Block => t(3.0),
-        SegKind::Barrier => t(2.5),
-        SegKind::Floor => t(0.6),
-        SegKind::Ceiling => t(0.3),
-        // Provisional until the colour roles (M8.5 step 5): rock warm, ramps pale.
-        SegKind::Cliff => (2.2, 1.4, 0.6),
-        SegKind::Ramp => (0.9, 1.8, 2.2),
-        // Joins (M8.5 step 1b), provisional as cliffs and ramps: stairs and ladders pale gold,
-        // a hole a warning red.
-        SegKind::Stair | SegKind::Ladder => (2.4, 2.1, 0.8),
-        SegKind::Hole => (2.6, 0.5, 0.4),
-        // Objects and piles (M8.5 step 2b), provisional: objects violet, piles rose.
-        SegKind::Object => (1.9, 0.9, 2.8),
-        SegKind::Pile => (2.8, 1.1, 1.7),
-        // Beings (M8.5 step 2c), provisional: an alarm orange, apart from objects and holes.
-        SegKind::Being => (3.0, 0.9, 0.15),
-    }
-}
-
-/// A crest's line, where the ground turns away from the eye. Provisional until the colour roles
-/// (M8.5 step 5): brighter than the floor grid, so a rise's top shows against the sky.
-pub(super) const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
 
 /// Where the fog of a sight of `sight` cells ends: `FOG_EXTRA` beyond it.
 pub(super) fn fog_end(sight: f32) -> f32 {
