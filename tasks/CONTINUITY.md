@@ -1,12 +1,16 @@
 # Continuity notes
 
-Written 2026-11-12. **Bevy 0.20.0 is built and awaits the owner's hand test** (`tasks/acceptance/bevy-0.20.md`)
-on `W-2_look_and_engine` (branched off main after PR #14 merged W1): step 0 `84edc6e9`, step 1 `a1117c72` (the
-engine), step 2 `d67ba116` (buttons on `Hovered` and `Pressed`), step 3 the documents. Gate 1261. **To confirm
-with the owner**: the controls carry `controls::Control` with own left-button observers, not Bevy's
-`ui_widgets::Button` (pressed by any mouse button); built without asking first. After acceptance: ask the owner
-for the size of the rendering direction (TODO W2, BACKLOG "GPU-first"; its own plan mode). On 2026-11-27 Bevy
-0.20.1 and six held crates are thirty days old (BACKLOG, Dependencies).
+Written 2026-11-12. **Next: the loot window and the flat ceiling**, `tasks/plans/loot-window-and-ceiling.md`
+(approved by the owner 2026-11-12, not started; four steps in `tasks/TODO.md` W2, begin at step 1, the
+ceiling). It came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
+"the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
+button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
+`d67ba116`, `3c00f762`, `74772b2a`. Gate 1262. **Still to hear from the owner**: the word "accepted" for 0.20,
+and the departure (`controls::Control` with own left-button observers, not Bevy's `ui_widgets::Button`).
+The owner's edits to `packs/the_lower_kingdoms` (dungeon heights, a pile at (4, 23), version 0.2.22) are
+uncommitted and theirs: never staged. After this plan: ask the owner for the size of the rendering direction
+(TODO W2, BACKLOG "GPU-first"; its own plan mode). On 2026-11-27 Bevy 0.20.1 and six held crates are thirty
+days old (BACKLOG, Dependencies).
 
 **Baseline captures on 0.19.1**: `<scratchpad>/shots-019/` (title, new-game, pause, actions, inventory, log,
 view, walk; made by `<scratchpad>/shots.sh <label>` into `target/shots/<label>/`). The fight and the editor

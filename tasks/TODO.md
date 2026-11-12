@@ -522,8 +522,24 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     button comes up; `column.rs` has the test; `tasks/LESSONS.md`. Also reported: a ground pile placed in the
     editor "did not show up upon searching". Search finds hidden objects, not piles (a pile is drawn on its
     cell and picked up from the Inventory screen); asked of the owner, nothing changed.
-  **Built, awaiting the owner's hand test** (`tasks/acceptance/bevy-0.20.md`). One departure to confirm: the
-  controls carry `controls::Control`, not Bevy's `ui_widgets::Button` (that one presses on any mouse button).
+  **Hand-tested by the owner 2026-11-12**: "the upgrade went pretty smoothly"; "the left click loss is fixed".
+  Not yet said: the departure (`controls::Control`, not Bevy's `ui_widgets::Button`, which any mouse button
+  presses), and the word "accepted".
+- [ ] **From the hand test of 2026-11-12: piles you can find and take, and a flat ceiling over a dip**
+  (`tasks/plans/loot-window-and-ceiling.md`, approved 2026-11-12). Owner's choices: the click on a pile opens a
+  loot window, reusable "for various situations where items are available for the party to take, store, or
+  destroy"; a pile is in reach as objects are (own cell and the faced cell across an open edge); the ceiling is
+  flat over dips only. One commit a step:
+  - [ ] 1. The ceiling: `roof = max(cell, level base) + wall height` in the lines, the fill and a wall's top;
+    BACKLOG "ceiling height controls" and "hidden piles".
+  - [ ] 2. Reach: `PickUp` and `ObjectsView.ground` over the party's cell and the faced cell; Search's "On the
+    ground" line follows.
+  - [ ] 3. The loot window (`screen/loot.rs`, `ScreenId::Loot`, opened on an `ItemPlace`: Take, Take all, Take
+    everything, who receives), a left click on a pile in reach (`aim.rs`, the hand cursor), "Pick up..." in
+    the Actions menu; open containers through the same window.
+  - [ ] 4. Store and destroy: `ItemCommand::Stash` and `ItemCommand::Destroy` (`from: ItemPlace`),
+    `Event::ItemDestroyed`, every pin; the two buttons, Destroy asked first.
+  - [ ] `tasks/acceptance/loot-and-ceiling.md`.
 - [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"): the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
   same presentation-PRD amendment so width, fog and relief are in the shader from the start. A plan under
