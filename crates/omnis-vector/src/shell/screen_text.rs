@@ -10,7 +10,7 @@ use super::icons::IconOf;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::UiGlobalTransform;
-use bevy::ui_widgets::{SliderRange, SliderValue};
+use bevy::ui_widgets::{Button, SliderRange, SliderValue};
 
 /// What `screen.text` answers when no text is shown.
 pub const NOTHING: &str = "no text is shown";

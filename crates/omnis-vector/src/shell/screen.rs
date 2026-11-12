@@ -106,6 +106,11 @@ impl Plugin for ScreenPlugin {
             .add_observer(slid)
             .add_systems(Startup, (spawn, super::roster::spawn, open_start))
             .add_systems(
+                PreUpdate,
+                super::screen_draw::keep_keyboard
+                    .after(bevy::input_focus::InputFocusSystems::Dispatch),
+            )
+            .add_systems(
                 Update,
                 (
                     route,

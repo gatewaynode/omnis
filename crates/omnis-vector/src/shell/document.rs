@@ -1,6 +1,6 @@
 //! The document control (M5.9c, owner 2026-10-24): a whole file as text with line numbers down
 //! its left, a vertical and a horizontal scrollbar, and the view following the caret. Bevy's text
-//! input scrolls inside its own box (`TextScroll`), which no scrollbar can show, so the document
+//! input scrolls inside its own box (`EditableText::viewport`), which no scrollbar can show, so the document
 //! scrolls in a container instead: the field is laid out whole (as many lines as the text has, as
 //! wide as its longest line, no wrapping) beside a gutter of numbers, inside a node that scrolls on
 //! both axes, so the numbers and the lines move together with no system between them.
@@ -11,7 +11,7 @@ use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::{EditableText, EditableTextGeneration, LineBreak, TextLayout, TextLayoutInfo};
 use bevy::ui::RelativeCursorPosition;
-use bevy::ui_widgets::{ControlOrientation, Scrollbar, ScrollbarThumb};
+use bevy::ui_widgets::{ControlOrientation, Scrollbar, ScrollbarThumb, TextInput};
 
 /// A document's field: the text the gutter and the view follow.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,6 +163,7 @@ pub(super) fn spawn(
                                 .id();
                             let mut field = area.spawn((
                                 DocumentField,
+                                TextInput,
                                 document_field(value, max),
                                 TextFont {
                                     font_size: FontSize::Px(Size::Body.px(height)),

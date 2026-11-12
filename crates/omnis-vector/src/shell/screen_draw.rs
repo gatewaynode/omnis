@@ -5,17 +5,18 @@
 //! (`shell/icons.rs` draws and keeps the images). The markers here let the router find what
 //! was used and the renderer rewrite words in place. Headless-safe.
 
+use super::controls::pressable;
 use super::icons::{self, IconOf, NeedsIcon};
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
-use bevy::input_focus::AutoFocus;
+use bevy::input_focus::{AutoFocus, FocusCause, InputFocus};
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle};
 use bevy::ui::RelativeCursorPosition;
 use bevy::ui_widgets::{
     ControlOrientation, Scrollbar, ScrollbarThumb, Slider, SliderRange, SliderStep, SliderThumb,
-    SliderValue, TrackClick,
+    SliderValue, TextInput, TrackClick,
 };
 
 /// A control's node: pressing it, or typing in it, uses the control.
@@ -166,6 +167,7 @@ pub fn cursor_style() -> TextCursorStyle {
         selection_color: shade(1),
         unfocused_selection_color: shade(0),
         selected_text_color: None,
+        selection_radius: 0.0,
     }
 }
 
@@ -274,7 +276,7 @@ fn square<'a>(
     ));
     pressed_by(&mut entity, spawn.mark, c.id);
     if c.why_not.is_none() {
-        entity.insert(Button);
+        entity.insert(pressable());
     }
     entity
 }
@@ -350,7 +352,7 @@ fn arrow(parent: &mut ChildSpawnerCommands, id: ControlId, right: bool, height: 
     parent
         .spawn((
             Arrow(id, right),
-            Button,
+            pressable(),
             Node {
                 width: Val::Px(scaled(28.0, height)),
                 height: Val::Px(scaled(26.0, height)),
@@ -472,7 +474,7 @@ fn control_node(
             let mut entity = parent.spawn(boxed(role, height, mark));
             pressed_by(&mut entity, mark, c.id);
             if c.why_not.is_none() {
-                entity.insert(Button);
+                entity.insert(pressable());
             }
             entity.with_children(|b| {
                 labelled(
@@ -531,6 +533,7 @@ fn control_node(
                     b.spawn(words(&c.label, role, Size::Body, height));
                 }
                 let mut field = b.spawn((
+                    TextInput,
                     text_field(value, *max, *lines),
                     TextFont {
                         font_size: FontSize::Px(Size::Body.px(height)),
@@ -886,6 +889,35 @@ pub(super) fn build(
         let mut message = parent.spawn(words(&m.text, m.role, m.size, height));
         if let Some(of) = spawn.rewriting() {
             message.insert((MessageText, of));
+        }
+    }
+}
+
+/// Escape leaves a text field the keyboard. Bevy's text input gives the keyboard up on Escape
+/// (0.20) and passes the key on; here Escape is the menu's or the screen's, and a field that
+/// still stands under it goes on taking what is typed, as it did before: without this the
+/// letters typed after a menu closed over the editor's form chose tools. Runs once the key has
+/// been dispatched, before any router reads who holds the keyboard.
+pub fn keep_keyboard(
+    focus: Option<ResMut<InputFocus>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    fields: Query<(), With<EditableText>>,
+    mut held: Local<Option<Entity>>,
+) {
+    let Some(mut focus) = focus else {
+        return;
+    };
+    match focus.get() {
+        Some(entity) => *held = fields.contains(entity).then_some(entity),
+        None => {
+            // Only the Escape that took it gives it back: a click elsewhere gave it up.
+            if let Some(field) = held.take()
+                && keys.just_pressed(KeyCode::Escape)
+                && fields.contains(field)
+            {
+                focus.set(field, FocusCause::Auto);
+                *held = Some(field);
+            }
         }
     }
 }

@@ -15,10 +15,8 @@ use super::session::Packs;
 use super::settings::Current;
 use crate::editor::preview;
 use crate::scene::Scene;
+use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
-use bevy::camera::{Hdr, RenderTarget};
-use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureFormat;
 use omnis_sim::omnis_core::Level;
@@ -108,12 +106,7 @@ fn spawn(
             ..default()
         },
         RenderTarget::Image(target.into()),
-        Hdr,
-        Tonemapping::None,
-        Bloom {
-            intensity: 0.25,
-            ..Bloom::NATURAL
-        },
+        render::glow(),
         Projection::Perspective(PerspectiveProjection {
             fov: render::FOV,
             near: 0.02,

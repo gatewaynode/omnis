@@ -7,6 +7,7 @@
 use crate::common;
 
 use bevy::prelude::*;
+use bevy::ui_widgets::Button;
 use common::app::{app_with, met_with, press_ui, tap, top};
 use common::ctx;
 use omnis_sim::omnis_core::Facing;

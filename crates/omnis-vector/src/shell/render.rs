@@ -108,17 +108,27 @@ impl Plugin for RenderPlugin {
     }
 }
 
+/// What every camera of the client carries so its lines glow alike: HDR, bloom, and linear
+/// tonemapping. Linear, not `None`: since Bevy 0.20 `None` passes the image through with no
+/// dither and no clamp of negative channels, and faded lines band.
+#[must_use]
+pub fn glow() -> impl Bundle {
+    (
+        Hdr,
+        Tonemapping::Linear,
+        Bloom {
+            intensity: 0.25,
+            ..Bloom::NATURAL
+        },
+    )
+}
+
 fn spawn_camera(mut commands: Commands, offscreen: Option<Res<Offscreen>>) {
     let mut camera = commands.spawn((
         ViewCamera,
         Camera3d::default(),
         IsDefaultUiCamera,
-        Hdr,
-        Tonemapping::None,
-        Bloom {
-            intensity: 0.25,
-            ..Bloom::NATURAL
-        },
+        glow(),
         Projection::Perspective(PerspectiveProjection {
             fov: FOV,
             near: 0.02,
@@ -292,5 +302,23 @@ fn draw(
         for (a, b) in lines.scene.ground.crests(eye.translation.to_array(), end) {
             line(a, b, CREST, 1.0);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_camera_s_glow_is_hdr_with_linear_tonemapping() {
+        let mut world = World::new();
+        let camera = world.spawn(glow()).id();
+        assert!(world.get::<Hdr>(camera).is_some());
+        assert!(world.get::<Bloom>(camera).is_some());
+        // `None` would compile and draw, without dither: the choice is pinned here.
+        assert!(matches!(
+            world.get::<Tonemapping>(camera),
+            Some(Tonemapping::Linear)
+        ));
     }
 }

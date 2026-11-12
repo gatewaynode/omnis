@@ -9,6 +9,8 @@ use super::session::Session;
 use crate::screen::ScreenId;
 use crate::style::{Role, SHADES as SHADE_RGB};
 use bevy::prelude::*;
+use bevy::ui::FocusPolicy;
+use bevy::ui_widgets::Button;
 use core::f32::consts::FRAC_PI_2;
 
 /// What a button does.
@@ -103,6 +105,14 @@ const fn srgb([r, g, b]: [f32; 3]) -> Color {
     Color::srgb(r, g, b)
 }
 
+/// What makes a node a live control: Bevy's button, the pointer's state on it, and the pointer
+/// stopped from reaching what lies beneath. Every pressable node takes this and nothing else, so
+/// a dim control is one without it.
+#[must_use]
+pub fn pressable() -> impl Bundle {
+    (Button, Interaction::default(), FocusPolicy::Block)
+}
+
 /// The movement pad, bottom left, and the other actions, bottom right.
 pub struct ControlsPlugin;
 
@@ -142,7 +152,7 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
         BackgroundColor(SHADES[0]),
     ));
     if enabled {
-        entity.insert(Button);
+        entity.insert(pressable());
     }
     entity.with_children(|b| {
         b.spawn((
@@ -262,7 +272,7 @@ fn light(
         }
         let colour = if live { GREEN } else { DIM };
         if live {
-            commands.entity(entity).insert(Button);
+            commands.entity(entity).insert(pressable());
         } else {
             // No `Interaction` either, so the pointer cannot press it (`button` draws a disabled
             // one the same way).

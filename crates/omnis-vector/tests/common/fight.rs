@@ -70,7 +70,7 @@ pub fn enabled(app: &mut bevy::prelude::App) -> Vec<Act> {
     let acts = entries(app);
     let world = app.world_mut();
     let mut query =
-        world.query_filtered::<&FightPress, bevy::prelude::With<bevy::prelude::Button>>();
+        world.query_filtered::<&FightPress, bevy::prelude::With<bevy::ui_widgets::Button>>();
     let live: Vec<ControlId> = query.iter(world).map(|p| p.0).collect();
     acts.into_iter()
         .filter(|(id, _)| live.contains(id))

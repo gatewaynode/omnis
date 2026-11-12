@@ -1011,3 +1011,53 @@ fn an_activity_stamp_places_a_service_s_site_the_inspector_lists() {
         omnis_vector::editor::plan::marks(&def, &data, omnis_sim::omnis_core::Level::GROUND);
     assert!(marks.contains(&((3, 4), omnis_vector::editor::plan::Mark::Activity(kind))));
 }
+
+/// Escape opens the menu over a form and the form's field keeps the keyboard: Bevy's text input
+/// gives the keyboard up on Escape since 0.20, and the letters typed after the menu closed chose
+/// tools instead of reaching the note.
+#[test]
+fn escape_opens_the_menu_and_the_field_keeps_the_keyboard_beneath_it() {
+    use bevy::input::ButtonState;
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    use common::app::{keyboard, keyboard_on};
+    use common::editor::{field_entity, field_of, top_screen};
+    use omnis_vector::editor::NoteOf;
+    use omnis_vector::screen::ScreenId;
+    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
+    app.update();
+    app.world_mut().resource_mut::<Editing>().point((3, 4));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    let form = editing(&app).form.clone().expect("the note's form");
+    let note = EditAct::Field(field_of(&form, "note"));
+    let field = field_entity(&mut app, note).expect("the note field");
+    let tool = editing(&app).tool;
+    keyboard(&mut app, window, "sign");
+    let escape = |app: &mut App| {
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: KeyCode::Escape,
+                logical_key: Key::Escape,
+                state,
+                text: None,
+                repeat: false,
+                window,
+            });
+            app.update();
+        }
+    };
+    escape(&mut app);
+    assert_eq!(top_screen(&app), Some(ScreenId::EditorMenu));
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(field));
+    escape(&mut app);
+    assert_eq!(top_screen(&app), None, "the menu closes");
+    // L is the lasso's key when no field holds the keyboard.
+    keyboard(&mut app, window, "l");
+    app.update();
+    assert_eq!(
+        editing(&app).form.as_ref().unwrap().text_of("note"),
+        "signl"
+    );
+    assert_eq!(editing(&app).tool, tool, "no tool was chosen");
+    press_edit(&mut app, EditAct::Cancel);
+}

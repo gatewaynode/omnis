@@ -2,6 +2,10 @@
 //! executable for a fixed wait on its first launch, so each test binary costs that wait once per
 //! build (`scripts/check-test-modules.sh`).
 
+// Bevy 0.20 deprecates `Interaction` and the old `Button`; they go in the migration's step 2
+// (`tasks/plans/bevy-0.20-migration.md`), and this line with them.
+#![allow(deprecated)]
+
 mod actions;
 mod agreement;
 mod arena;

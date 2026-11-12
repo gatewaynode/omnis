@@ -21,10 +21,8 @@ use crate::cinema::opening;
 use crate::combat_menu::{CombatMenu, Pick, Step};
 use crate::screen::fight::{self, Place};
 use crate::screen::{self, ControlId, Key, Payload, Screen as Controls, ScreenId, Span};
+use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
-use bevy::camera::{Hdr, RenderTarget};
-use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -463,12 +461,7 @@ fn spawn_camera(mut commands: Commands, offscreen: Option<Res<Offscreen>>) {
             is_active: false,
             ..default()
         },
-        Hdr,
-        Tonemapping::None,
-        Bloom {
-            intensity: 0.25,
-            ..Bloom::NATURAL
-        },
+        super::render::glow(),
         RenderLayers::layer(LAYER),
     ));
     if let Some(target) = offscreen {

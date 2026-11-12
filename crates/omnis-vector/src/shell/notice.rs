@@ -73,7 +73,7 @@ pub(super) fn spawn(mut commands: Commands) {
                     panel
                         .spawn((
                             NoticeClose,
-                            Button,
+                            super::controls::pressable(),
                             Node {
                                 position_type: PositionType::Absolute,
                                 top: Val::Px(4.0),

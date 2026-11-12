@@ -494,9 +494,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
 - [ ] Bevy 0.20 (`tasks/plans/bevy-0.20-migration.md`, re-audited and approved 2026-11-12; `=0.20.0`, 0.20.1
   being under 30 days old until 2026-11-27). First, so shaders are written once. One commit a step:
   - [x] 0. Housekeeping: the plan rewritten on today's tree, baseline captures on 0.19.1 in the scratchpad.
-  - [ ] 1. The engine moves, behaviour held: the pin, the lock (every moved crate's age checked), the root pins
-    that follow Bevy, `Tonemapping::Linear` on the three cameras, `TextInput` on the text fields, the renamed
-    pointer event; the deprecated `Interaction` and `Button` allowed for this one commit.
+  - [x] 1. The engine moves, behaviour held (2026-11-12): `=0.20.0` with every `bevy_*` crate held at 0.20.0
+    in the lock and six young crates held back (161 moved crates, none published after 2026-10-13);
+    `render::glow()` (HDR, bloom, `Tonemapping::Linear`) on the three cameras; `TextInput` on the text
+    fields; `screen_draw::keep_keyboard` (Escape no longer takes the keyboard from a field); `controls::
+    pressable()` on Bevy's new `Button` (the old one is private in 0.20), `Interaction` allowed until step 2.
+    Review: gate 1258. Found: the title and new-game captures are identical to 0.19's; the view's differ in
+    14% of channel values, nearly all by two levels or fewer (read as dither, which `None` drew without;
+    not yet confirmed by eye); the `walk` capture varies run to run and is no baseline; `check-duplicates.sh` dies
+    silently when a new duplicate appears (the loop's `head` under `pipefail`), to fix with step 3.
   - [ ] 2. Buttons on `Hovered` and `Pressed` (a press still acts on button down); the allow removed; the test
     helpers on one `press`; mutation checks.
   - [ ] 3. Runtime checks against the captures, the documents that name 0.19, `tasks/acceptance/bevy-0.20.md`.

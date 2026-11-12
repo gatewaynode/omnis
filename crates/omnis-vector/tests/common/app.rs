@@ -265,10 +265,12 @@ pub fn keyboard_on(mut app: App) -> (App, Entity) {
         InputFocusPlugin,
         InputDispatchPlugin,
         bevy::text::TextPlugin,
-        bevy::ui_widgets::EditableTextInputPlugin,
+        bevy::ui_widgets::TextInputPlugin,
     ))
     .add_message::<bevy::window::Ime>()
-    .add_message::<bevy::picking::events::Pointer<bevy::picking::events::Release>>()
+    .add_message::<bevy::picking::events::PointerRelease>()
+    // A text field scrolls under a held pointer (0.20): the pointer's state, with no picking here.
+    .init_resource::<bevy::picking::events::PointerState>()
     .init_resource::<bevy::ui::UiScale>();
     let window = app
         .world_mut()

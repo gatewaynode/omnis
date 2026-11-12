@@ -10,6 +10,9 @@
 //! The Bevy shell lives in `shell` and holds only wiring.
 
 #![forbid(unsafe_code)]
+// Bevy 0.20 deprecates `Interaction` and the old `Button`; they go in the migration's step 2
+// (`tasks/plans/bevy-0.20-migration.md`), and this line with them.
+#![allow(deprecated)]
 #![warn(missing_docs)]
 
 pub mod arena;
