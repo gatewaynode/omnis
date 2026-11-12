@@ -469,7 +469,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "objects_get",
             "objects.get",
-            "The objects the party reaches (its own cell, and the one it faces across an open edge), each with its id (the `object` an Act command takes), kind, name key, state, capacity and, when it is an open container, its contents; and every interaction its kind offers in that state as the `verb` and `option` Act takes, with its label key, the checks it rolls (skill or ability and difficulty), the minutes an attempt takes and the refusal the rules would give now (a spent one-time interaction stays listed, refused). Also the pile on the party's cell, what PickUp takes from. Hidden objects appear once found. Looking changes nothing.",
+            "The objects the party reaches (its own cell, and the one it faces across an open edge), each with its id (the `object` an Act command takes), kind, name key, state, capacity and, when it is an open container, its contents; and every interaction its kind offers in that state as the `verb` and `option` Act takes, with its label key, the checks it rolls (skill or ability and difficulty), the minutes an attempt takes and the refusal the rules would give now (a spent one-time interaction stays listed, refused). Also the items on the ground within the same reach (the party's cell first, then the one it faces), what PickUp takes from. Hidden objects appear once found. Looking changes nothing.",
             &[],
         ),
         tool(

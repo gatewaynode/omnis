@@ -290,6 +290,26 @@ fn search(app: &mut bevy::prelude::App) -> Vec<String> {
 }
 
 #[test]
+fn a_search_names_the_pile_in_the_cell_ahead_and_not_one_to_the_side() {
+    // Beside the arrow pile at (2, 2).
+    let mut app = yard_session(1, 2, Facing::East);
+    let arrows = {
+        let s = app.world().resource::<Session>();
+        labels::item(&s.data, "base:item:arrows").to_owned()
+    };
+    let line = format!("On the ground: {arrows} x10");
+    let said = search(&mut app);
+    assert!(said.contains(&line), "facing the pile: {said:?}");
+
+    let mut app = yard_session(1, 2, Facing::North);
+    let said = search(&mut app);
+    assert!(
+        !said.iter().any(|l| l.starts_with("On the ground")),
+        "the pile is to the side: {said:?}"
+    );
+}
+
+#[test]
 fn a_search_tells_the_lore_and_what_lies_here_and_nothing_hidden_only_when_nothing_was() {
     // On the arrow pile with its bootprints, far enough from the lever and the rune.
     let mut app = yard_session(2, 2, Facing::North);

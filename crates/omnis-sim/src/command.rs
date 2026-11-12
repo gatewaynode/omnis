@@ -421,7 +421,8 @@ pub enum Rejection {
         /// The id asked for.
         being: String,
     },
-    /// The ground of the party's cell holds no item of that id.
+    /// No pile within reach (the party's cell, the cell it faces across an open edge) holds an
+    /// item of that id.
     NotOnGround {
         /// The id asked for.
         item: String,
@@ -499,7 +500,9 @@ impl Rejection {
                 )
             }
             Rejection::NoDoor => f.write_str("there is no door that way"),
-            Rejection::NotOnGround { item } => write!(f, "there is no {item} on the ground"),
+            Rejection::NotOnGround { item } => {
+                write!(f, "there is no {item} within reach on the ground")
+            }
             Rejection::NotInObject { item } => write!(f, "there is no {item} in it"),
             Rejection::PileFull => f.write_str("there is no room on the ground here"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),

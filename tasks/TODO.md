@@ -534,8 +534,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     fill, a block's top and a wall's top; BACKLOG "ceiling height controls" and "hidden piles". Review: one
     test on the town with a dip and a rise made in the test (no fixture has a dip), four mutations caught.
     Not seen in a window by me: the owner's dungeon cell (5, 22).
-  - [ ] 2. Reach: `PickUp` and `ObjectsView.ground` over the party's cell and the faced cell; Search's "On the
-    ground" line follows.
+  - [x] 2. Reach (2026-11-12): `PickUp` and `ObjectsView.ground` over the party's cell and the faced cell
+    (`ground::in_reach`, over `objects::reach`); Search's "On the ground" line and the Inventory's rows follow
+    with no client change. `ground` is one entry an item across both piles; `PickUp` takes underfoot first,
+    the faced pile making up the rest, one `ItemMoved`. No wire shape moved. Review: three sim tests on the
+    yard and one client Search test; three mutations caught (faced cell dropped, edge check dropped, order
+    reversed).
   - [ ] 3. The loot window (`screen/loot.rs`, `ScreenId::Loot`, opened on an `ItemPlace`: Take, Take all, Take
     everything, who receives), a left click on a pile in reach (`aim.rs`, the hand cursor), "Pick up..." in
     the Actions menu; open containers through the same window.

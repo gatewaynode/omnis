@@ -4,8 +4,9 @@
 
 use crate::command::Rejection;
 use crate::event::{Event, ItemPlace};
-use crate::items::{actor, add_to, from_kit, from_list, out_of_kit, take_from};
+use crate::items::{actor, add_to, count_of, from_kit, from_list, out_of_kit, take_from};
 use crate::names::id_of;
+use crate::objects::reach;
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -64,7 +65,33 @@ pub(crate) fn drop(
     Ok(())
 }
 
-/// Pick `count` of an item up from the ground of the party's cell into a member's kit.
+/// The cells whose piles the party reaches, its own first: as an object is reached
+/// ([`reach`]), the cell it faces unless a wall, a shut door or a cliff stands between.
+fn cells(world: &World, data: &Data) -> Vec<(Level, u16, u16)> {
+    let pos = world.position;
+    let near = match data.maps.get(&pos.map) {
+        Some(map) => reach(world, map, pos),
+        None => Vec::from([(pos.x, pos.y)]),
+    };
+    near.into_iter().map(|(x, y)| (pos.level, x, y)).collect()
+}
+
+/// The items on the ground within the party's reach, one entry an item: its own cell's pile
+/// first, then the faced cell's. What `PickUp` takes from.
+#[must_use]
+pub fn in_reach(world: &World, data: &Data) -> Vec<(ItemId, u16)> {
+    let mut items = Vec::new();
+    for cell in cells(world, data) {
+        let pile = pile_at(world, data, world.position.map, cell);
+        for &(item, count) in pile.map_or(&[][..], |p| &p.items) {
+            add_to(&mut items, item, count);
+        }
+    }
+    items
+}
+
+/// Pick `count` of an item up from the ground within reach into a member's kit: from the
+/// party's cell first, the faced cell's pile making up the rest.
 pub(crate) fn pick_up(
     world: &mut World,
     data: &Data,
@@ -73,18 +100,24 @@ pub(crate) fn pick_up(
     count: u16,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let (map, cell) = here(world)?;
+    let (map, _) = here(world)?;
     let own = actor(world, data, member)?;
-    let mut pile = pile_at(world, data, map, cell).cloned().unwrap_or_default();
-    let id = from_list(data, &pile.items, item, count, |item| {
+    let id = from_list(data, &in_reach(world, data), item, count, |item| {
         Rejection::NotOnGround {
             item: String::from(item),
         }
     })?;
-    if take_from(&mut pile.items, id, count).is_err() {
-        return Err(Rejection::NotOnGround { item: item.into() });
+    let mut left = count;
+    for cell in cells(world, data) {
+        let Some(mut pile) = pile_at(world, data, map, cell).cloned() else {
+            continue;
+        };
+        let taken = count_of(&pile.items, id).min(left);
+        if taken > 0 && take_from(&mut pile.items, id, taken).is_ok() {
+            keep(world, data, map, cell, pile);
+            left -= taken;
+        }
     }
-    keep(world, data, map, cell, pile);
     add_to(&mut world.party.members[own].equipment, id, count);
     events.push(moved(
         data,

@@ -417,3 +417,156 @@ fn a_member_who_cannot_act_moves_nothing_and_not_outside_exploring() {
         assert_eq!(refused(&mut world, &data, command), Rejection::WrongMode);
     }
 }
+
+/// What the objects view lists on the ground.
+fn listed(world: &World, data: &Data) -> Vec<(String, u16)> {
+    omnis_sim::objects_view(world, data)
+        .ground
+        .into_iter()
+        .map(|i| (i.item, i.count))
+        .collect()
+}
+
+/// A pile the party laid down on `(x, y)` of the yard.
+fn laid(world: &mut World, data: &Data, x: u16, y: u16, id: &str, count: u16) {
+    let pile = Pile {
+        pos: (0, 0),
+        items: vec![(item(data, id), count)],
+    };
+    world
+        .map_state(yard(data))
+        .ground
+        .insert((Level(0), x, y), pile);
+}
+
+#[test]
+fn a_pile_in_the_faced_cell_is_listed_and_taken_and_one_beside_is_not() {
+    let data = objects();
+    let mut world = armed(&data, 1, 2, Facing::East, 0);
+    let m = world.party.members[0].id;
+    assert_eq!(listed(&world, &data), [(ARROWS.to_owned(), 10)]);
+    let events = apply(&mut world, &data, pick_up(m, ARROWS, 3)).expect("in reach");
+    assert_eq!(
+        events[0],
+        Event::ItemMoved {
+            item: ARROWS.into(),
+            count: 3,
+            from: ItemPlace::Ground,
+            to: ItemPlace::Member(m),
+        }
+    );
+    assert_eq!(carried(&world, &data, ARROWS), 3);
+    assert_eq!(
+        pile(&world, &data, 2, 2).expect("still there").items,
+        [(item(&data, ARROWS), 7)]
+    );
+    assert_eq!(pile(&world, &data, 1, 2), None, "nothing under the party");
+    round_trip(&world, &data);
+
+    for away in [Facing::North, Facing::South, Facing::West] {
+        world.position.facing = away;
+        assert_eq!(listed(&world, &data), [], "facing {away:?}");
+        assert_eq!(
+            refused(&mut world, &data, pick_up(m, ARROWS, 1)),
+            Rejection::NotOnGround {
+                item: ARROWS.into()
+            },
+            "facing {away:?}"
+        );
+    }
+}
+
+#[test]
+fn a_wall_or_a_shut_door_keeps_a_pile_out_of_reach() {
+    let data = objects();
+    // The hedge runs along the south of row 2.
+    let mut world = armed(&data, 2, 3, Facing::North, 0);
+    let m = world.party.members[0].id;
+    assert_eq!(listed(&world, &data), []);
+    assert_eq!(
+        refused(&mut world, &data, pick_up(m, ARROWS, 1)),
+        Rejection::NotOnGround {
+            item: ARROWS.into()
+        }
+    );
+
+    // The door on the north edge of (6, 4).
+    let mut world = armed(&data, 6, 3, Facing::South, 0);
+    laid(&mut world, &data, 6, 4, ARROWS, 4);
+    assert_eq!(listed(&world, &data), [], "the door is shut");
+    assert_eq!(
+        refused(&mut world, &data, pick_up(m, ARROWS, 1)),
+        Rejection::NotOnGround {
+            item: ARROWS.into()
+        }
+    );
+    let open = world
+        .map_state(yard(&data))
+        .toggle_door(Level(0), 6, 3, Facing::South);
+    assert!(open);
+    assert_eq!(listed(&world, &data), [(ARROWS.to_owned(), 4)]);
+    apply(&mut world, &data, pick_up(m, ARROWS, 4)).expect("through the open door");
+    assert_eq!(pile(&world, &data, 6, 4), None);
+    assert_eq!(
+        saved_ground(&world, &data),
+        0,
+        "an emptied laid pile is gone"
+    );
+}
+
+#[test]
+fn the_pile_underfoot_goes_first_and_the_faced_one_makes_up_the_rest() {
+    let data = objects();
+    let mut world = armed(&data, 1, 2, Facing::East, 0);
+    let m = world.party.members[0].id;
+    laid(&mut world, &data, 1, 2, DAGGER, 1);
+    world
+        .map_state(yard(&data))
+        .ground
+        .get_mut(&(Level(0), 1, 2))
+        .unwrap()
+        .items
+        .push((item(&data, ARROWS), 2));
+    assert_eq!(
+        listed(&world, &data),
+        [(DAGGER.to_owned(), 1), (ARROWS.to_owned(), 12)],
+        "one line an item, the party's cell first"
+    );
+    assert_eq!(
+        refused(&mut world, &data, pick_up(m, ARROWS, 13)),
+        Rejection::NotEnough {
+            item: ARROWS.into(),
+            have: 12
+        }
+    );
+
+    apply(&mut world, &data, pick_up(m, ARROWS, 1)).expect("one");
+    let arrows = item(&data, ARROWS);
+    let dagger = item(&data, DAGGER);
+    assert_eq!(
+        pile(&world, &data, 1, 2).unwrap().items,
+        [(dagger, 1), (arrows, 1)],
+        "from under the party"
+    );
+    assert_eq!(pile(&world, &data, 2, 2).unwrap().items, [(arrows, 10)]);
+
+    let events = apply(&mut world, &data, pick_up(m, ARROWS, 5)).expect("across both");
+    let moves: Vec<&Event> = events
+        .iter()
+        .filter(|e| matches!(e, Event::ItemMoved { .. }))
+        .collect();
+    assert_eq!(
+        moves,
+        [&Event::ItemMoved {
+            item: ARROWS.into(),
+            count: 5,
+            from: ItemPlace::Ground,
+            to: ItemPlace::Member(m),
+        }],
+        "one move, wherever it lay"
+    );
+    assert_eq!(pile(&world, &data, 1, 2).unwrap().items, [(dagger, 1)]);
+    assert_eq!(pile(&world, &data, 2, 2).unwrap().items, [(arrows, 6)]);
+    assert_eq!(carried(&world, &data, ARROWS), 6);
+    round_trip(&world, &data);
+}

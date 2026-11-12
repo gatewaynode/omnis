@@ -10,7 +10,7 @@ use crate::beings::{self, BeingView};
 use crate::combat::Roller;
 use crate::command::Rejection;
 use crate::event::CheckKind;
-use crate::ground::pile_at;
+use crate::ground::{in_reach, pile_at};
 use crate::names::id_of;
 use crate::objects::{
     admit, check_of, contents, found_in, offered, reachable, removed_in, state_in, state_of,
@@ -84,7 +84,8 @@ pub struct ObjectsView {
     /// The objects in reach, in the order Use reaches them: the party's cell, then the one it
     /// faces across an open edge.
     pub objects: Vec<ObjectView>,
-    /// The pile on the party's cell, what `PickUp` takes from.
+    /// The items on the ground within reach, one entry an item, what `PickUp` takes from: the
+    /// pile on the party's cell, then the one in the cell it faces across an open edge.
     pub ground: Vec<ItemCount>,
     /// The groups standing in reach, which `Approach` meets (M8.5 step 2c).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -127,17 +128,14 @@ pub struct PileView {
     pub items: Vec<ItemCount>,
 }
 
-/// The objects the party reaches and the pile it stands on.
+/// The objects the party reaches and the piles within its reach.
 #[must_use]
 pub fn objects_view(world: &World, data: &Data) -> ObjectsView {
     let objects = reachable(world, data)
         .filter_map(|p| Some((p, data.objects.get(&p.kind)?)))
         .map(|(p, kind)| object(world, data, p, kind))
         .collect();
-    let pos = world.position;
-    let ground = pile_at(world, data, pos.map, (pos.level, pos.x, pos.y))
-        .map(|pile| counted(data, &pile.items))
-        .unwrap_or_default();
+    let ground = counted(data, &in_reach(world, data));
     ObjectsView {
         objects,
         ground,

@@ -598,8 +598,9 @@ spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set`
 
 What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
 them (its own cell, then the one it faces across an open edge; an object spanning both once; a
-hidden one only once found; a removed one never), and `ground`, the pile on the party's cell
-(`[ItemCount]`, what `PickUp` takes from; empty when there is none), and `beings` (`[BeingView]`,
+hidden one only once found; a removed one never), and `ground`, the items on the ground within
+the same reach (`[ItemCount]`, one entry an item, the pile on the party's cell first, then the one
+in the cell it faces across an open edge; what `PickUp` takes from; empty when there is none), and `beings` (`[BeingView]`,
 §7.10: the groups standing in the party's cell or the one it faces, on its level, which `Approach`
 meets; left out when none, M8.5 step 2c).
 
@@ -827,8 +828,9 @@ the stores count by kind): `Equip { member, item }`,
 `Use { member, item, receiver }` (`receiver` null for the user). While exploring only, by a
 member who can act, and taking no time: `Drop { member, item, count }` (kit to the ground of the
 party's cell; a new pile lies 2 eighths ahead of the party, one already there takes it where it
-lies; a pile holds 32 kinds, else `PileFull`), `PickUp { member, item, count }` (the ground of
-the party's cell to kit, else `NotOnGround`), `TakeOut { member, object, item, count }` and
+lies; a pile holds 32 kinds, else `PileFull`), `PickUp { member, item, count }` (the ground within
+reach to kit: the pile on the party's cell first, the one in the cell it faces across an open
+edge making up the rest; else `NotOnGround`), `TakeOut { member, object, item, count }` and
 `PutIn { member, object, item, count }` (an open container in reach, as `Act` reaches it, by its
 placement id, to kit and back; a kind with a capacity is a container, open in a state marked
 `open` or always when it has no states; its capacity counts kinds of item; refusals
@@ -964,7 +966,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
-| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell) or `{"Object": placement id}`) | Items moved. |
+| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell; for `PickUp` also the cell it faces) or `{"Object": placement id}`) | Items moved. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1076,7 +1078,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. |
-| `NotOnGround` | `item` | `PickUp`: the ground of the party's cell holds none of it. |
+| `NotOnGround` | `item` | `PickUp`: no pile within reach (the party's cell, the cell it faces across an open edge) holds any of it. |
 | `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
 | `PileFull` | | `Drop`: the cell's pile holds 32 kinds, none of them this one. |
 | `NoActionLeft` | | The turn's action is spent. |
@@ -1191,7 +1193,14 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-11 (latest, pass time): `DevCommand::Pass { minutes }` (15 variants; additive, `PROTOCOL` stays 2):
+- 2026-11-12 (latest, a pile in reach): no shape changes. `PickUp` and `ObjectsView.ground` reach as `Act`
+  does: the pile on the party's cell, then the one in the cell it faces unless a wall, a shut door or a cliff
+  stands between. `ground` is one entry an item across both piles; `PickUp` takes from the party's cell first
+  and the faced pile makes up the rest, as one `ItemMoved`. `NotOnGround` now means no pile in reach holds the
+  item, and reads "there is no {item} within reach on the ground". `Drop` still lays down on the party's own
+  cell. A client that showed `ground` as "underfoot" shows more than before; nothing it sent is refused that
+  was accepted.
+- 2026-11-11 (pass time): `DevCommand::Pass { minutes }` (15 variants; additive, `PROTOCOL` stays 2):
   the party lives one to 518,400 minutes where it stands, outside a fight and an encounter. The MCP `Dev`
   schema has 15 branches.
 - 2026-11-11 (rule priority): `rules.list` gains `origins` and `rules.get` / `rules.set` gain `origin`
