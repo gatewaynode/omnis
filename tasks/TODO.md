@@ -540,9 +540,14 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     the faced pile making up the rest, one `ItemMoved`. No wire shape moved. Review: three sim tests on the
     yard and one client Search test; three mutations caught (faced cell dropped, edge check dropped, order
     reversed).
-  - [ ] 3. The loot window (`screen/loot.rs`, `ScreenId::Loot`, opened on an `ItemPlace`: Take, Take all, Take
-    everything, who receives), a left click on a pile in reach (`aim.rs`, the hand cursor), "Pick up..." in
-    the Actions menu; open containers through the same window.
+  - [x] 3. The loot window (2026-11-12; `screen/loot.rs`, `ScreenId::Loot`, opened on an `ItemPlace`: Take, Take
+    all, Take everything, who receives), a left click on a pile in reach (`aim.rs`, `shell/aim.rs`, the hand
+    cursor), "Pick up..." in the Actions menu and as the default action. Review: eight tests in
+    `tests/loot.rs`, the projection checked against the camera's own rotation; twelve mutations caught.
+    Tier 1 gained `piles_in_reach`. **Open**: an open container has no way into the window yet (the window
+    shows one when opened on it, and the Inventory still lists it); ask the owner where it opens from (my
+    recommendation: a "Take from..." under an open container on the verbs screen, and a click on it once
+    objects are clickable). Not seen in a window by me.
   - [ ] 4. Store and destroy: `ItemCommand::Stash` and `ItemCommand::Destroy` (`from: ItemPlace`),
     `Event::ItemDestroyed`, every pin; the two buttons, Destroy asked first.
   - [ ] `tasks/acceptance/loot-and-ceiling.md`.

@@ -93,7 +93,8 @@ impl Body {
 
     /// The point `u` of the half width across, `v` of the half depth along and `h` of the
     /// height up.
-    fn at(&self, u: f32, v: f32, h: f32) -> [f32; 3] {
+    #[must_use]
+    pub fn at(&self, u: f32, v: f32, h: f32) -> [f32; 3] {
         let (a, f) = (u * self.half_width, v * self.half_depth);
         [
             self.centre.0 + self.across.0 * a + self.along.0 * f,

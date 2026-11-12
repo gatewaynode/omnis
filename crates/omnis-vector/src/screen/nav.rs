@@ -97,7 +97,7 @@ impl Nav {
             (ScreenId::Log, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
-            (ScreenId::Actions | ScreenId::Verbs, Some(views)) => {
+            (ScreenId::Actions | ScreenId::Verbs | ScreenId::Loot, Some(views)) => {
                 base.is_none() && views.exploring()
             }
             // From the party column, exploring or in a fight (to look); not over a service.
@@ -147,6 +147,7 @@ impl Nav {
             Some(
                 ScreenId::Pause
                     | ScreenId::Inventory
+                    | ScreenId::Loot
                     | ScreenId::Cast
                     | ScreenId::Camp
                     | ScreenId::Sheet

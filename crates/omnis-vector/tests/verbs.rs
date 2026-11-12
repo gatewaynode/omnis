@@ -241,9 +241,13 @@ fn use_opens_the_verbs_when_the_engine_would_ask_or_refuse_and_search_is_always_
     let world = yard(&data, 3, 1, Facing::South);
     assert_eq!(labels(&world, &data), ["Use...", "Search here"]);
     // Nothing to use: Search alone, and it is never the default.
-    let world = yard(&data, 2, 2, Facing::North);
+    let world = yard(&data, 2, 1, Facing::North);
     assert_eq!(labels(&world, &data), ["Search here"]);
     assert_eq!(default_action(&world, &data), None);
+    // On the arrow pile: the ground is offered, and is the default with nothing else to use.
+    let world = yard(&data, 2, 2, Facing::North);
+    assert_eq!(labels(&world, &data), ["Pick up...", "Search here"]);
+    assert_eq!(default_action(&world, &data), Some(Does::Loot));
     let views = common::views(&world, &data);
     let c = ctx(&data, &world, &views);
     let actions = screen::content(ScreenId::Actions, &c, &Forms::default());

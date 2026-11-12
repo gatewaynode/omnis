@@ -1,6 +1,7 @@
 //! The Bevy shell: wiring only. `MovementPlugin` runs headless; `RenderPlugin` and
 //! `HudPlugin` need a window.
 
+pub mod aim;
 pub mod capture;
 pub mod cinema;
 pub mod combat;

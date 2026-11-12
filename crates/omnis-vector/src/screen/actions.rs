@@ -22,6 +22,8 @@ pub enum Does {
     Command(Command),
     /// Opens the verbs screen: the engine would ask which thing to use, or refuse the one there is.
     Choose,
+    /// Opens the loot window on the ground within reach.
+    Loot,
 }
 
 /// One action the square offers.
@@ -80,7 +82,8 @@ const fn facing_name(facing: Facing) -> &'static str {
 }
 
 /// The actions the simulation would accept here, in menu order: the faced door, site or object
-/// (or the verbs, to choose among several), a ladder up and down, then Search.
+/// (or the verbs, to choose among several), the ground within reach when something lies on it,
+/// a ladder up and down, then Search.
 #[must_use]
 pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     let mut offers = Vec::new();
@@ -102,6 +105,12 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
         offers.push(Offer {
             label: "Use...".to_owned(),
             does: Does::Choose,
+        });
+    }
+    if !world.objects(data).ground.is_empty() {
+        offers.push(Offer {
+            label: "Pick up...".to_owned(),
+            does: Does::Loot,
         });
     }
     let search = Command::Search;
@@ -179,6 +188,7 @@ pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
                     close: true,
                 },
                 Does::Choose => Effect::Open(ScreenId::Verbs),
+                Does::Loot => Effect::Open(ScreenId::Loot),
             }),
         _ => Effect::Back,
     }

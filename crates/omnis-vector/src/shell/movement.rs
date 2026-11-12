@@ -63,7 +63,8 @@ pub struct View {
 pub struct LookInput {
     /// The left button went down.
     pub left_click: bool,
-    /// The pointer is over a button (a click there is the button's, not the view's).
+    /// The pointer is over a button or a pile in reach (a click there is theirs, not the
+    /// view's).
     pub over_button: bool,
     /// Space, a right click or Esc.
     pub release: bool,
@@ -96,6 +97,7 @@ impl Plugin for MovementPlugin {
             .init_resource::<View>()
             .init_resource::<Current>()
             .add_systems(Update, grab_cursor.in_set(VectorSet::Grab))
+            .add_plugins(super::aim::plugin)
             .add_systems(Update, read_input.in_set(VectorSet::Input))
             .add_systems(Update, advance.in_set(VectorSet::Move));
     }
@@ -114,6 +116,7 @@ fn grab_cursor(
     showing: Option<Res<Showing>>,
     view: Option<Res<State<ViewState>>>,
     editing: Option<Res<super::editor::Editing>>,
+    aimed: Option<Res<super::aim::Aimed>>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
@@ -122,7 +125,8 @@ fn grab_cursor(
         intent.looking,
         LookInput {
             left_click: mouse.just_pressed(MouseButton::Left),
-            over_button: super::controls::over_control(&controls),
+            // A click on a pile in reach is the pile's, as one on a button is the button's.
+            over_button: super::controls::over_control(&controls) || aimed.is_some_and(|a| a.0),
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
             panel: showing.is_some_and(|s| s.0)

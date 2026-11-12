@@ -328,6 +328,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
 | `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
 | `objects_on_level(&World, &Data, MapId, Level)` | `(Vec<SeenObject>, Vec<PileView>)`: every object and pile on that level as the viewport would show them from anywhere (removed objects left out, hidden ones until found); objects in file order, piles north to south. For a client that draws a whole level | none |
+| `piles_in_reach(&World, &Data)` | `Vec<PileView>`: the piles `PickUp` takes from, each where it lies: the one on the party's cell, then the one in the cell it faces across an open edge. What `objects.get`'s `ground` adds up. For a client that lets a drawn pile be picked | none (`objects.get` gives the items) |
 | `beings_on_level(&World, &Data, MapId, Level)` | `Vec<BeingView>`: every group standing on that level as the viewport would show it from anywhere (not once beaten for good, nor while met), in file order. For a client that draws a whole level | none |
 
 `automap`, `map_text`, `door_open`, `objects_on_level`, `beings_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
@@ -1193,7 +1194,9 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-12 (latest, a pile in reach): no shape changes. `PickUp` and `ObjectsView.ground` reach as `Act`
+- 2026-11-12 (latest, Tier 1 only): `piles_in_reach(&World, &Data)`, the piles within reach each where it lies,
+  for a client that lets a drawn pile be clicked. No op and no wire change.
+- 2026-11-12 (a pile in reach): no shape changes. `PickUp` and `ObjectsView.ground` reach as `Act`
   does: the pile on the party's cell, then the one in the cell it faces unless a wall, a shut door or a cliff
   stands between. `ground` is one entry an item across both piles; `PickUp` takes from the party's cell first
   and the faced pile makes up the rest, as one `ItemMoved`. `NotOnGround` now means no pile in reach holds the

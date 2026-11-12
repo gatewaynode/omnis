@@ -24,6 +24,7 @@ pub mod fight;
 pub mod inventory;
 pub mod load_report;
 pub mod log;
+pub mod loot;
 pub mod nav;
 pub mod new_game;
 pub mod pause;
@@ -82,6 +83,8 @@ pub enum ScreenId {
     Verbs,
     /// Every line of the session, filtered (owner, 2026-10-17).
     Log,
+    /// What lies in a place within reach, to take (owner, 2026-11-12).
+    Loot,
     /// A save the loaded packs cannot load, and why (M8.5 7h4).
     LoadReport,
     /// The editor's menu: Esc over the editor (M5.4).
@@ -198,6 +201,8 @@ pub enum ControlId {
         /// What it does.
         act: inventory::ItemAct,
     },
+    /// A control of the loot window.
+    Loot(loot::LootAct),
     /// Cast the road spell at index `.0` of the views' casts.
     Cast(u16),
     /// The hit dice a member spends on a short rest, by index into the rest view's members.
@@ -581,6 +586,8 @@ pub enum Effect {
     Host(HostOp),
     /// Close the top screen.
     Back,
+    /// Send several commands in order, stopping at the first refused; the screen stays open.
+    Commands(Vec<Command>),
     /// Open a screen over this one.
     Open(ScreenId),
     /// End the game and go back to the title.
@@ -725,6 +732,9 @@ pub struct Forms {
     /// What the packs made of the save the last Load refused, or of the world the last Reload
     /// packs refused; dropped by Close.
     pub load_report: Option<load_report::Refusal>,
+    /// The loot window's place and receiver; back to the ground with no one chosen whenever
+    /// another screen is on top.
+    pub loot: loot::Loot,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -750,6 +760,9 @@ impl Forms {
             self.tactics = tactics::TacticsForm::default();
             self.settings = None;
             self.log_filter.clear();
+            if top != Some(ScreenId::Loot) {
+                self.loot = loot::Loot::default();
+            }
         }
         if base == Some(ScreenId::Service) && self.seen.1 != base {
             self.bank.clear();
@@ -796,6 +809,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Verbs, Some(game)) => verbs::content(ctx.data, game),
         (ScreenId::Log, Some(game)) => log::content(game, forms),
+        (ScreenId::Loot, Some(game)) => loot::content(ctx.data, game, forms),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
         (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
@@ -874,6 +888,7 @@ pub fn apply(
         (ScreenId::Log, _) => log::apply(forms, control, payload),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
+        (ScreenId::Loot, Some(game)) => loot::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
         (ScreenId::Camp, Some(game)) => camp::apply(game, forms, control, payload),
         (ScreenId::Sheet, Some(game)) => sheet::apply(game, forms, control, payload),
@@ -889,6 +904,7 @@ pub fn apply(
             | ScreenId::CreateParty
             | ScreenId::Service
             | ScreenId::Inventory
+            | ScreenId::Loot
             | ScreenId::Cast
             | ScreenId::Camp
             | ScreenId::Sheet

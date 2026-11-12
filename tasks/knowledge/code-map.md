@@ -198,6 +198,11 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   shell redraws on `session::reshapes` (doors, object state, removal, notice, ground moves, `CombatEnded`).
   Tests `tests/shapes.rs`. Beings (M8.5 2c): `shapes::figures` on `SegKind::Being`, `SimWorld::beings_on`,
   Approach in `screen/verbs.rs` and `screen/actions.rs` (`approached`); tests `tests/beings.rs`.
+- The loot window and the click on a pile (2026-11-12, `tasks/plans/loot-window-and-ceiling.md`): engine
+  `ground::{cells, in_reach}` and `objects_view::piles_in_reach` (reach as `objects::reach`); client
+  `screen/loot.rs` (`Loot`, `LootAct`, `gone`, `receiver`; `Forms.loot`, `ControlId::Loot`, `Effect::Commands`),
+  `aim.rs` (`Eye`, `project`, `rect`, `pile_under`, Bevy-free), `shell/aim.rs` (`Aimed`, the cursor, the click,
+  registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`.
   `collide::blocks` refuses a step through a footprint via `SimWorld::object_blocks`
   (the engine's `api::object_blocks`); `tests/agreement.rs` covers the yard, gate shut and open.
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--settings`, `--screen`; `Packs`, always a resource; `Session`, only

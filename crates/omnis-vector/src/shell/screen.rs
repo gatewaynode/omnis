@@ -359,6 +359,14 @@ fn route(
         let moved = screens.at.is_some() && here.is_some() && screens.at != here;
         screens.at = here;
         screens.nav.settle(game, moved);
+        // The loot window closes itself over a place with nothing left or out of reach.
+        if screens.nav.top(game) == Some(ScreenId::Loot)
+            && session
+                .as_deref()
+                .is_some_and(|s| screen::loot::gone(&s.data, &s.views, &screens.forms))
+        {
+            screens.nav.back();
+        }
         if used.keys.just_pressed(KeyCode::Escape) {
             let at_root = screens.forms.fight.menu.step == Step::Top;
             match screens.nav.escape(game, at_root) {
@@ -528,6 +536,7 @@ fn action_keys(
                 nav.settle(Some(&session.views), true);
             }
             Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
+            Some(Does::Loot) => nav.open(ScreenId::Loot, Some(&session.views)),
             None => nav.open(ScreenId::Actions, Some(&session.views)),
         }
     } else {
@@ -560,6 +569,22 @@ fn carry_out(
             }
             if close {
                 screens.nav.back();
+            }
+        }
+        Effect::Commands(commands) => {
+            if let Some(session) = session.as_deref_mut() {
+                for command in commands {
+                    match session.ordered(command.clone()) {
+                        Ok(line) => {
+                            screens.forms.accepted(&command);
+                            screens.forms.message = line.map(Span::body);
+                        }
+                        Err(why) => {
+                            screens.forms.message = Some(Span::alert(why));
+                            break;
+                        }
+                    }
+                }
             }
         }
         Effect::Back => {

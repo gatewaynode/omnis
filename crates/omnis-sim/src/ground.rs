@@ -67,7 +67,7 @@ pub(crate) fn drop(
 
 /// The cells whose piles the party reaches, its own first: as an object is reached
 /// ([`reach`]), the cell it faces unless a wall, a shut door or a cliff stands between.
-fn cells(world: &World, data: &Data) -> Vec<(Level, u16, u16)> {
+pub(crate) fn cells(world: &World, data: &Data) -> Vec<(Level, u16, u16)> {
     let pos = world.position;
     let near = match data.maps.get(&pos.map) {
         Some(map) => reach(world, map, pos),

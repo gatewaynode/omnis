@@ -10,7 +10,7 @@ use crate::beings::{self, BeingView};
 use crate::combat::Roller;
 use crate::command::Rejection;
 use crate::event::CheckKind;
-use crate::ground::{in_reach, pile_at};
+use crate::ground::{cells, in_reach, pile_at};
 use crate::names::id_of;
 use crate::objects::{
     admit, check_of, contents, found_in, offered, reachable, removed_in, state_in, state_of,
@@ -309,6 +309,17 @@ fn drawn(world: &World, map: MapId, data: &Data, p: &ResolvedPlacement) -> Optio
         look: *look,
         blocks,
     })
+}
+
+/// The piles within the party's reach, each where it lies: the one on its cell, then the one in
+/// the cell it faces across an open edge. What [`ObjectsView::ground`] adds up, for a client
+/// that lets a drawn pile be picked.
+#[must_use]
+pub fn piles_in_reach(world: &World, data: &Data) -> Vec<PileView> {
+    cells(world, data)
+        .into_iter()
+        .filter_map(|cell| pile(world, data, world.position.map, cell))
+        .collect()
 }
 
 fn pile(world: &World, data: &Data, map: MapId, cell: (Level, u16, u16)) -> Option<PileView> {

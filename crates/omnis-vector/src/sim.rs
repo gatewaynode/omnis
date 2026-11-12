@@ -196,6 +196,12 @@ impl SimWorld {
         objects_view(&self.0, data)
     }
 
+    /// The piles within the party's reach, each where it lies (`api::piles_in_reach`).
+    #[must_use]
+    pub fn piles_in_reach(&self, data: &Data) -> Vec<PileView> {
+        omnis_sim::api::piles_in_reach(&self.0, data)
+    }
+
     /// Every object and pile on a level of a map as the party would see them drawn
     /// (`api::objects_on_level`).
     #[must_use]

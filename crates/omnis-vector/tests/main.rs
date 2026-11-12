@@ -47,6 +47,7 @@ mod levels;
 mod load_report;
 mod log;
 mod look;
+mod loot;
 mod minimap;
 mod notice;
 mod object_lines;

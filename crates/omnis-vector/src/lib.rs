@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod aim;
 pub mod arena;
 pub mod bind;
 pub mod cinema;
