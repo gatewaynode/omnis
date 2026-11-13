@@ -16,7 +16,9 @@ use bevy::prelude::Resource;
 use omnis_sim::api::{Draft, ReloadRefused, SaveCheck};
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
-use omnis_sim::{CheckKind, Command, Event, ItemPlace, PartyCommand, Settings, World};
+use omnis_sim::{
+    CheckKind, CombatOutcome, Command, Event, ItemPlace, PartyCommand, Settings, World,
+};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -712,17 +714,21 @@ impl Session {
     }
 }
 
-/// Whether an event is a find: what an object gave, laid on the ground for the party to take.
+/// Whether an event is a find: what an object gave, or what a won fight's dead dropped, laid on
+/// the ground for the party to take.
 #[must_use]
 pub fn finds(event: &Event) -> bool {
-    matches!(
-        event,
+    match event {
         Event::ItemMoved {
             from: ItemPlace::Object(_),
             to: ItemPlace::Ground,
             ..
+        } => true,
+        Event::CombatEnded { outcome, loot, .. } => {
+            *outcome == CombatOutcome::Victory && !loot.is_empty()
         }
-    )
+        _ => false,
+    }
 }
 
 /// Whether an event changes what the view draws of the map: a door, an object's state, an

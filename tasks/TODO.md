@@ -703,7 +703,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] Step 1: the move. `shell/loot.rs` (`open(.., from)`, the find's opener, the "Pick up..." button,
     `action_keys` from `shell/screen.rs`, now 956 lines); `Session.found` became `Session.offer:
     Option<ItemPlace>`. No behaviour change; the tests pass with two import paths moved.
-  - [ ] Step 2: fight spoils.
+  - [x] Step 2: fight spoils. `session::finds` answers for a victory that left items; the opener waits out
+    the fight screen's last frame. Tests red first in `tests/found.rs` (the yard's pack rats fought and won
+    with the fight's own commands; a won fight that left nothing; `finds` over built events); five
+    mutations caught. A flight is covered by the `finds` test only, not by a fought one.
   - [ ] Step 3: containers, and "Take from ..." in Actions.
   - [ ] Step 4: documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

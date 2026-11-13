@@ -29,10 +29,18 @@ pub(super) fn open(screens: &mut Screens, views: Option<&Views>, from: ItemPlace
 /// What an object gave lies on the ground: the loot window opens on it at once, over whatever
 /// screen the verb came from, so it is not left behind for want of looking (owner,
 /// 2026-11-13). Where the world does not allow the window, the find stays a pile.
-fn found(session: Option<ResMut<Session>>, screens: Option<ResMut<Screens>>) {
+fn found(
+    session: Option<ResMut<Session>>,
+    screens: Option<ResMut<Screens>>,
+    state: Option<Res<State<ViewState>>>,
+) {
     let (Some(mut session), Some(mut screens)) = (session, screens) else {
         return;
     };
+    // A won fight's screen is up for one frame more: the spoils wait for the map's view.
+    if state.is_some_and(|s| *s.get() == ViewState::Fight) || session.offer.is_none() {
+        return;
+    }
     let Some(from) = session.offer.take() else {
         return;
     };

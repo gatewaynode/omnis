@@ -12,6 +12,7 @@ use omnis_sim::omnis_data::Verb;
 use omnis_sim::{Command, ItemCommand};
 use omnis_vector::screen::loot::LootAct;
 use omnis_vector::screen::{ControlId, ScreenId};
+use omnis_vector::shell::ViewState;
 use omnis_vector::shell::controls::Control;
 use omnis_vector::shell::loot::PickUp;
 use omnis_vector::shell::screen::Pressable;
@@ -129,4 +130,132 @@ fn a_find_made_from_the_actions_menu_opens_the_window_in_its_place() {
     app.update();
     assert_eq!(carried(&app, GEM), 1);
     assert_eq!(top(&app), None, "back on the view");
+}
+
+/// Fight whatever the party has met to its end with the fight's own commands: attack the
+/// first stack with anyone alive in it, and end the turn when that is refused.
+fn fight_it_out(app: &mut App) {
+    for _ in 0..400 {
+        let command = {
+            let s = app.world().resource::<Session>();
+            match &s.views.combat {
+                None => return,
+                Some(c) if c.phase == omnis_sim::api::ModeKind::Encounter => {
+                    Command::Encounter(omnis_sim::EncounterChoice::Attack)
+                }
+                Some(c) => {
+                    let stack = c
+                        .stacks
+                        .iter()
+                        .find(|s| !s.hps.is_empty())
+                        .expect("something to hit")
+                        .stack;
+                    Command::Combat(omnis_sim::CombatCommand::Attack { stack })
+                }
+            }
+        };
+        let mut session = app.world_mut().resource_mut::<Session>();
+        if !session.order(command) {
+            session.order(Command::Combat(omnis_sim::CombatCommand::EndTurn));
+        }
+    }
+    panic!("the fight did not end");
+}
+
+fn view_state(app: &App) -> ViewState {
+    *app.world().resource::<State<ViewState>>().get()
+}
+
+#[test]
+fn the_spoils_of_a_won_fight_open_the_window_once_the_view_is_the_map_s() {
+    // South of the pack rats' cell (5, 1), stepping into them.
+    let mut app = yard_app(5, 2, Facing::North);
+    order(
+        &mut app,
+        Command::Step(omnis_sim::omnis_core::Direction::Forward),
+    );
+    assert!(
+        app.world().resource::<Session>().views.combat.is_some(),
+        "the rats are met"
+    );
+    app.update();
+    assert_eq!(view_state(&app), ViewState::Fight);
+    fight_it_out(&mut app);
+    {
+        let s = app.world().resource::<Session>();
+        assert!(s.views.exploring() && !s.views.fallen(), "won");
+        assert!(
+            s.lines.iter().any(|l| l.contains("on the ground: ")),
+            "this seed's rats dropped something: {:?}",
+            s.lines
+        );
+    }
+    let spoils = on_the_ground(&app);
+    assert!(!spoils.is_empty());
+    // The frame the fight ends its screen is still up: nothing opens over it.
+    app.update();
+    assert_eq!(view_state(&app), ViewState::Fight);
+    assert_eq!(top(&app), None, "not over the fight's screen");
+    app.update();
+    assert_eq!(view_state(&app), ViewState::Explore);
+    assert_eq!(top(&app), Some(ScreenId::Loot), "the spoils' window");
+    // Drawn the frame after it opens.
+    app.update();
+    let text = screen_text(app.world());
+    assert!(text.contains("On the ground"), "{text}");
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Everything)));
+    app.update();
+    assert_eq!(on_the_ground(&app), []);
+    assert_eq!(top(&app), None);
+    for (item, count) in spoils {
+        assert_eq!(carried(&app, &item), count, "{item}");
+    }
+}
+
+#[test]
+fn only_a_victory_that_left_something_is_a_find() {
+    use omnis_sim::event::{CombatOutcome, Loot};
+    use omnis_vector::shell::session::finds;
+    let ended = |outcome, loot: Vec<Loot>| omnis_sim::Event::CombatEnded {
+        outcome,
+        xp: 10,
+        gold: 5,
+        fallen: Vec::new(),
+        loot,
+    };
+    let gem = || {
+        vec![Loot {
+            item: GEM.into(),
+            count: 1,
+        }]
+    };
+    assert!(finds(&ended(CombatOutcome::Victory, gem())));
+    assert!(
+        !finds(&ended(CombatOutcome::Victory, Vec::new())),
+        "nothing dropped"
+    );
+    assert!(!finds(&ended(CombatOutcome::Fled, gem())), "left behind");
+    assert!(!finds(&ended(CombatOutcome::Defeat, gem())));
+}
+
+#[test]
+fn a_won_fight_that_left_nothing_opens_nothing() {
+    // The test dungeon's giant rats carry no loot.
+    let mut app = common::app::met_with(1);
+    fight_it_out(&mut app);
+    {
+        let s = app.world().resource::<Session>();
+        assert!(s.views.exploring() && !s.views.fallen(), "won");
+        assert!(
+            s.lines.iter().any(|l| l.contains("Victory!")),
+            "{:?}",
+            s.lines
+        );
+    }
+    assert_eq!(on_the_ground(&app), []);
+    for _ in 0..3 {
+        app.update();
+        assert_eq!(top(&app), None);
+    }
+    assert_eq!(view_state(&app), ViewState::Explore);
 }
