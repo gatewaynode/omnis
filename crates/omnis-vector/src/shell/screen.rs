@@ -547,6 +547,9 @@ fn carry_out(
             screens.nav.back();
         }
         Effect::Open(id) => screens.nav.open(id, session.as_deref().map(|s| &s.views)),
+        Effect::Loot(from) => {
+            super::loot::open(screens, session.as_deref().map(|s| &s.views), from);
+        }
         Effect::Quit => {
             host.exit.write(AppExit::Success);
         }

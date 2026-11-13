@@ -590,6 +590,8 @@ pub enum Effect {
     Commands(Vec<Command>),
     /// Open a screen over this one.
     Open(ScreenId),
+    /// Open the loot window on a place within reach.
+    Loot(omnis_sim::ItemPlace),
     /// End the game and go back to the title.
     ToTitle,
     /// End a game not yet begun and reopen the new game's form, as it was left.

@@ -13,7 +13,7 @@ use crate::labels;
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Vertical};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, MessageKey, Rejection};
+use omnis_sim::{Command, Event, ItemPlace, MessageKey, Rejection};
 
 /// What an action does.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,8 +22,8 @@ pub enum Does {
     Command(Command),
     /// Opens the verbs screen: the engine would ask which thing to use, or refuse the one there is.
     Choose,
-    /// Opens the loot window on the ground within reach.
-    Loot,
+    /// Opens the loot window on a place within reach: the ground, or an open container.
+    Loot(ItemPlace),
 }
 
 /// One action the square offers.
@@ -110,8 +110,17 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     if !world.objects(data).ground.is_empty() {
         offers.push(Offer {
             label: "Pick up...".to_owned(),
-            does: Does::Loot,
+            does: Does::Loot(ItemPlace::Ground),
         });
+    }
+    // An open container in reach that holds something: the way back to what it opened on.
+    for object in &world.objects(data).objects {
+        if object.contents.as_ref().is_some_and(|c| !c.is_empty()) {
+            offers.push(Offer {
+                label: format!("Take from {}...", labels::text(data, &object.name)),
+                does: Does::Loot(ItemPlace::Object(object.object.clone())),
+            });
+        }
     }
     let search = Command::Search;
     let mut commands: Vec<(Command, &str)> =
@@ -188,7 +197,7 @@ pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
                     close: true,
                 },
                 Does::Choose => Effect::Open(ScreenId::Verbs),
-                Does::Loot => Effect::Open(ScreenId::Loot),
+                Does::Loot(from) => Effect::Loot(from),
             }),
         _ => Effect::Back,
     }

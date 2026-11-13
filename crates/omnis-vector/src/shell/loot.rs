@@ -44,7 +44,8 @@ fn found(
     let Some(from) = session.offer.take() else {
         return;
     };
-    if !session.views.objects.ground.is_empty() {
+    // A find taken by the same command that made it leaves nothing to show.
+    if from != ItemPlace::Ground || !session.views.objects.ground.is_empty() {
         open(&mut screens, Some(&session.views), from);
     }
 }
@@ -186,7 +187,7 @@ pub(super) fn action_keys(
                 nav.settle(Some(&session.views), true);
             }
             Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
-            Some(Does::Loot) => open(screens, Some(&session.views), ItemPlace::Ground),
+            Some(Does::Loot(from)) => open(screens, Some(&session.views), from),
             None => nav.open(ScreenId::Actions, Some(&session.views)),
         }
     } else {

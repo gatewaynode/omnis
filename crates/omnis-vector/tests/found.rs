@@ -259,3 +259,175 @@ fn a_won_fight_that_left_nothing_opens_nothing() {
     }
     assert_eq!(view_state(&app), ViewState::Explore);
 }
+
+/// Force the yard's chest until it gives (Athletics against 15), from the cell south of it.
+fn force_the_chest(app: &mut App) {
+    for _ in 0..80 {
+        order(
+            app,
+            Command::Act {
+                object: "chest_1".into(),
+                verb: Verb::Open,
+                option: 0,
+            },
+        );
+        if chest(app).is_some() {
+            return;
+        }
+        assert_eq!(top(app), None, "a failed try opens nothing");
+    }
+    panic!("the chest never gave");
+}
+
+/// What the chest shows of its contents: `None` while shut.
+fn chest(app: &App) -> Option<Vec<(String, u16)>> {
+    let s = app.world().resource::<Session>();
+    let objects = &s.views.objects.objects;
+    let chest = objects.iter().find(|o| o.object == "chest_1")?;
+    let contents = chest.contents.as_ref()?;
+    Some(contents.iter().map(|i| (i.item.clone(), i.count)).collect())
+}
+
+fn act(app: &mut App, object: &str, verb: Verb) {
+    order(
+        app,
+        Command::Act {
+            object: object.into(),
+            verb,
+            option: 0,
+        },
+    );
+}
+
+/// The Actions menu's entries, as words.
+fn actions(app: &App) -> Vec<String> {
+    let s = app.world().resource::<Session>();
+    omnis_vector::screen::actions::available(&s.world, &s.data)
+        .into_iter()
+        .map(|o| o.label)
+        .collect()
+}
+
+const DAGGER: &str = "base:item:dagger";
+
+#[test]
+fn an_opened_container_opens_the_window_on_it_and_actions_lead_back() {
+    let mut app = yard_app(5, 4, Facing::North);
+    assert_eq!(chest(&app), None, "shut");
+    assert!(!actions(&app).iter().any(|a| a.starts_with("Take from")));
+    force_the_chest(&mut app);
+    assert_eq!(chest(&app), Some(vec![(DAGGER.to_owned(), 1)]));
+    assert_eq!(top(&app), Some(ScreenId::Loot), "opened with the chest");
+    app.update();
+    let text = screen_text(app.world());
+    assert!(text.contains("\"Chest\""), "the chest's own window: {text}");
+    assert!(!text.contains("On the ground"), "{text}");
+    assert!(text.contains("Dagger"), "{text}");
+
+    // Closed without taking: it does not come back by itself, and Actions lead back to it.
+    tap(&mut app, KeyCode::Escape);
+    app.update();
+    app.update();
+    assert_eq!(top(&app), None);
+    let offered = actions(&app);
+    let entry = offered
+        .iter()
+        .position(|a| a == "Take from Chest...")
+        .unwrap_or_else(|| panic!("{offered:?}"));
+    tap(&mut app, KeyCode::Space);
+    assert_eq!(top(&app), Some(ScreenId::Actions));
+    press_ui(
+        &mut app,
+        Pressable(ControlId::Action(u8::try_from(entry).unwrap())),
+    );
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Loot));
+    let text = screen_text(app.world());
+    assert!(
+        text.contains("\"Chest\"") && text.contains("Dagger"),
+        "{text}"
+    );
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Take(0))));
+    app.update();
+    app.update();
+    assert_eq!(carried(&app, DAGGER), 1 + carried_at_start(), "taken out");
+    assert_eq!(chest(&app), Some(vec![]), "open and empty");
+    assert_ne!(top(&app), Some(ScreenId::Loot), "emptied: closed itself");
+    assert!(
+        !actions(&app).iter().any(|a| a.starts_with("Take from")),
+        "nothing to take from an empty chest"
+    );
+    assert_eq!(app.world().resource::<Session>().binder.refusals, 0);
+}
+
+/// Daggers the yard party carries before taking any.
+fn carried_at_start() -> u16 {
+    let app = yard_app(5, 4, Facing::North);
+    carried(&app, DAGGER)
+}
+
+#[test]
+fn only_a_container_with_something_in_it_opens_the_window() {
+    // A torch's new state is no container's.
+    let mut app = yard_app(6, 3, Facing::South);
+    order(&mut app, Command::Door);
+    act(&mut app, "torch_1", Verb::Extinguish);
+    assert_eq!(top(&app), None, "a torch put out");
+
+    // The chest opened, emptied through the inventory's own command, shut and opened again.
+    let mut app = yard_app(5, 4, Facing::North);
+    force_the_chest(&mut app);
+    tap(&mut app, KeyCode::Escape);
+    app.update();
+    let member = app.world().resource::<Session>().views.party.members[0].member;
+    order(
+        &mut app,
+        Command::Item(ItemCommand::TakeOut {
+            member,
+            object: "chest_1".into(),
+            item: DAGGER.into(),
+            count: 1,
+        }),
+    );
+    assert_eq!(top(&app), None, "a take is not an opening");
+    act(&mut app, "chest_1", Verb::Close);
+    assert_eq!(chest(&app), None);
+    assert_eq!(top(&app), None, "shutting opens nothing");
+    force_the_chest(&mut app);
+    assert_eq!(chest(&app), Some(vec![]));
+    app.update();
+    assert_eq!(top(&app), None, "an empty chest opens nothing");
+    assert_eq!(
+        opened(&app, "chest_1"),
+        None,
+        "open and empty: no offer made"
+    );
+}
+
+/// What a new state of `object` would offer now, by the session's own rule.
+fn opened(app: &App, object: &str) -> Option<omnis_sim::ItemPlace> {
+    let s = app.world().resource::<Session>();
+    let event = omnis_sim::Event::ObjectState {
+        object: object.into(),
+        state: "any".into(),
+    };
+    omnis_vector::shell::session::opens(&event, &s.views)
+}
+
+#[test]
+fn a_new_state_offers_its_object_only_when_it_shows_contents() {
+    // The window closes itself on a place with nothing to show, so the offer is asked directly:
+    // none is made for a torch, a shut chest or an object out of reach.
+    let mut app = yard_app(6, 3, Facing::South);
+    order(&mut app, Command::Door);
+    assert_eq!(opened(&app, "torch_1"), None, "no container");
+    assert_eq!(opened(&app, "chest_1"), None, "not in reach from here");
+    let mut app = yard_app(5, 4, Facing::North);
+    assert_eq!(opened(&app, "chest_1"), None, "shut");
+    force_the_chest(&mut app);
+    assert_eq!(
+        opened(&app, "chest_1"),
+        Some(omnis_sim::ItemPlace::Object("chest_1".into()))
+    );
+    assert_eq!(opened(&app, "nothing"), None);
+}

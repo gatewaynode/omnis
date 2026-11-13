@@ -247,7 +247,10 @@ fn use_opens_the_verbs_when_the_engine_would_ask_or_refuse_and_search_is_always_
     // On the arrow pile: the ground is offered, and is the default with nothing else to use.
     let world = yard(&data, 2, 2, Facing::North);
     assert_eq!(labels(&world, &data), ["Pick up...", "Search here"]);
-    assert_eq!(default_action(&world, &data), Some(Does::Loot));
+    assert_eq!(
+        default_action(&world, &data),
+        Some(Does::Loot(omnis_sim::ItemPlace::Ground))
+    );
     let views = common::views(&world, &data);
     let c = ctx(&data, &world, &views);
     let actions = screen::content(ScreenId::Actions, &c, &Forms::default());

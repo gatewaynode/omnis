@@ -605,6 +605,8 @@ impl Session {
         self.reshape |= events.iter().any(reshapes);
         if events.iter().any(finds) {
             self.offer = Some(ItemPlace::Ground);
+        } else if let Some(opened) = events.iter().find_map(|e| opens(e, &self.views)) {
+            self.offer = Some(opened);
         }
         self.names.observe(&self.views.party);
         self.names.locate(self.views.position.map);
@@ -712,6 +714,20 @@ impl Session {
         let excess = self.lines.len().saturating_sub(LOG_LINES);
         self.lines.drain(..excess);
     }
+}
+
+/// The container an event opened with something in it, as the views now show it: its new state
+/// lets its contents be reached. A torch's state, a chest shut or an empty one is none.
+#[must_use]
+pub fn opens(event: &Event, views: &Views) -> Option<ItemPlace> {
+    let Event::ObjectState { object, .. } = event else {
+        return None;
+    };
+    let seen = views.objects.objects.iter().find(|o| o.object == *object)?;
+    seen.contents
+        .as_ref()
+        .is_some_and(|c| !c.is_empty())
+        .then(|| ItemPlace::Object(object.clone()))
 }
 
 /// Whether an event is a find: what an object gave, or what a won fight's dead dropped, laid on
