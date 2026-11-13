@@ -1,17 +1,45 @@
 # Continuity notes
 
-Written 2026-11-13, evening. **The loot window opens on fight spoils and on an opened container: built, not
-yet tried by the owner** (`tasks/plans/loot-everywhere.md`, approved 2026-11-13;
-`tasks/acceptance/loot-everywhere.md`). The owner tried found items ("Much better.") and asked for this
-pass. Client only. `shell/loot.rs` holds every opener (`open(.., from)`, `found`, the "Pick up..." button,
-`action_keys` moved from `shell/screen.rs`, now 959 lines); `Session.offer: Option<ItemPlace>` is set in
-`take_in` by `session::finds` (an object's gift; a victory that left items) and `session::opens` (a
-container opened with something in it); the opener waits while `ViewState::Fight`. Actions: "Take from
-<name>..." (`Does::Loot(ItemPlace)`, `Effect::Loot`). Tests `tests/found.rs` (nine). Gate 1312.
-**Open with the owner**: gold never goes through the window; a dead member's kit goes to the stores unseen;
-the object's message on the loot window; whether the window after a fight should wait for a key.
-**Next: the owner's try, then their choice** among size 2 parts 3 to 6, the ECS tasks, housekeeping
-(`editor/mod.rs` 1037 lines; Bevy 0.20.1 on 2026-11-27).
+Written 2026-11-13, night, before a compact. **The owner's order: after the catchup, rendering size 2 parts
+3 to 6** ("let's prepare for a compact and jump into rendering size 2 parts 3 to 6 after the catchup").
+
+**Start there**: `tasks/plans/rendering-size-2.md` (the design: six parts; 1 and 2 built). Each part is its
+own plan-mode step. What each needs before code:
+- **Part 3, colour roles as a palette** (`style.z` a role index, the palette as material data): needs the
+  proposed presentation-PRD amendment **X23** at the end of that file, **not applied; ask the owner to approve
+  its text first**. It is M8.5 step 5's rendering half; the role set and where a biosphere is assigned are
+  the owner's open questions (TODO "M8.5 step 5"). Today's colours live in `strokes::colour` by `SegKind`.
+- **Part 4, depth levels** (`style.w`; the neighbour dim 0.2 is baked into the colour's alpha today): no
+  amendment; the three levels' looks have no numbers yet (X17), so they are asked.
+- **Part 5, instanced objects, piles and beings**: no amendment; the largest code move (`shapes.rs` to
+  per-kind meshes); `aim.rs` keeps using `Body`; the aimed floor's outline (`ViewAim`) is a third line mesh.
+- **Part 6, relief as displacement**: needs X23 and a CPU twin for the collision mirror; the riskiest, last.
+- My recommended order in that file: 2 to 4 with M8.5 step 5, then 5, hold 6. The owner has now asked for
+  3 to 6; begin by asking X23's approval and the order, in plan mode.
+- Shader facts and the capture method: the 2026-11-12 notes below and `tasks/knowledge/verification.md`.
+  The gate cannot see a shader. A look is judged at Low first; a channel on a shape leaves the shape whole
+  (lessons 2026-11-13). `just qa [map]` is the owner's window on the fixtures. To capture on a chosen cell,
+  a scratch copy of a fixture pack with the map's `start` moved, sealed with `omnis-cli pack seal`
+  (`--walk` does not step the party).
+
+**Built and tried today (2026-11-13), all committed on `W-2_look_and_engine`, nothing pushed, gate 1312**:
+- Line weight and pattern (size 2 part 2): the owner "Manually tested", no fault named.
+- Pile reach (`tasks/plans/pile-reach.md`): the cell's floor as the click target, its outline
+  (`render::ViewAim`), the "Pick up..." button. The owner: "Better."
+- Found items (`tasks/plans/found-items.md`): the engine's `GiveItem` lays a pile (`ground::found`), said by
+  `ItemMoved` from the object to `Ground`; `Event::ItemFound` is no longer produced but stays in the enum
+  (`PROTOCOL` 2, no pin moved). The owner: "Much better."
+- Loot everywhere (`tasks/plans/loot-everywhere.md`, **not yet tried by the owner**;
+  `tasks/acceptance/loot-everywhere.md`): `shell/loot.rs` holds every opener of the loot window;
+  `Session.offer: Option<ItemPlace>` set by `session::finds` (an object's gift, a victory that left items)
+  and `session::opens` (a container opened with something in it); Actions' "Take from <name>...".
+- **Open with the owner**: gold never goes through the window; a dead member's kit goes to the stores
+  unseen; the object's message on the loot window; whether the window after a fight should wait for a key;
+  the earlier items below ("accepted" for Bevy 0.20 and `controls::Control`; `editor/mod.rs` 1037 lines;
+  Bevy 0.20.1 on 2026-11-27; the four ECS tasks).
+- Process kept today: tests red first where the plan said so (pile reach's were not, and said so); a
+  surviving mutant means a missing test, not a weak mutant (the container offer); scratchpad scripts
+  `mut-sim.py` (crate, filter; touches after restore) and `mut-reach.py`.
 
 The notes below were written earlier on 2026-11-13 and still hold, except "not yet tried" and "next".
 
