@@ -117,6 +117,7 @@ fn terrain() -> omnis_cli::omnis_sim::omnis_data::Terrain {
         climb: 2,
         join: None,
         role: None,
+        face: Default::default(),
     }
 }
 

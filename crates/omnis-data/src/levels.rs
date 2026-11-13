@@ -468,6 +468,7 @@ mod tests {
             climb: 2,
             join,
             role: None,
+            face: Default::default(),
         }
     }
 

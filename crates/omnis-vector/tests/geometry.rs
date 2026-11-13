@@ -384,6 +384,89 @@ fn only_on(segments: &[Segment], kind: SegKind, cells: &[(u16, u16)]) {
     }
 }
 
+/// The block segments of `lines` within cell `(x, y)`.
+fn block_lines(lines: &[Segment], (x, y): (u16, u16)) -> Vec<&Segment> {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    let inside = |p: [f32; 3]| p[0] > x0 && p[0] < x0 + 1.0 && p[2] > z0 && p[2] < z0 + 1.0;
+    lines
+        .iter()
+        .filter(|s| s.kind == SegKind::Block && inside(s.a) && inside(s.b))
+        .collect()
+}
+
+/// A terrain picks its block's face (owner, 2026-11-13): a hatched block has a cliff's
+/// quarter-cell verticals on each of its four sides, from its base to its top, and its box
+/// whole; a plain block is its box alone.
+#[test]
+fn a_hatched_block_has_verticals_on_its_four_sides_and_a_plain_one_none() {
+    let (_, lines) = hills();
+    let boulder = block_lines(&lines, (8, 4));
+    assert_eq!(
+        boulder.len(),
+        24,
+        "the box's twelve edges and twelve hatches"
+    );
+    let upright = |s: &&&Segment| (s.a[0] - s.b[0]).abs() < 1e-5 && (s.a[2] - s.b[2]).abs() < 1e-5;
+    let uprights: Vec<&&Segment> = boulder.iter().filter(upright).collect();
+    assert_eq!(uprights.len(), 16, "four corners and three hatches a side");
+    let (low, high) = uprights.iter().fold((f32::MAX, f32::MIN), |(lo, hi), s| {
+        (lo.min(s.a[1].min(s.b[1])), hi.max(s.a[1].max(s.b[1])))
+    });
+    for s in &uprights {
+        assert!(
+            (s.a[1].min(s.b[1]) - low).abs() < 1e-5,
+            "from the base: {s:?}"
+        );
+        assert!(
+            (s.a[1].max(s.b[1]) - high).abs() < 1e-5,
+            "to the top: {s:?}"
+        );
+    }
+    // Each side carries three: on the west and east sides x is the side's, on the others z.
+    let (w, e, n, s) = (8.1, 8.9, 4.1, 4.9);
+    let near = |v: f32, side: f32| (v - side).abs() < 1e-4;
+    let between = |v: f32, lo: f32, hi: f32| v > lo + 1e-3 && v < hi - 1e-3;
+    let count = |on: &dyn Fn(&Segment) -> bool| uprights.iter().filter(|u| on(u)).count();
+    assert_eq!(
+        count(&|u| near(u.a[0], w) && between(u.a[2], n, s)),
+        3,
+        "west"
+    );
+    assert_eq!(
+        count(&|u| near(u.a[0], e) && between(u.a[2], n, s)),
+        3,
+        "east"
+    );
+    assert_eq!(
+        count(&|u| near(u.a[2], n) && between(u.a[0], w, e)),
+        3,
+        "north"
+    );
+    assert_eq!(
+        count(&|u| near(u.a[2], s) && between(u.a[0], w, e)),
+        3,
+        "south"
+    );
+
+    // A plain block: the fixture meadow's trees are their boxes alone.
+    let data = data();
+    let id = map(&data, "test:map:meadow");
+    let m = &data.maps[&id];
+    let ground = omnis_sim::omnis_core::Level::GROUND;
+    let lines = extract(m, id, ground, &world(&data), &Ground::from_map(m, ground));
+    let mut trees = 0;
+    for y in 0..m.def.height {
+        for x in 0..m.def.width {
+            let cell = m.cell(ground, x, y).unwrap();
+            if m.terrain(cell).block.is_some() {
+                trees += 1;
+                assert_eq!(block_lines(&lines, (x, y)).len(), 12, "plain at ({x}, {y})");
+            }
+        }
+    }
+    assert!(trees > 0, "the meadow has trees");
+}
+
 /// The town's portal is marked on its floor with a rectangle and a circle, and each service's
 /// site with the activities' placeholder smiley (owner, 2026-10-24); nothing else carries them.
 #[test]

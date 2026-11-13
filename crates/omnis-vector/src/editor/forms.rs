@@ -16,7 +16,6 @@ use fields::{
     pair_list, pairs, read_creatures, read_pairs, u8_of, u16_of,
 };
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::ColourRole;
 use omnis_sim::omnis_data::edit::{Edit, Place, Target};
 use omnis_sim::omnis_data::encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, Stand,
@@ -30,6 +29,7 @@ use omnis_sim::omnis_data::map::Terrain;
 use omnis_sim::omnis_data::placement::{GroundDef, MAX_OFFSET, Placement};
 use omnis_sim::omnis_data::rest_event::{RestEventDef, RestKind};
 use omnis_sim::omnis_data::service::Site;
+use omnis_sim::omnis_data::{ColourRole, Face};
 use omnis_sim::omnis_data::{Data, MapDef, Portal};
 use portal::{portal, portal_id};
 
@@ -576,6 +576,10 @@ impl Form {
             join: JOINS.get(self.chosen_of("join")).copied().flatten(),
             role: (self.chosen_of("role").checked_sub(1))
                 .and_then(|i| ColourRole::ALL.get(i).copied()),
+            face: Face::ALL
+                .get(self.chosen_of("face"))
+                .copied()
+                .unwrap_or_default(),
         })
     }
 }
@@ -649,6 +653,15 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
                     )
                     .collect(),
                 was.and_then(|t| t.role).map_or(0, |r| r.index() + 1),
+            ),
+            // How its block is drawn (owner, 2026-11-13): hatched tells trees or rock from a wall.
+            form::choice(
+                "face",
+                Face::ALL
+                    .iter()
+                    .map(|f| format!("{f:?}").to_lowercase())
+                    .collect(),
+                was.map_or(0, |t| usize::from(t.face == Face::Hatched)),
             ),
         ],
         Vec::new(),

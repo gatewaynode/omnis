@@ -1203,7 +1203,13 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-13 (latest, biospheres; presentation-PRD X23, the owner's answers of that day): a pack format
+- 2026-11-13 (latest, a terrain's face; the owner's choice "Terrain picks its face"): a pack format addition,
+  no wire shape changed. `Terrain` gains `face` (`Face`: `Plain`, the default, or `Hatched`): how its block is
+  drawn in the 3D view, hatched as a cliff's face is, which tells trees or rock from a wall where the two
+  share a colour role. Left out of a file when plain, so no pack's seal moves. Presentation data: no rule,
+  command, event or rejection reads it. The fixture pack `heights` (0.1.2) gains a hatched boulder at (8, 4)
+  of its hills; `base` and `test` are untouched, so no golden moved.
+- 2026-11-13 (biospheres; presentation-PRD X23, the owner's answers of that day): a pack format
   addition, no wire shape changed. Pack files `data/biospheres/<name>.ron` (`BiosphereDef { schema, id, name,
   palette }`, `palette` a map from `ColourRole` to `Ink { rgb, glow }`, `glow` per mille, 1000 when left out,
   1 to 4000): the colour of each role of the world's lines in a place. `ColourRole` is `Structure`, `Ground`,

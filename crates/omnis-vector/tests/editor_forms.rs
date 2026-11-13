@@ -456,6 +456,9 @@ fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
     assert_eq!(form.choice_of("role"), "default");
     arrow(&mut app, EditAct::Field(field_of(&form, "role")), true);
     arrow(&mut app, EditAct::Field(field_of(&form, "role")), true);
+    // Its block's face, plain unless chosen: one step on is hatched.
+    assert_eq!(form.choice_of("face"), "plain");
+    arrow(&mut app, EditAct::Field(field_of(&form, "face")), true);
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
     let def = editing(&app).def().unwrap();
@@ -469,6 +472,7 @@ fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
     assert_eq!(mud.join, Some(omnis_sim::omnis_data::map::Join::Up));
     assert!(mud.passable);
     assert_eq!(mud.role, Some(omnis_sim::omnis_data::ColourRole::Ground));
+    assert_eq!(mud.face, omnis_sim::omnis_data::Face::Hatched);
     let data = app
         .world()
         .resource::<omnis_vector::shell::session::Packs>()
@@ -520,6 +524,11 @@ fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
         marsh.role,
         Some(omnis_sim::omnis_data::ColourRole::Ground),
         "an edit that does not touch the role keeps it"
+    );
+    assert_eq!(
+        marsh.face,
+        omnis_sim::omnis_data::Face::Hatched,
+        "nor does it lose its face"
     );
     // Remove: an unused terrain goes; one in use is refused in the document's words.
     press_edit(&mut app, EditAct::TerrainEdit);

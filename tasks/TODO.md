@@ -769,7 +769,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   owner saw the trees terrain's blocks, which part 3 made the walls' colour. The form in the editor's right
   column is unclear and has no tooltips.
   - [x] Step 0: this plan, the lesson (a look change's report names every kind it merges, blocks included).
-  - [ ] Step 1: `Terrain.face` (plain or hatched), the hatched block's lines, the form's choice, a fixture.
+  - [x] Step 1: `Terrain.face` (`Face::{Plain, Hatched}`, left out of a file when plain, so no seal moves):
+    a hatched block adds three verticals a side at the cliff's quarter spacing (`geometry::hatched`), its box
+    whole; the terrain form's `face` choice; the fixture `heights` (0.1.2) gains a hatched boulder at (8, 4).
+    Gate 1326 to 1329; five mutations caught. Seen in captures at Low and High from a scratch copy of the
+    fixture started beside the boulder (`target/shots/face/`). The owner's trees stay plain until the owner
+    sets their face.
   - [ ] Step 2: aligned field rows (dim label column, each input its own box), the tick box, sections.
   - [ ] Step 3: the kit's tooltip (`Control.tip`, `shell/tips.rs` on Bevy's `Popover`).
   - [ ] Step 4: tip text for the whole editor (`editor/tips.rs`), listed in the plan for the owner.

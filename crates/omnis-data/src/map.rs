@@ -74,6 +74,28 @@ pub enum Join {
     Hole,
 }
 
+/// How a terrain's solid block is drawn in the 3D view (owner, 2026-11-13): what tells a stand
+/// of trees or a rock from a wall where the two share a colour role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Face {
+    /// Its box alone.
+    #[default]
+    Plain,
+    /// Its box, each side hatched as a cliff's face is.
+    Hatched,
+}
+
+impl Face {
+    /// Every face, in the choice's order.
+    pub const ALL: [Face; 2] = [Face::Plain, Face::Hatched];
+
+    /// Whether it is the face a terrain has when it names none; left out of its file.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        *self == Face::Plain
+    }
+}
+
 /// A terrain type the map's tiles can be.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Terrain {
@@ -112,6 +134,9 @@ pub struct Terrain {
     /// and structure where it is solid: lava is a danger, a ley pool magic (owner, 2026-11-13).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<ColourRole>,
+    /// How its block is drawn in the 3D view; nothing for a terrain with no block.
+    #[serde(default, skip_serializing_if = "Face::is_plain")]
+    pub face: Face,
 }
 
 fn grey() -> (u8, u8, u8) {
@@ -457,6 +482,7 @@ mod tests {
                 climb: 2,
                 join: None,
                 role: None,
+                face: Face::Plain,
             }],
             layout: layout.iter().map(|s| (*s).to_owned()).collect(),
             heights: vec![],
@@ -665,5 +691,25 @@ mod tests {
             errors[0].message,
             "tile (0, 0) west edge is on the map boundary and must be a wall"
         );
+    }
+
+    const GRASS: &str = "(glyph: 'g', name: \"grass\", floor: \"grass\", passable: true, \
+                         visibility_depth: 6, step_minutes: 2)";
+
+    #[test]
+    fn a_terrain_that_names_no_face_is_plain_and_is_written_without_one() {
+        let grass: Terrain = ron::from_str(GRASS).unwrap();
+        assert_eq!(grass.face, Face::Plain);
+        let written = ron::to_string(&grass).unwrap();
+        assert!(!written.contains("face"), "{written}");
+    }
+
+    #[test]
+    fn a_hatched_face_is_read_and_written() {
+        let rock: Terrain = ron::from_str(&GRASS.replace(")", ", face: Hatched)")).unwrap();
+        assert_eq!(rock.face, Face::Hatched);
+        let written = ron::to_string(&rock).unwrap();
+        assert!(written.contains("face:Hatched"), "{written}");
+        assert_eq!(ron::from_str::<Terrain>(&written).unwrap(), rock);
     }
 }

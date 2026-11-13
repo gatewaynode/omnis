@@ -9,7 +9,7 @@ use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
-use omnis_sim::omnis_data::{ColourRole, Data, Join, MapData};
+use omnis_sim::omnis_data::{ColourRole, Data, Face, Join, MapData};
 use std::collections::BTreeMap;
 
 /// What a segment belongs to; the renderer picks the colour from it.
@@ -115,7 +115,7 @@ pub fn extract(
                 terrain.role,
                 (
                     terrain.passable,
-                    terrain.block.is_some(),
+                    terrain.block.as_ref().map(|_| terrain.face),
                     terrain.ceiling.is_some(),
                 ),
                 ground.roof(patch.centre, h),
@@ -383,13 +383,14 @@ fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, role: N
 
 /// The per-cell lines: the floor grid's north and west sides (the far sides come from the
 /// neighbours, or from the walls that close the map), a block's box, a barrier's cross, and the
-/// ceiling grid at `roof` (`Ground::roof`). `(passable, block, ceiling)` are the terrain's.
+/// ceiling grid at `roof` (`Ground::roof`). `(passable, block, ceiling)` are the terrain's:
+/// `block` is its block's face when it has a block.
 fn cells(
     out: &mut Vec<Segment>,
     (x, y): (u16, u16),
     p: Patch,
     role: Named,
-    (passable, block, ceiling): (bool, bool, bool),
+    (passable, block, ceiling): (bool, Option<Face>, bool),
     roof: f32,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
@@ -397,20 +398,17 @@ fn cells(
     let c = p.corners;
     line(out, [x0, c[NW], z0], [x1, c[NE], z0], SegKind::Floor, role);
     line(out, [x0, c[NW], z0], [x0, c[SW], z1], SegKind::Floor, role);
-    if ceiling && !block {
+    if ceiling && block.is_none() {
         line(out, [x0, roof, z0], [x1, roof, z0], SegKind::Ceiling, role);
         line(out, [x0, roof, z0], [x0, roof, z1], SegKind::Ceiling, role);
     }
-    if block {
+    if let Some(face) = block {
         let i = 0.1;
-        boxed(
-            out,
-            [x0 + i, z0 + i],
-            [x1 - i, z1 - i],
-            p.centre,
-            roof,
-            role,
-        );
+        let (lo, hi) = ([x0 + i, z0 + i], [x1 - i, z1 - i]);
+        boxed(out, lo, hi, p.centre, roof, role);
+        if face == Face::Hatched {
+            hatched(out, lo, hi, p.centre, roof, role);
+        }
     } else if !passable {
         line(
             out,
@@ -679,6 +677,17 @@ fn boxed(out: &mut Vec<Segment>, lo: [f32; 2], hi: [f32; 2], base: f32, top: f32
             SegKind::Block,
             role,
         );
+    }
+}
+
+/// The hatching of a box's four sides (a terrain's `Face::Hatched`): verticals at the cliff's
+/// quarter spacing between its corners, from `base` to `top`. The corners are the box's own.
+fn hatched(out: &mut Vec<Segment>, lo: [f32; 2], hi: [f32; 2], base: f32, top: f32, role: Named) {
+    for t in &HATCH[1..HATCH.len() - 1] {
+        let (x, z) = (lo[0] + (hi[0] - lo[0]) * t, lo[1] + (hi[1] - lo[1]) * t);
+        for [px, pz] in [[x, lo[1]], [x, hi[1]], [lo[0], z], [hi[0], z]] {
+            line(out, [px, base, pz], [px, top, pz], SegKind::Block, role);
+        }
     }
 }
 

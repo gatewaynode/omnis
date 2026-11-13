@@ -3,6 +3,7 @@
 // Row 1: scree at 0 beside stairs at 3: one way only (into the stairs, never back).
 // Row 2: a ramp `/` from 0 up a terrace at 16.
 // Rows 3 and 4: a hill of 16 at (2, 4), the rest at 0, and a wall between (3, 4) and (4, 4).
+// A boulder at (8, 4): a block whose face is hatched.
 (
     schema: 1,
     id: "heights:map:hills",
@@ -19,6 +20,7 @@
         (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
         (glyph: 's', name: "scree", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2, climb: 1),
         (glyph: 't', name: "stairs", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, climb: 4),
+        (glyph: 'b', name: "boulder", floor: "grass", ceiling: None, block: Some("trees"), passable: false, opaque: true, visibility_depth: 6, step_minutes: 2, face: Hatched),
     ],
     layout: [
         "+-+-+-+-+-+-+-+-+-+",
@@ -30,7 +32,7 @@
         "+ + + + + + + + + +",
         "|g g g g g g g g g|",
         "+ + + + + + + + + +",
-        "|g g g g|g g g g g|",
+        "|g g g g|g g g g b|",
         "+-+-+-+-+-+-+-+-+-+",
     ],
     heights: [

@@ -58,7 +58,7 @@ const MAP: &str = r#"(
     door_open: Some("door.open"),
     terrains: [
         (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, opaque: false, color: (110, 90, 70), visibility_depth: 4, step_minutes: 1),
-        (glyph: '#', name: "rock", floor: "floor", block: Some("rock"), passable: false, opaque: true, color: (60, 50, 45), visibility_depth: 4, step_minutes: 1),
+        (glyph: '#', name: "rock", floor: "floor", block: Some("rock"), passable: false, opaque: true, color: (60, 50, 45), visibility_depth: 4, step_minutes: 1, face: Hatched),
     ],
     layout: [
         "+-+-+",
