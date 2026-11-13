@@ -5,7 +5,7 @@
 //! mesh is built when the scene changes; nothing walks the segments each frame.
 
 use crate::ground::Ground;
-use crate::strokes::{CREST, PLAIN, Strokes};
+use crate::strokes::{CREST, PILE, PLAIN, Strokes};
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology};
@@ -179,20 +179,54 @@ pub fn hang_crests(
         eye: Some(eye),
         reach,
     };
-    let strokes = crests(ground, eye, reach);
+    hang(
+        commands,
+        meshes,
+        (entity, held),
+        &crests(ground, eye, reach),
+    );
+}
+
+/// How far inside its cell's sides the outline of an aimed floor runs, in cells.
+pub const AIM_INSET: f32 = 0.125;
+
+/// The outline of the floor of cell `(x, y)`, lit while the pointer is on the pile there
+/// (owner, 2026-11-13): a square a little inside the cell, lying on the ground, in the pile's
+/// colour. It shows where a click is the pile's.
+#[must_use]
+pub fn aim_mark(ground: &Ground, (x, y): (u16, u16)) -> Strokes {
+    let (w, n) = (f32::from(x) + AIM_INSET, f32::from(y) + AIM_INSET);
+    let side = 1.0 - 2.0 * AIM_INSET;
+    let corners = [(w, n), (w + side, n), (w + side, n + side), (w, n + side)]
+        .map(|(x, z)| [x, ground.height(x, z), z]);
+    let mut strokes = Strokes::default();
+    for i in 0..4 {
+        strokes.push(corners[i], corners[(i + 1) % 4], PILE, 1.0, PLAIN);
+    }
+    strokes
+}
+
+/// `strokes` on `entity` as its mesh: replaced in place while there are lines, and taken off
+/// when there are none, since an empty mesh is nothing to upload.
+pub fn hang(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    (entity, held): (Entity, Option<&Mesh3d>),
+    strokes: &Strokes,
+) {
     match held {
         Some(_) if strokes.is_empty() => {
             commands.entity(entity).remove::<Mesh3d>();
         }
         Some(held) => {
             // The handle is the entity's own and alive, so the insert cannot fail.
-            let _ = meshes.insert(held.0.id(), mesh(&strokes));
+            let _ = meshes.insert(held.0.id(), mesh(strokes));
         }
         None if strokes.is_empty() => {}
         None => {
             commands
                 .entity(entity)
-                .insert(Mesh3d(meshes.add(mesh(&strokes))));
+                .insert(Mesh3d(meshes.add(mesh(strokes))));
         }
     }
 }

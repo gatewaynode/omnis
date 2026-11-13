@@ -126,7 +126,8 @@ fn grab_cursor(
         LookInput {
             left_click: mouse.just_pressed(MouseButton::Left),
             // A click on a pile in reach is the pile's, as one on a button is the button's.
-            over_button: super::controls::over_control(&controls) || aimed.is_some_and(|a| a.0),
+            over_button: super::controls::over_control(&controls)
+                || aimed.is_some_and(|a| a.0.is_some()),
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
             panel: showing.is_some_and(|s| s.0)

@@ -678,7 +678,7 @@ fn a_click_on_the_heap_opens_the_window_and_a_click_beside_it_is_the_view_s() {
     app.update();
     let heap = heap_on_screen(&app);
     let looking = |app: &App| app.world().resource::<Intent>().looking;
-    let aimed = |app: &App| app.world().resource::<Aimed>().0;
+    let aimed = |app: &App| app.world().resource::<Aimed>().0.is_some();
 
     // Over the sky: nothing to click, and the click takes the mouse look as before.
     hover(&mut app, (800.0, 100.0));

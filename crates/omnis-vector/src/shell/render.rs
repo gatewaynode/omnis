@@ -5,6 +5,7 @@
 //! (rendering size 1).
 
 use super::VectorSet;
+use super::aim::Aimed;
 use super::capture::Offscreen;
 use super::lines::{self, LineMaterial};
 use super::movement::View;
@@ -81,6 +82,10 @@ pub struct ViewLines;
 #[derive(Component)]
 pub struct ViewCrests;
 
+/// Marks the entity that holds the outline of the floor the pointer is on a pile of.
+#[derive(Component)]
+pub struct ViewAim;
+
 /// The view's line material.
 #[derive(Resource)]
 pub struct ViewMaterial(pub Handle<LineMaterial>);
@@ -124,7 +129,7 @@ impl Plugin for RenderPlugin {
             .add_systems(Startup, (spawn_camera, spawn_fills, spawn_lines))
             .add_systems(
                 Update,
-                (rebuild, follow, (tune, crests))
+                (rebuild, follow, (tune, crests, aim_mark))
                     .chain()
                     .in_set(VectorSet::Draw),
             );
@@ -183,6 +188,7 @@ fn spawn_lines(mut commands: Commands, mut materials: ResMut<Assets<LineMaterial
     let material = materials.add(LineMaterial::new(fog_end(0.0), LINE_WIDTH, LINE_DEPTH_BIAS));
     commands.spawn((ViewLines, lines::bundle(material.clone())));
     commands.spawn((ViewCrests, lines::bundle(material.clone())));
+    commands.spawn((ViewAim, lines::bundle(material.clone())));
     commands.insert_resource(ViewMaterial(material));
 }
 
@@ -226,6 +232,28 @@ fn crests(
         &lines.scene.ground,
         from,
     );
+}
+
+/// The outline of the floor the pointer is on a pile of, drawn again when the aim or the scene
+/// changes and taken away when the pointer is on none.
+fn aim_mark(
+    mut commands: Commands,
+    aimed: Option<Res<Aimed>>,
+    lines: Res<Lines>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    part: Query<(Entity, Option<&Mesh3d>), With<ViewAim>>,
+) {
+    let (Some(aimed), Ok(part)) = (aimed, part.single()) else {
+        return;
+    };
+    if !aimed.is_changed() && !lines.is_changed() {
+        return;
+    }
+    let strokes = aimed
+        .0
+        .map(|cell| lines::aim_mark(&lines.scene.ground, cell))
+        .unwrap_or_default();
+    lines::hang(&mut commands, &mut meshes, part, &strokes);
 }
 
 fn rebuild(

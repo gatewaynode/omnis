@@ -18,10 +18,10 @@ use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use omnis_sim::omnis_core::{Level, MapId};
 
-/// Whether the pointer is on a pile the party can reach: a click there is the pile's, not the
-/// view's.
+/// The cell of the pile in the party's reach that the pointer is on, if any: a click there is
+/// the pile's, not the view's, and the cell's floor is outlined (`render::ViewAim`).
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Aimed(pub bool);
+pub struct Aimed(pub Option<(u16, u16)>);
 
 /// The floor of the party's level, kept until the map or the level changes.
 #[derive(Default)]
@@ -40,29 +40,25 @@ pub(super) struct Seen<'w, 's> {
 }
 
 impl Seen<'_, '_> {
-    /// Whether the pointer is on a pile in reach, with no screen on `top`.
-    fn on_pile(&self, top: Option<ScreenId>, floor: &mut Floor) -> bool {
-        let Some(session) = self.session.as_deref() else {
-            return false;
-        };
+    /// The cell of the pile in reach that the pointer is on, with no screen on `top`.
+    fn on_pile(&self, top: Option<ScreenId>, floor: &mut Floor) -> Option<(u16, u16)> {
+        let session = self.session.as_deref()?;
         let fighting = self
             .state
             .as_deref()
             .is_some_and(|s| *s.get() == ViewState::Fight);
         if top.is_some() || fighting || self.editing.is_some() || over_control(&self.controls) {
-            return false;
+            return None;
         }
         let data = &session.data;
-        let Some(pos) = session.world.exploring_at(data) else {
-            return false;
-        };
+        let pos = session.world.exploring_at(data)?;
         let piles = session.world.piles_in_reach(data);
         let (Some(map), Ok((_, window)), false) = (
             data.maps.get(&pos.map),
             self.windows.single(),
             piles.is_empty(),
         ) else {
-            return false;
+            return None;
         };
         let size = (window.width(), window.height());
         let point = if self.intent.looking {
@@ -70,16 +66,12 @@ impl Seen<'_, '_> {
         } else {
             window.cursor_position().map(|p| (p.x, p.y))
         };
-        let Some(point) = point else {
-            return false;
-        };
+        let point = point?;
         let key = (pos.map, pos.level);
         if floor.0.as_ref().is_none_or(|(k, _)| *k != key) {
             floor.0 = Some((key, Ground::from_map(map, pos.level)));
         }
-        let Some((_, ground)) = &floor.0 else {
-            return false;
-        };
+        let (_, ground) = floor.0.as_ref()?;
         let pose = session.pose;
         let eye = Eye {
             at: [pose.x, eye(ground, pose), pose.z],
@@ -87,7 +79,7 @@ impl Seen<'_, '_> {
             pitch: self.view.pitch,
             fov: FOV,
         };
-        pile_under(point, size, &eye, &piles, ground).is_some()
+        pile_under(point, size, &eye, &piles, ground).map(|i| (piles[i].x, piles[i].y))
     }
 }
 
@@ -102,9 +94,13 @@ pub(super) fn aim(
 ) {
     let views = seen.session.as_deref().map(|s| &s.views);
     let top = screens.as_deref().and_then(|s| s.nav.top(views));
-    let hit = screens.is_some() && seen.on_pile(top, &mut floor);
-    if hit != aimed.0 {
-        aimed.0 = hit;
+    let on = screens
+        .is_some()
+        .then(|| seen.on_pile(top, &mut floor))
+        .flatten();
+    let hit = on.is_some();
+    if on != aimed.0 {
+        aimed.0 = on;
         if let Ok((window, _)) = seen.windows.single() {
             commands.entity(window).insert(CursorIcon::System(if hit {
                 SystemCursorIcon::Pointer

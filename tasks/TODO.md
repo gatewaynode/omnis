@@ -663,7 +663,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] Step 0: the plan filed.
   - [x] Step 1: the floor of a pile's cell is its click target (`aim::floor`, `aim::inside`, `aim::on_heap`;
     `tests/pile_reach.rs`, four tests; five mutations caught).
-  - [ ] Step 2: the floor's outline lights under the pointer (`Aimed` as the cell, `ViewAim`).
+  - [x] Step 2: the floor's outline lights under the pointer (`Aimed` as the cell, `render::ViewAim`,
+    `lines::aim_mark`, `lines::hang` shared with the crests; one test, five mutations caught). Not seen in a
+    window by me: no capture has a pointer.
   - [ ] Step 3: a "Pick up..." button on the view while anything on the ground is in reach.
   - [ ] Step 4: documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

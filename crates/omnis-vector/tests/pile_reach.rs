@@ -8,7 +8,7 @@ use crate::loot::{cursor, hover, yard, yard_app};
 
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
-use common::app::{click, top};
+use common::app::{click, config, shell, top};
 use common::objects_data;
 use omnis_sim::omnis_core::Facing;
 use omnis_vector::aim::{self, Eye};
@@ -16,8 +16,11 @@ use omnis_vector::ground::{Ground, eye};
 use omnis_vector::screen::ScreenId;
 use omnis_vector::shapes::{Body, PILE_LOOK};
 use omnis_vector::shell::aim::Aimed;
+use omnis_vector::shell::lines::{ATTRIBUTE_COLOUR, ATTRIBUTE_STYLE};
 use omnis_vector::shell::movement::Intent;
-use omnis_vector::shell::session::Session;
+use omnis_vector::shell::render::{RenderPlugin, ViewAim};
+use omnis_vector::shell::session::{Config, Session};
+use omnis_vector::strokes::{PILE, PLAIN};
 
 const SIZE: (f32, f32) = (1600.0, 900.0);
 
@@ -161,7 +164,7 @@ fn a_click_on_the_floor_opens_the_window_and_one_beyond_the_cell_is_the_view_s()
     let looking = |app: &App| app.world().resource::<Intent>().looking;
 
     hover(&mut app, floor);
-    assert!(app.world().resource::<Aimed>().0);
+    assert_eq!(app.world().resource::<Aimed>().0, Some((2, 2)));
     assert_eq!(
         cursor(&mut app),
         Some(CursorIcon::System(SystemCursorIcon::Pointer))
@@ -174,11 +177,108 @@ fn a_click_on_the_floor_opens_the_window_and_one_beyond_the_cell_is_the_view_s()
     assert_eq!(top(&app), None);
     let beyond = (left.0 + 40.0, left.1 - 30.0);
     hover(&mut app, beyond);
-    assert!(!app.world().resource::<Aimed>().0);
+    assert_eq!(app.world().resource::<Aimed>().0, None);
     click(&mut app, beyond);
     assert_eq!(top(&app), None);
     assert!(
         looking(&app),
         "a click beyond the cell takes the mouse look"
     );
+}
+
+/// The yard in a 1600 by 900 window with the view's renderer, the party at (1, 2) facing the
+/// arrows, and a floor point of their cell away from the heap.
+fn drawn_yard() -> (App, (f32, f32)) {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut packs = config().packs;
+    packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
+    let mut app = shell(Config { packs, ..config() }, true);
+    // The renderer before the first update: its entities are spawned at startup.
+    app.add_plugins(bevy::asset::AssetPlugin::default())
+        .init_asset::<Mesh>()
+        .init_asset::<StandardMaterial>()
+        .add_plugins(RenderPlugin);
+    app.update();
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let session = &mut *session;
+        let map = common::map(&session.data, "objects:map:yard");
+        session.pose = common::place(&mut session.world, map, 1, 2, Facing::East);
+        session.refresh();
+    }
+    app.world_mut().spawn((
+        Window {
+            resolution: bevy::window::WindowResolution::new(1600, 900),
+            ..default()
+        },
+        PrimaryWindow,
+    ));
+    app.update();
+    app.update();
+    let (view, ground, _) = seen(&app, 0.0);
+    let (left, _) = far_edge(&aim::floor(&view, SIZE, &ground, 2, 2).unwrap());
+    (app, (left.0 + 40.0, left.1 + 8.0))
+}
+
+/// The first ends of the aim outline's lines, when it is drawn.
+fn outline(app: &mut App) -> Option<Vec<[f32; 3]>> {
+    let world = app.world_mut();
+    let mut q = world.query_filtered::<Option<&Mesh3d>, With<ViewAim>>();
+    let handle = q.single(world).expect("one aim entity")?.0.clone();
+    let mesh = world.resource::<Assets<Mesh>>().get(&handle).expect("mesh");
+    let Some(bevy::mesh::VertexAttributeValues::Float32x3(a)) =
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+    else {
+        panic!("positions");
+    };
+    let Some(bevy::mesh::VertexAttributeValues::Float32x4(styles)) =
+        mesh.attribute(ATTRIBUTE_STYLE)
+    else {
+        panic!("styles");
+    };
+    assert!(styles.iter().all(|s| *s == PLAIN), "a plain solid line");
+    let Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) =
+        mesh.attribute(ATTRIBUTE_COLOUR)
+    else {
+        panic!("colours");
+    };
+    let (r, g, b) = PILE;
+    assert!(
+        colours.iter().all(|c| *c == [r, g, b, 1.0]),
+        "the pile's colour"
+    );
+    Some(a.chunks(4).map(|quad| quad[0]).collect())
+}
+
+#[test]
+fn the_floor_s_outline_is_drawn_under_the_pointer_and_gone_when_it_leaves_or_a_screen_opens() {
+    let (mut app, floor) = drawn_yard();
+    assert_eq!(outline(&mut app), None, "nothing aimed: no mesh");
+
+    hover(&mut app, floor);
+    assert_eq!(app.world().resource::<Aimed>().0, Some((2, 2)));
+    let corners = outline(&mut app).expect("the outline");
+    // Four lines round the pile's cell, an eighth inside it, on the yard's flat ground.
+    let h = corners[0][1];
+    assert_eq!(
+        corners,
+        vec![
+            [2.125, h, 2.125],
+            [2.875, h, 2.125],
+            [2.875, h, 2.875],
+            [2.125, h, 2.875]
+        ]
+    );
+    let (_, ground, _) = seen(&app, 0.0);
+    assert_eq!(h, ground.height(2.5, 2.5), "lying on the floor");
+
+    hover(&mut app, (800.0, 100.0));
+    assert_eq!(outline(&mut app), None, "the pointer left: taken away");
+
+    hover(&mut app, floor);
+    assert!(outline(&mut app).is_some());
+    click(&mut app, floor);
+    assert_eq!(top(&app), Some(ScreenId::Loot));
+    app.update();
+    assert_eq!(outline(&mut app), None, "a screen is up: nothing is aimed");
 }

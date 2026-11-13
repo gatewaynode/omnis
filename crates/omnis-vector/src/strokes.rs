@@ -26,6 +26,10 @@ pub const PLAIN: [f32; 4] = [1.0, 0.0, 0.0, 0.0];
 /// (M8.5 step 5): brighter than the floor grid, so a rise's top shows against the sky.
 pub const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
 
+/// A pile's line, and the outline of its cell's floor under the pointer. Provisional until the
+/// colour roles (M8.5 step 5): rose.
+pub const PILE: (f32, f32, f32) = (2.8, 1.1, 1.7);
+
 /// Lines as the line shader takes them: one entry a vertex in every list but `indices`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Strokes {
@@ -147,7 +151,7 @@ pub fn colour(segment: &Segment) -> (f32, f32, f32) {
         SegKind::Hole => (2.6, 0.5, 0.4),
         // Objects and piles (M8.5 step 2b), provisional: objects violet, piles rose.
         SegKind::Object => (1.9, 0.9, 2.8),
-        SegKind::Pile => (2.8, 1.1, 1.7),
+        SegKind::Pile => PILE,
         // Beings (M8.5 step 2c), provisional: an alarm orange, apart from objects and holes.
         SegKind::Being => (3.0, 0.9, 0.15),
     }
