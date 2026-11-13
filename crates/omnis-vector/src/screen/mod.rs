@@ -328,6 +328,8 @@ pub enum Kind {
         /// The most bytes it takes.
         max: usize,
     },
+    /// A yes or no as a tick box (owner, 2026-11-13): a press turns it.
+    Flag(bool),
     /// A square button showing the Lucide icon `name` (the owner's drawing-GUI column, 2026-10-25);
     /// pressed like a button. `chosen` is the one pressed state of a grid of them: framed and drawn
     /// white. The label is the icon's name for the text readers and is not drawn.
@@ -387,6 +389,10 @@ pub struct Row {
     /// The role the row's live controls are drawn in (a member's health in the party column);
     /// none draws them as interface.
     pub tint: Option<Role>,
+    /// A field's row (owner, 2026-11-13): its spans are the field's name, drawn in a column of
+    /// fixed width, and its controls are drawn without their names, each in its own box filling
+    /// the rest of the row, so the inputs of the rows under one another start at one place.
+    pub aligned: bool,
 }
 
 impl Row {
@@ -405,6 +411,21 @@ impl Row {
         self.spans
             .get(i)
             .or_else(|| self.after.get(i.checked_sub(self.spans.len())?))
+    }
+
+    /// A field's row: `label` dim in the labels' column, then `control` in its own box.
+    #[must_use]
+    pub fn field(label: impl Into<String>, control: Control) -> Row {
+        Row {
+            spans: vec![Span {
+                text: label.into(),
+                role: Role::Dim,
+                size: Size::Body,
+            }],
+            controls: vec![control],
+            aligned: true,
+            ..Row::default()
+        }
     }
 
     /// A row of controls.
@@ -486,6 +507,7 @@ impl Screen {
                 }
                 row.after.len().hash(&mut h);
                 row.tint.hash(&mut h);
+                row.aligned.hash(&mut h);
             }
         }
         h.0
@@ -849,7 +871,8 @@ pub fn apply(
     }
     match (&found.kind, payload) {
         (Kind::Button | Kind::Icon { .. } | Kind::Swatch { .. }, Payload::Press)
-        | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
+        | (Kind::Choice { .. } | Kind::Flag(_), Payload::Press | Payload::Left | Payload::Right) => {
+        }
         (Kind::Number { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { min, max, .. }, Payload::Set(n)) => {
             if n < min || n > max {

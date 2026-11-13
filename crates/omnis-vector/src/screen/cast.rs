@@ -78,6 +78,7 @@ fn spell_row(data: &Data, game: Game, forms: &Forms, at: u16, row: &CastView) ->
             }]
         },
         after: vec![note(after)],
+        aligned: false,
     }
 }
 

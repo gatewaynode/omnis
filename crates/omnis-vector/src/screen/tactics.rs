@@ -272,6 +272,7 @@ fn list(data: &Data, game: Game, m: &MemberView, choices: &Choices) -> Vec<Row> 
                 button(TacticAct::Remove(at), "Remove", tried(data, game, &remove)),
             ],
             after: Vec::new(),
+            aligned: false,
         });
     }
     rows
@@ -347,6 +348,7 @@ fn form_rows(
             spans: vec![Span::body("Action")],
             controls: Vec::new(),
             after: vec![note("nothing to declare yet")],
+            aligned: false,
         }),
         Some(answer) => rows.push(Row::controls(vec![
             choice(
@@ -389,6 +391,7 @@ fn form_rows(
             button(TacticAct::Add, "Add condition", add_why),
         ],
         after: vec![note("hold (none: always)")],
+        aligned: false,
     });
     for (i, draft) in form.conditions.iter().enumerate() {
         if let Ok(i) = u8::try_from(i) {

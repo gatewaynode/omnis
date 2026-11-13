@@ -25,6 +25,7 @@ pub mod retold;
 pub mod roster;
 pub mod screen;
 pub mod screen_draw;
+mod screen_parts;
 pub mod screen_text;
 pub mod session;
 pub mod settings;

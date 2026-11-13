@@ -72,7 +72,7 @@ impl Form {
         }
         for (i, f) in self.fields.iter().enumerate() {
             if f.slot == Slot::Top && !DECIDED.contains(&f.label) {
-                rows.push(Row::controls(vec![f.control_as(id(i))]));
+                rows.push(Row::field(f.label, f.control_as(id(i))));
             }
         }
         for l in 0..self.lists.len() {

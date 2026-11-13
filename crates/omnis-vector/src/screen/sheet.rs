@@ -179,6 +179,7 @@ fn magic(data: &Data, game: Game, m: &MemberView) -> Vec<Row> {
             spans: vec![Span::body(labels::spell(data, &k.spell))],
             controls: Vec::new(),
             after: vec![note(format!("{cost}  {}", labels::pay(k.pay)))],
+            aligned: false,
         });
     }
     rows.push(Row::text(note("Effects")));
@@ -192,6 +193,7 @@ fn magic(data: &Data, game: Game, m: &MemberView) -> Vec<Row> {
             spans: vec![Span::body(labels::spell(data, &e.spell))],
             controls: Vec::new(),
             after: vec![note(left(e))],
+            aligned: false,
         });
     }
     rows
@@ -243,6 +245,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
                 at + 1,
                 members.len()
             ))],
+            aligned: false,
         },
         Row::controls(vec![
             Control {

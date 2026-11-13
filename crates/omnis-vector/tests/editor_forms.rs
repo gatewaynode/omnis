@@ -327,7 +327,7 @@ fn an_encounter_s_stacks_are_rows_and_a_bad_id_is_refused_with_the_form_standing
         EditAct::Field(field_of(&form, "disposition")),
         true,
     );
-    arrow(&mut app, EditAct::Field(field_of(&form, "once")), true);
+    press_edit(&mut app, EditAct::Field(field_of(&form, "once")));
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
     let def = editing(&app).def().unwrap();

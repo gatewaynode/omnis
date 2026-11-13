@@ -617,9 +617,6 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
             ),
             form::flag("passable", was.is_none_or(|t| t.passable)),
             form::flag("opaque", was.is_some_and(|t| t.opaque)),
-            form::number("red", colour(|t| t.color.0), 0, 255),
-            form::number("green", colour(|t| t.color.1), 0, 255),
-            form::number("blue", colour(|t| t.color.2), 0, 255),
             form::number(
                 "visibility depth",
                 was.map_or(6, |t| i64::from(t.visibility_depth)),
@@ -663,6 +660,10 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
                     .collect(),
                 was.map_or(0, |t| usize::from(t.face == Face::Hatched)),
             ),
+            // Its colour on the automap and the editor's plan; the 3D view's is its role's.
+            form::number("red", colour(|t| t.color.0), 0, 255),
+            form::number("green", colour(|t| t.color.1), 0, 255),
+            form::number("blue", colour(|t| t.color.2), 0, 255),
         ],
         Vec::new(),
     );

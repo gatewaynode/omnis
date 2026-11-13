@@ -5,7 +5,7 @@
 //! choice of row editors over RON text, 2026-10-24). The form holds what is typed; the layer's
 //! words-in-place redraw keeps the caret. Bevy-free.
 
-use super::EditAct;
+use super::{EditAct, tips};
 use crate::screen::{Control, ControlId, Kind, Row, Span};
 use crate::style::{Role, Size};
 use omnis_sim::omnis_core::rng::Dice;
@@ -430,7 +430,10 @@ impl Form {
         }
         for (i, f) in self.fields.iter().enumerate() {
             if f.slot == Slot::Top {
-                rows.push(Row::controls(vec![f.control(i)]));
+                if let Some(section) = tips::section(&self.kind, f.label) {
+                    rows.push(heading(section));
+                }
+                rows.push(Row::field(f.label, f.control(i)));
             }
         }
         if self.kind == FormKind::Portal {
@@ -449,12 +452,18 @@ impl Form {
                 controls: vec![Control::button(edit(EditAct::ListAdd(l)), "Add row")],
                 ..Row::default()
             });
+            // A row of a list is its fields one under another, as the form's own are, then
+            // its Remove (owner, 2026-11-13: an input in its own box beside its name).
             for (r, row) in self.rows_of(l).into_iter().enumerate() {
                 let r = u8::try_from(r).unwrap_or(u8::MAX);
-                let mut controls: Vec<Control> =
-                    row.iter().map(|i| self.fields[*i].control(*i)).collect();
-                controls.push(Control::button(edit(EditAct::ListRemove(l, r)), "Remove"));
-                rows.push(Row::controls(controls));
+                for i in row {
+                    let f = &self.fields[i];
+                    rows.push(Row::field(f.label, f.control(i)));
+                }
+                rows.push(Row::controls(vec![Control::button(
+                    edit(EditAct::ListRemove(l, r)),
+                    "Remove row",
+                )]));
             }
         }
         let mut last = vec![
@@ -467,6 +476,15 @@ impl Form {
         rows.push(Row::controls(last));
         rows
     }
+}
+
+/// A group's heading over its fields.
+fn heading(text: &'static str) -> Row {
+    Row::text(Span {
+        text: text.to_owned(),
+        role: Role::Title,
+        size: Size::Small,
+    })
 }
 
 impl Field {
@@ -495,10 +513,7 @@ impl Field {
                 min: *min,
                 max: *max,
             },
-            Value::Flag(on) => Kind::Choice {
-                options: vec!["no".to_owned(), "yes".to_owned()],
-                at: usize::from(*on),
-            },
+            Value::Flag(on) => Kind::Flag(*on),
         };
         Control {
             kind,
@@ -648,9 +663,10 @@ mod tests {
         assert_eq!(form.fields[rows[0][1]].number(), 2);
         assert!(id("two words").is_err() && id(" ").is_err());
         assert_eq!(id(" wolf ").unwrap(), "wolf");
-        // The kit rows: the heading, the id, the list's heading, its row, the buttons.
-        assert_eq!(form.rows().len(), 5);
+        // The kit rows: the heading, the id under its group's heading, the list's heading, its
+        // row's two fields one under the other and its Remove, the buttons.
+        assert_eq!(form.rows().len(), 8);
         form.hint = Some("said");
-        assert_eq!(form.rows().len(), 6);
+        assert_eq!(form.rows().len(), 9);
     }
 }

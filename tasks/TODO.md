@@ -775,7 +775,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     Gate 1326 to 1329; five mutations caught. Seen in captures at Low and High from a scratch copy of the
     fixture started beside the boulder (`target/shots/face/`). The owner's trees stay plain until the owner
     sets their face.
-  - [ ] Step 2: aligned field rows (dim label column, each input its own box), the tick box, sections.
+  - [x] Step 2: `Row::field` (`Row.aligned`): the field's name dim in a labels' column of one width, its
+    input in its own box filling the rest of the row; `Kind::Flag`, a tick box one press turns; a form's
+    fields under group headings (`editor/tips.rs::section`), the terrain form reordered to fit them
+    (identity, tiles, movement, look, map colour). A list's row is its fields one under another, then
+    "Remove row" (the plan said a label before each input on one line; the column is too narrow for two
+    inputs side by side). The properties modal's own fields use the same rows. `screen_draw.rs` passed
+    1000 lines, so the arrows, slider and tick box moved to `shell/screen_parts.rs`. Tests on a laid-out
+    window (`ui_editor_app`; the plain headless app has no layout, every rectangle is 0). Gate 1329 to
+    1332; five mutations caught. Seen in one capture through a temporary probe that opened the form at
+    start (`target/shots/form/terrain.png`); the probe is not in the tree.
   - [ ] Step 3: the kit's tooltip (`Control.tip`, `shell/tips.rs` on Bevy's `Popover`).
   - [ ] Step 4: tip text for the whole editor (`editor/tips.rs`), listed in the plan for the owner.
   - [ ] Step 5: documents, `tasks/acceptance/editor-forms-and-tips.md`, continuity.

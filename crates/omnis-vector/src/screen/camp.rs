@@ -83,6 +83,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
         ))],
         controls: vec![Control::button(ControlId::Close, "Close")],
         after: Vec::new(),
+        aligned: false,
     }];
     for (i, (member, shown)) in rest
         .members
@@ -118,6 +119,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
             ))],
             controls,
             after: vec![note(dice_note(member, count))],
+            aligned: false,
         });
     }
     let short_why = if rest.refusal.is_none() && counts.iter().all(|n| *n == 0) {
@@ -133,6 +135,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
             ..Control::button(ControlId::ShortRest, "Short rest")
         }],
         after: vec![note("An hour; each member spends the dice chosen")],
+        aligned: false,
     });
     let long = Command::Rest(RestCommand::Long);
     rows.push(Row {
@@ -145,6 +148,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
         after: vec![note(
             "eight hours: full hit points and spell points, half the hit dice back",
         )],
+        aligned: false,
     });
     Screen {
         id: ScreenId::Camp,

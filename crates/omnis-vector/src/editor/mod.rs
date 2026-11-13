@@ -19,6 +19,7 @@ pub mod preview;
 pub mod run;
 pub mod select;
 pub mod stamp;
+pub mod tips;
 pub mod view;
 
 pub use acts::EditAct;

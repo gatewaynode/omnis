@@ -293,6 +293,7 @@ fn counted_row(
             vec![button(data, game, forms, at, act)]
         },
         after: Vec::new(),
+        aligned: false,
     }
 }
 
@@ -362,6 +363,7 @@ fn item_row(
         } else {
             vec![note(marks.join("  "))]
         },
+        aligned: false,
     }
 }
 

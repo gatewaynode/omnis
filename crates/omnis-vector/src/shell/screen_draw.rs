@@ -7,6 +7,8 @@
 
 use super::controls::pressable;
 use super::icons::{self, IconOf, NeedsIcon};
+pub(super) use super::screen_parts::thumbs;
+use super::screen_parts::{arrow, slider, tick};
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
@@ -14,10 +16,7 @@ use bevy::input_focus::{AutoFocus, FocusCause, InputFocus};
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle};
 use bevy::ui::RelativeCursorPosition;
-use bevy::ui_widgets::{
-    ControlOrientation, Scrollbar, ScrollbarThumb, Slider, SliderRange, SliderStep, SliderThumb,
-    SliderValue, TextInput, TrackClick,
-};
+use bevy::ui_widgets::{ControlOrientation, Scrollbar, ScrollbarThumb, TextInput};
 
 /// A control's node: pressing it, or typing in it, uses the control.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,7 +82,12 @@ impl Spawn {
 
 /// The words of control `id` (a choice's option, a number's value, a button's label), marked to
 /// be rewritten in place when the mark rewrites.
-fn labelled<B: Bundle>(b: &mut ChildSpawnerCommands, bundle: B, id: ControlId, spawn: Spawn) {
+pub(super) fn labelled<B: Bundle>(
+    b: &mut ChildSpawnerCommands,
+    bundle: B,
+    id: ControlId,
+    spawn: Spawn,
+) {
     let mut current = b.spawn(bundle);
     if let Some(of) = spawn.rewriting() {
         current.insert((LabelOf(id), of));
@@ -179,6 +183,7 @@ pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> Strin
         Kind::Number { value, .. } => return value.to_string(),
         Kind::Icon { name, .. } => return (*name).to_owned(),
         Kind::Swatch { glyph, .. } => return glyph.to_string(),
+        Kind::Flag(on) => return if *on { "x" } else { "" }.to_owned(),
         Kind::Button | Kind::Text { .. } | Kind::Document { .. } => {}
     }
     match &control.why_not {
@@ -232,17 +237,35 @@ fn boxed_node(height: f32, mark: Mark) -> Node {
     }
 }
 
-/// A bordered box, as every control is drawn.
-fn boxed(role: Role, height: f32, mark: Mark) -> impl Bundle {
+/// A bordered box, as every control is drawn; in a field's row (`bare`) it fills what the
+/// labels' column leaves of the row, its parts spread across it.
+fn boxed(role: Role, height: f32, mark: Mark, bare: bool) -> impl Bundle {
+    let node = if bare {
+        Node {
+            min_width: Val::Px(0.0),
+            flex_grow: 1.0,
+            flex_basis: Val::Px(0.0),
+            padding: UiRect::horizontal(Val::Px(scaled(8.0, height))),
+            column_gap: Val::Px(scaled(8.0, height)),
+            justify_content: JustifyContent::SpaceBetween,
+            ..boxed_node(height, mark)
+        }
+    } else {
+        boxed_node(height, mark)
+    };
     (
-        boxed_node(height, mark),
+        node,
         BorderColor::all(colour(role)),
         BackgroundColor(shade(0)),
     )
 }
 
+/// The width of the labels' column of a field's row, at the reference height: the longest of
+/// the editor's labels ("chance per mille") at the body size.
+const LABELS: f32 = 158.0;
+
 /// The marker of `mark`'s router on a pressable node.
-fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
+pub(super) fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
     match mark {
         Mark::Screen => entity.insert(Pressable(id)),
         Mark::Side => entity.insert(Side(id)),
@@ -347,114 +370,18 @@ fn icon_node(
     });
 }
 
-/// A choice's or a number's arrow: a small pressable box.
-fn arrow(parent: &mut ChildSpawnerCommands, id: ControlId, right: bool, height: f32) {
-    parent
-        .spawn((
-            Arrow(id, right),
-            pressable(),
-            Node {
-                width: Val::Px(scaled(28.0, height)),
-                height: Val::Px(scaled(26.0, height)),
-                border: UiRect::all(Val::Px(1.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BorderColor::all(colour(Role::Interface)),
-            BackgroundColor(shade(0)),
-        ))
-        .with_children(|a| {
-            let glyph = if right { ">" } else { "<" };
-            a.spawn(words(glyph, Role::Interface, Size::Body, height));
-        });
-}
-
-/// The thumb's width, as a share of the window height's scale.
-const THUMB: f32 = 12.0;
-
-/// A number's slider: a track, and a thumb the [`thumbs`] system places from the value. The
-/// slider reports a move; the router sets the number, and the renderer the slider's value.
-#[allow(clippy::cast_precision_loss)]
-fn slider(parent: &mut ChildSpawnerCommands, id: ControlId, value: i64, range: (i64, i64), h: f32) {
-    parent
-        .spawn((
-            SliderOf(id),
-            Slider {
-                track_click: TrackClick::Snap,
-                ..default()
-            },
-            SliderValue(value as f32),
-            SliderRange::new(range.0 as f32, range.1 as f32),
-            SliderStep(1.0),
-            Node {
-                width: Val::Px(scaled(140.0, h)),
-                height: Val::Px(scaled(THUMB, h)),
-                align_items: AlignItems::Center,
-                ..default()
-            },
-        ))
-        .with_children(|s| {
-            // The track.
-            s.spawn((
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(scaled(2.0, h).max(1.0)),
-                    ..default()
-                },
-                BackgroundColor(colour(Role::Dim)),
-            ));
-            // The thumb travels the width less its own.
-            s.spawn(Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                right: Val::Px(scaled(THUMB, h)),
-                top: Val::Px(0.0),
-                bottom: Val::Px(0.0),
-                ..default()
-            })
-            .with_children(|travel| {
-                travel.spawn((
-                    SliderThumb,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        width: Val::Px(scaled(THUMB, h)),
-                        height: Val::Px(scaled(THUMB, h)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BorderColor::all(colour(Role::Interface)),
-                    BackgroundColor(colour(Role::Interface)),
-                ));
-            });
-        });
-}
-
-/// Place each slider's thumb from its value.
-pub(super) fn thumbs(
-    sliders: Query<(Entity, &SliderValue, &SliderRange), Changed<SliderValue>>,
-    children: Query<&Children>,
-    mut thumb: Query<&mut Node, With<SliderThumb>>,
-) {
-    for (entity, value, range) in &sliders {
-        for below in children.iter_descendants(entity) {
-            if let Ok(mut node) = thumb.get_mut(below) {
-                node.left = Val::Percent(range.thumb_position(value.0) * 100.0);
-            }
-        }
-    }
-}
-
 /// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
 /// editable line, which takes the keyboard when drawn if `keep` names it, or names nothing and
 /// the field is the top screen's: the field that had it when the screen was drawn anew keeps it.
+/// In a field's row (`bare`) a control is drawn without its name, which stands in the labels'
+/// column, and its box fills the rest of the row.
 fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
     c: &Control,
-    tint: Option<Role>,
+    (tint, bare): (Option<Role>, bool),
     spawn: Spawn,
 ) {
     let Spawn {
@@ -470,8 +397,17 @@ fn control_node(
         Kind::Swatch { rgb, glyph, chosen } => {
             swatch_node(parent, c, *rgb, *glyph, *chosen, role, spawn);
         }
+        Kind::Flag(_) if bare => tick(parent, keys, c, role, spawn),
+        Kind::Flag(_) => {
+            parent
+                .spawn(boxed(role, height, mark, false))
+                .with_children(|b| {
+                    b.spawn(words(&c.label, role, Size::Body, height));
+                    tick(b, keys, c, role, spawn);
+                });
+        }
         Kind::Button => {
-            let mut entity = parent.spawn(boxed(role, height, mark));
+            let mut entity = parent.spawn(boxed(role, height, mark, false));
             pressed_by(&mut entity, mark, c.id);
             if c.why_not.is_none() {
                 entity.insert(pressable());
@@ -486,40 +422,48 @@ fn control_node(
             });
         }
         Kind::Choice { .. } => {
-            parent.spawn(boxed(role, height, mark)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
-                arrow(b, c.id, false, height);
-                labelled(
-                    b,
-                    words(&shown_label(keys, c), role, Size::Body, height),
-                    c.id,
-                    spawn,
-                );
-                arrow(b, c.id, true, height);
-            });
+            parent
+                .spawn(boxed(role, height, mark, bare))
+                .with_children(|b| {
+                    if !bare {
+                        b.spawn(words(&c.label, role, Size::Body, height));
+                    }
+                    arrow(b, c.id, false, height);
+                    labelled(
+                        b,
+                        words(&shown_label(keys, c), role, Size::Body, height),
+                        c.id,
+                        spawn,
+                    );
+                    arrow(b, c.id, true, height);
+                });
         }
         Kind::Number { value, min, max } => {
-            parent.spawn(boxed(role, height, mark)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
-                arrow(b, c.id, false, height);
-                slider(b, c.id, *value, (*min, *max), height);
-                labelled(
-                    b,
-                    (
-                        words(&shown_label(keys, c), role, Size::Body, height),
-                        Node {
-                            min_width: Val::Px(scaled(22.0, height)),
-                            ..default()
-                        },
-                    ),
-                    c.id,
-                    spawn,
-                );
-                arrow(b, c.id, true, height);
-            });
+            parent
+                .spawn(boxed(role, height, mark, bare))
+                .with_children(|b| {
+                    if !bare {
+                        b.spawn(words(&c.label, role, Size::Body, height));
+                    }
+                    arrow(b, c.id, false, height);
+                    slider(b, c.id, *value, (*min, *max), (height, bare));
+                    labelled(
+                        b,
+                        (
+                            words(&shown_label(keys, c), role, Size::Body, height),
+                            Node {
+                                min_width: Val::Px(scaled(22.0, height)),
+                                ..default()
+                            },
+                        ),
+                        c.id,
+                        spawn,
+                    );
+                    arrow(b, c.id, true, height);
+                });
         }
         Kind::Text { value, max, lines } => {
-            let mut boxed = parent.spawn(boxed(role, height, mark));
+            let mut boxed = parent.spawn(boxed(role, height, mark, bare));
             if *lines > 1 {
                 boxed.insert(Node {
                     flex_grow: 1.0,
@@ -529,7 +473,7 @@ fn control_node(
                 });
             }
             boxed.with_children(|b| {
-                if !c.label.is_empty() {
+                if !c.label.is_empty() && !bare {
                     b.spawn(words(&c.label, role, Size::Body, height));
                 }
                 let mut field = b.spawn((
@@ -546,13 +490,14 @@ fn control_node(
                     // several lines takes its row's width (a note across the inspector, a
                     // file's text across the centre, M5.9).
                     Node {
-                        min_width: Val::Px(scaled(260.0, height)),
+                        min_width: Val::Px(if bare { 0.0 } else { scaled(260.0, height) }),
                         width: if *lines > 1 {
                             Val::Percent(100.0)
                         } else {
                             Val::Auto
                         },
-                        flex_grow: if *lines > 1 { 1.0 } else { 0.0 },
+                        flex_grow: if *lines > 1 || bare { 1.0 } else { 0.0 },
+                        flex_basis: if bare { Val::Px(0.0) } else { Val::Auto },
                         border: UiRect::bottom(Val::Px(1.0)),
                         ..default()
                     },
@@ -622,7 +567,7 @@ pub(super) fn rows(
             .any(|c| matches!(c.kind, Kind::Document { .. }));
         column
             .spawn(Node {
-                flex_wrap: if fills {
+                flex_wrap: if fills || row.aligned {
                     FlexWrap::NoWrap
                 } else {
                     FlexWrap::Wrap
@@ -640,11 +585,25 @@ pub(super) fn rows(
             })
             .with_children(|line| {
                 let before = row.spans.len();
-                for (s, span) in row.spans.iter().enumerate() {
-                    span_node(line, (p, r, s), span, spawn);
+                if row.aligned {
+                    // The labels' column: the same width on every such row.
+                    line.spawn(Node {
+                        width: Val::Px(scaled(LABELS, spawn.height)),
+                        flex_shrink: 0.0,
+                        ..default()
+                    })
+                    .with_children(|cell| {
+                        for (s, span) in row.spans.iter().enumerate() {
+                            span_node(cell, (p, r, s), span, spawn);
+                        }
+                    });
+                } else {
+                    for (s, span) in row.spans.iter().enumerate() {
+                        span_node(line, (p, r, s), span, spawn);
+                    }
                 }
                 for c in &row.controls {
-                    control_node(line, keys, c, row.tint, spawn);
+                    control_node(line, keys, c, (row.tint, row.aligned), spawn);
                 }
                 for (s, span) in row.after.iter().enumerate() {
                     span_node(line, (p, r, before + s), span, spawn);

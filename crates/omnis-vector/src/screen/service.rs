@@ -90,6 +90,7 @@ fn offer_row(data: &Data, game: Game, view: &ServiceView, index: usize) -> Optio
         } else {
             vec![dim(note, Size::Small)]
         },
+        aligned: false,
     })
 }
 
@@ -158,6 +159,7 @@ pub fn content(data: &Data, game: Game, bank: &str) -> Screen {
         spans: vec![Span::body(money)],
         controls: vec![Control::button(ControlId::Leave, "Leave")],
         after: Vec::new(),
+        aligned: false,
     };
     let mut panels: Vec<Panel> = lists(view)
         .into_iter()
