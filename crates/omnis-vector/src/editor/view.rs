@@ -8,7 +8,7 @@ use super::files::Mode;
 use super::forms::Placing;
 use super::pick::Picking;
 use super::stamp;
-use super::{EditAct, Editor, NoteOf};
+use super::{EditAct, Editor, NoteOf, tips};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::EdgeKind;
@@ -219,8 +219,7 @@ fn run_rows(editor: &Editor) -> Vec<Row> {
 /// grid with the entry's details (or the open file's rows in Files mode), then the files (the
 /// map choice and Open; Plan, Text and Open file...) and under all Save and Revert, Playtest and
 /// the menu. The view's controls are the bar's, the level's edits the inspector's.
-#[must_use]
-pub fn tools(editor: &Editor, data: &Data) -> Screen {
+fn tools_plain(editor: &Editor, data: &Data) -> Screen {
     let status = &editor.status;
     let def = editor.def();
     let open = def.is_some();
@@ -388,8 +387,7 @@ pub fn text(editor: &Editor) -> Screen {
 /// always in reach wherever the tools column is scrolled: its terrain (or no ground), its
 /// height in eighths and, when it is a stair, the way it climbs. A step paints the cell, one
 /// undo step each.
-#[must_use]
-pub fn bar(editor: &Editor, data: &Data) -> Screen {
+fn bar_plain(editor: &Editor, data: &Data) -> Screen {
     let def = editor.def();
     let no_map = def.is_none().then_some("open a map first");
     let (x, y) = editor.cursor;
@@ -521,8 +519,7 @@ const fn edge_name(kind: Option<EdgeKind>) -> &'static str {
 /// with its terrain, height and edges, the start, the cell's placements with Edit and Remove
 /// (the palette's stamps place more), the map's random table and rest events, and the loader's
 /// refusals.
-#[must_use]
-pub fn inspector(editor: &Editor, data: &Data) -> Screen {
+fn inspector_plain(editor: &Editor, data: &Data) -> Screen {
     let mut rows = Vec::new();
     if editor.mode == Mode::Files {
         // The file's verdict (M5.9): the loader's words on the text as typed.
@@ -733,4 +730,33 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         keys: Vec::new(),
         message: None,
     }
+}
+
+/// `screen` with what each of its controls is for (`tips`): shown beside a control the pointer
+/// rests on.
+fn explained(mut screen: Screen, editor: &Editor) -> Screen {
+    let palette = editor
+        .def()
+        .map(|def| brush::palette(&def))
+        .unwrap_or_default();
+    tips::explain(&mut screen, &palette);
+    screen
+}
+
+/// The tools column, each control with its tip.
+#[must_use]
+pub fn tools(editor: &Editor, data: &Data) -> Screen {
+    explained(tools_plain(editor, data), editor)
+}
+
+/// The attribute bar over the plan, each control with its tip.
+#[must_use]
+pub fn bar(editor: &Editor, data: &Data) -> Screen {
+    explained(bar_plain(editor, data), editor)
+}
+
+/// The inspector column, each control with its tip.
+#[must_use]
+pub fn inspector(editor: &Editor, data: &Data) -> Screen {
+    explained(inspector_plain(editor, data), editor)
 }

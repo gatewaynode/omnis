@@ -207,3 +207,113 @@ fn a_tip_s_box_lies_inside_the_window_beside_its_field() {
         "left of its row, over the plan and off the fields: {tip:?} against {row:?}"
     );
 }
+
+/// A tip reads as a sentence: something, in ASCII, ending in a full stop.
+fn sentence(tip: Option<&String>, of: &str) {
+    let tip = tip.unwrap_or_else(|| panic!("{of} has no tip"));
+    assert!(tip.len() > 10 && tip.is_ascii(), "{of}: {tip:?}");
+    assert!(tip.ends_with('.'), "{of}: {tip:?}");
+    assert!(!tip.contains("  "), "{of} runs its words together: {tip:?}");
+}
+
+/// Every field of every form the editor opens has its tip, in the form's own fields and in a
+/// row of each of its lists.
+#[test]
+fn every_field_of_every_form_is_explained() {
+    use omnis_sim::omnis_core::{Facing, Level};
+    use omnis_vector::editor::form::{At, Form};
+    use omnis_vector::editor::forms::Placing;
+    use omnis_vector::screen::ControlId;
+    let data = common::levels_data();
+    let id = common::map(&data, "levels:map:tower");
+    let def = &data.maps[&id].def;
+    let at = At {
+        level: Level::GROUND,
+        x: 0,
+        y: 0,
+        facing: Facing::North,
+    };
+    let mut forms: Vec<Form> = Placing::ALL
+        .iter()
+        .map(|kind| Form::placing(*kind, def, &data, at, None))
+        .collect();
+    forms.push(Form::terrain(def, None, at));
+    forms.push(Form::level_add(def, at));
+    let level = def.levels.first().expect("the tower has levels").level;
+    forms.push(Form::level(def, level, at).expect("its form"));
+    forms.push(Form::note("k".to_owned(), "Note".to_owned(), None, at));
+    forms.push(Form::random(def, at));
+    forms.push(Form::rest_event(def, at));
+    let mut fields = 0;
+    for mut form in forms {
+        for l in 0..form.lists.len() {
+            let l = u8::try_from(l).unwrap();
+            if form.rows_of(l).is_empty() {
+                form.add_row(l).expect("a first row");
+            }
+        }
+        for row in form.rows() {
+            for control in &row.controls {
+                if let ControlId::Edit(EditAct::Field(_)) = control.id {
+                    fields += 1;
+                    sentence(
+                        control.tip.as_ref(),
+                        &format!("{:?} {:?}", form.kind, control.label),
+                    );
+                }
+            }
+        }
+    }
+    assert!(fields > 50, "the forms' fields were walked: {fields}");
+}
+
+/// Every control of the editor's three columns has its tip, whatever the palette holds: the
+/// tools, the palette's entries and what stands under each, the files' buttons, the bar, the
+/// inspector's buttons and an open form's.
+#[test]
+fn every_control_of_the_editor_s_columns_is_explained() {
+    use omnis_vector::editor::brush;
+    use omnis_vector::editor::view;
+    use omnis_vector::screen::{ControlId, Screen};
+    use omnis_vector::shell::editor::Editing;
+    use omnis_vector::shell::session::Packs;
+    let mut app = in_editor("test:map:town");
+    let entries = {
+        let def = app.world().resource::<Editing>().def().expect("a map");
+        brush::palette(&def).len()
+    };
+    let mut seen = 0;
+    let mut check = |app: &App| {
+        let editor = &app.world().resource::<Editing>().0;
+        let data = app.world().resource::<Packs>().data.clone();
+        let screens: [Screen; 3] = [
+            view::tools(editor, &data),
+            view::bar(editor, &data),
+            view::inspector(editor, &data),
+        ];
+        for screen in &screens {
+            for control in screen.controls() {
+                // A row of the list under a portal's link field is a portal's own id.
+                if matches!(control.id, ControlId::Edit(EditAct::Link(_))) {
+                    continue;
+                }
+                seen += 1;
+                sentence(
+                    control.tip.as_ref(),
+                    &format!("{:?} {:?}", control.id, control.label),
+                );
+            }
+        }
+    };
+    check(&app);
+    for i in 0..entries {
+        press_edit(&mut app, EditAct::Brush(u8::try_from(i).unwrap()));
+        check(&app);
+    }
+    press_edit(&mut app, EditAct::TerrainAdd);
+    check(&app);
+    press_edit(&mut app, EditAct::Cancel);
+    press_edit(&mut app, EditAct::Random);
+    check(&app);
+    assert!(seen > 500, "the columns were walked: {seen}");
+}

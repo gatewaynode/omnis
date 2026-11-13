@@ -6,9 +6,9 @@
 
 use super::super::form::{Form, FormKind, Slot};
 use super::{Placing, encounter, ground, id_taken, lore, object, portal, site};
-use crate::editor::EditAct;
 use crate::editor::form::At;
 use crate::editor::forms::fields::free_id;
+use crate::editor::{EditAct, tips};
 use crate::screen::{ControlId, Row, Span};
 use omnis_sim::omnis_data::edit::Place;
 use omnis_sim::omnis_data::{Data, MapDef};
@@ -72,7 +72,9 @@ impl Form {
         }
         for (i, f) in self.fields.iter().enumerate() {
             if f.slot == Slot::Top && !DECIDED.contains(&f.label) {
-                rows.push(Row::field(f.label, f.control_as(id(i))));
+                let mut control = f.control_as(id(i));
+                control.tip = tips::field(&self.kind, None, f.label).map(str::to_owned);
+                rows.push(Row::field(f.label, control));
             }
         }
         for l in 0..self.lists.len() {
