@@ -61,7 +61,7 @@ fn a_palette_is_read_as_written_and_a_glow_left_out_is_plain() {
     let ember = &data.biospheres["objects:biosphere:ember"];
     assert_eq!(ember.palette.len(), ColourRole::ALL.len());
     let structure = ember.palette[&ColourRole::Structure];
-    assert_eq!((structure.rgb, structure.glow), ((255, 120, 40), 2800));
+    assert_eq!((structure.rgb, structure.glow), ((255, 187, 151), 2800));
     assert_eq!(ember.palette[&ColourRole::Interface].glow, 1000);
     let deep = &data.biospheres["levels:biosphere:deep"];
     assert_eq!(

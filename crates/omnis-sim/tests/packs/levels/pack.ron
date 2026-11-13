@@ -4,8 +4,8 @@
 (
     schema: 1,
     id: "levels",
-    version: "0.1.1",
-    hash: 5827747289992966794,
+    version: "0.1.2",
+    hash: 12603601601193995110,
     name: "Omnis level fixtures",
     license: "MIT OR Apache-2.0",
     attribution: [],

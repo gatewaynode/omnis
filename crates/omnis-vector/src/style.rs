@@ -19,16 +19,19 @@ pub struct Palette {
     pub inks: [[f32; 3]; SLOTS],
 }
 
-/// The palette where no biosphere is named: the hues the view had before the roles, one a role.
+/// The palette where no biosphere is named: the hues the view had before the roles, one a role,
+/// each moved as little as keeps the drawn roles apart for every kind of colour vision
+/// (`contrast::clashes`; found by search from the old hues, 2026-11-13). The walls' green leans
+/// to teal, a door's amber to yellow, a hole's red is purer.
 const DEFAULT: [(ColourRole, [f32; 3]); 9] = [
-    (ColourRole::Structure, [0.15, 3.0, 0.5]),
-    (ColourRole::Ground, [0.12, 0.45, 0.2]),
-    (ColourRole::Passage, [3.2, 1.6, 0.2]),
-    (ColourRole::Thing, [1.9, 0.9, 2.8]),
+    (ColourRole::Structure, [0.0, 3.0, 0.99]),
+    (ColourRole::Ground, [0.08, 0.45, 0.35]),
+    (ColourRole::Passage, [3.2, 2.08, 0.02]),
+    (ColourRole::Thing, [1.85, 0.88, 2.8]),
     (ColourRole::Party, [0.52, 2.0, 0.76]),
-    (ColourRole::Hostile, [3.0, 0.9, 0.15]),
-    (ColourRole::Magic, [0.9, 1.8, 2.2]),
-    (ColourRole::Danger, [2.6, 0.5, 0.4]),
+    (ColourRole::Hostile, [3.0, 0.97, 0.13]),
+    (ColourRole::Magic, [1.23, 1.75, 2.2]),
+    (ColourRole::Danger, [2.6, 0.2, 0.23]),
     (ColourRole::Interface, [0.26, 1.0, 0.38]),
 ];
 

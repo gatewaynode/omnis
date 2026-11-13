@@ -18,6 +18,7 @@ pub mod bind;
 pub mod cinema;
 pub mod collide;
 pub mod combat_menu;
+pub mod contrast;
 pub mod editor;
 pub mod fill;
 pub mod game_io;

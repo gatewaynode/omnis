@@ -1,4 +1,6 @@
 // The tower's region's biosphere: cold. The tower names its own, so this one is never drawn.
+// Left as written on purpose: its structure is too like the default's thing for a green-blind
+// player and its ground too dark, which the client's contrast check must say.
 (
     schema: 1,
     id: "levels:biosphere:frost",

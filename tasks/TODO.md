@@ -743,7 +743,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     in ember, the tower in deep with its hole's floor in danger red. The fixture ember's ground was
     brightened after the first Low capture (objects 0.1.4). Gate 1321 to 1323; seven mutations caught.
     Not seen in a window by me.
-  - [ ] Step 4: the contrast and colour-deficiency checks; the default palette tuned.
+  - [x] Step 4: `contrast.rs` (`clashes`, `distance`, `Vision`, `DRAWN`, `APART` 0.1, `FROM_DARK` 0.45):
+    each of the seven roles the world's lines carry against every other and every role against the dark,
+    in Oklab, in full colour and under simulated protanopia, deuteranopia and tritanopia. **Measured first:
+    the old hues failed** (walls' green against doors' amber 0.048 for the green-blind; orange beings
+    against red holes 0.052 for the blue-blind). The default was moved the least that passes, by search:
+    walls lean to teal, doors to yellow, a hole's red is purer. Ember and deep were tuned the same way
+    (objects 0.1.5, levels 0.1.2); frost is left failing on purpose as the test's bad palette. The party's
+    and the interface's roles are held off the dark only, since they draw no line in the world yet.
+    Gate 1323 to 1326; seven mutations caught. The checks run in tests on the default and the fixtures;
+    nothing yet tells an author about a pack's own palette (asked at the end).
   - [ ] Step 5: the terrain form's role; documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per

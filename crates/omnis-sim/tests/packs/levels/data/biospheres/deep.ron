@@ -4,7 +4,7 @@
     id: "levels:biosphere:deep",
     name: "levels:text:biosphere.deep.name",
     palette: {
-        Structure: (rgb: (200, 120, 255), glow: 2800),
-        Passage: (rgb: (120, 255, 200), glow: 3000),
+        Structure: (rgb: (183, 105, 255), glow: 2800),
+        Passage: (rgb: (89, 255, 147), glow: 3000),
     },
 )

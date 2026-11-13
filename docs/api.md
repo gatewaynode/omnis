@@ -1213,7 +1213,7 @@ Additive (§13), so `PROTOCOL` stays 2:
   `Data::biosphere_of(MapId)` (Tier 1) answers the map's own, else its region's, else none, and
   `Data::biosphere_for(&MapDef)` the same for a map being written. `biosphere` is
   the sixteenth kind of the `data.*` ops. Presentation data: no rule, command, event or rejection reads it.
-  The fixture packs `objects` (0.1.4) and `levels` (0.1.1) are resealed with biospheres; `base` and `test`
+  The fixture packs `objects` (0.1.5) and `levels` (0.1.2) are resealed with biospheres; `base` and `test`
   are untouched, so no golden moved.
 - 2026-11-13 (found items; the owner's choice "Drop it, open the loot window"): a change in what one
   data effect does, with no wire shape added, removed or renamed. The object effect `GiveItem` lays the item

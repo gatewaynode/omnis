@@ -1,17 +1,18 @@
-// The yard's biosphere: warm, every role written out.
+// The yard's biosphere: warm, every role written out. Its inks keep the roles apart for every
+// kind of colour vision (the client's contrast check).
 (
     schema: 1,
     id: "objects:biosphere:ember",
     name: "objects:text:biosphere.ember.name",
     palette: {
-        Structure: (rgb: (255, 120, 40), glow: 2800),
-        Ground: (rgb: (200, 120, 70), glow: 1400),
-        Passage: (rgb: (255, 230, 90), glow: 3000),
+        Structure: (rgb: (255, 187, 151), glow: 2800),
+        Ground: (rgb: (200, 125, 83), glow: 1400),
+        Passage: (rgb: (255, 235, 95), glow: 3000),
         Thing: (rgb: (120, 220, 255), glow: 2600),
         Party: (rgb: (255, 255, 255), glow: 2000),
-        Hostile: (rgb: (255, 60, 160), glow: 3000),
-        Magic: (rgb: (170, 120, 255), glow: 2600),
-        Danger: (rgb: (255, 40, 30), glow: 3200),
+        Hostile: (rgb: (255, 77, 187), glow: 3000),
+        Magic: (rgb: (175, 128, 255), glow: 2600),
+        Danger: (rgb: (255, 0, 14), glow: 3200),
         Interface: (rgb: (255, 200, 140)),
     },
 )

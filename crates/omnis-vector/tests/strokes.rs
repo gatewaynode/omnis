@@ -135,12 +135,12 @@ fn a_palette_is_the_biosphere_s_inks_over_the_default() {
     assert_eq!((linear(0), linear(255)), (0.0, 1.0));
     assert!((linear(128) - 0.2158).abs() < 1e-3);
 
-    // Every role written: the yard's ember. Structure is (255, 120, 40) at 2800 per mille.
+    // Every role written: the yard's ember. Structure is (255, 187, 151) at 2800 per mille.
     let objects = common::objects_data();
     let ember = Palette::of(objects.biosphere_of(map(&objects, "objects:map:yard")));
     let [r, g, b] = ember.ink(ColourRole::Structure);
-    assert!((r - 2.8).abs() < 1e-5 && (g - linear(120) * 2.8).abs() < 1e-5);
-    assert!((b - linear(40) * 2.8).abs() < 1e-5);
+    assert!((r - 2.8).abs() < 1e-5 && (g - linear(187) * 2.8).abs() < 1e-5);
+    assert!((b - linear(151) * 2.8).abs() < 1e-5);
     // A glow left out is the colour as written.
     assert_eq!(ember.ink(ColourRole::Interface)[0], 1.0);
     for role in ColourRole::ALL {

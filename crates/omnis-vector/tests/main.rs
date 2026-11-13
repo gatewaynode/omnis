@@ -13,6 +13,7 @@ mod column;
 mod combat;
 mod combat_menu;
 mod common;
+mod contrast;
 mod create_party;
 mod debug;
 mod editor;
