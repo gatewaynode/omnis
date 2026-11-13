@@ -215,20 +215,126 @@ fn the_lever_sets_the_flag_that_lets_the_gate_open_and_the_party_through() {
     );
 }
 
+/// The event of an item an object gave, laid on the ground.
+fn found(object: &str, item: &str, count: u16) -> Event {
+    Event::ItemMoved {
+        item: item.into(),
+        count,
+        from: ItemPlace::Object(object.into()),
+        to: ItemPlace::Ground,
+    }
+}
+
+/// What lies on a cell of the yard's ground level.
+fn lying(world: &World, data: &Data, x: u16, y: u16) -> Vec<(ItemId, u16)> {
+    omnis_sim::ground::pile_at(world, data, yard(data), (omnis_core::Level(0), x, y))
+        .map(|p| p.items.clone())
+        .unwrap_or_default()
+}
+
+#[test]
+fn what_an_object_gives_is_laid_where_it_stood_for_the_party_to_take() {
+    let data = objects();
+    let gem = item(&data, "base:item:gem");
+    let mut world = in_yard(&data, 0, 0, 2, Facing::East);
+    let stores = world.party.inventory.clone();
+    let kit = world.party.members[0].equipment.clone();
+    let events = apply(&mut world, &data, act("stone_1", Verb::Take, 0)).expect("in the cell");
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::ItemMoved { .. }))
+            .collect::<Vec<_>>(),
+        [&found("stone_1", "base:item:gem", 1)]
+    );
+    assert!(
+        !events.iter().any(|e| matches!(e, Event::ItemFound { .. })),
+        "nothing goes into the stores unasked"
+    );
+    assert_eq!(world.party.inventory, stores, "the stores as they were");
+    assert_eq!(world.party.members[0].equipment, kit);
+    // A new pile, where the stone lay in its cell.
+    let pile = omnis_sim::ground::pile_at(&world, &data, yard(&data), (omnis_core::Level(0), 0, 2))
+        .expect("a pile under the stone");
+    assert_eq!((pile.pos, &pile.items[..]), ((2, -2), &[(gem, 1)][..]));
+    // In reach, and taken as any pile is.
+    assert_eq!(omnis_sim::ground::in_reach(&world, &data), [(gem, 1)]);
+    let member = world.party.members[0].id;
+    apply(
+        &mut world,
+        &data,
+        Command::Item(omnis_sim::ItemCommand::PickUp {
+            member,
+            item: "base:item:gem".into(),
+            count: 1,
+        }),
+    )
+    .expect("picked up");
+    assert!(world.party.members[0].equipment.contains(&(gem, 1)));
+    assert_eq!(lying(&world, &data, 0, 2), []);
+
+    // Faced from the next cell, it is still the stone's cell; and a pile already there takes
+    // the gem, keeping its place.
+    let mut world = in_yard(&data, 0, 1, 2, Facing::West);
+    let dagger = item(&data, "base:item:dagger");
+    world.map_state(yard(&data)).ground.insert(
+        (omnis_core::Level(0), 0, 2),
+        omnis_data::placement::Pile {
+            pos: (-3, 3),
+            items: vec![(dagger, 2)],
+        },
+    );
+    apply(&mut world, &data, act("stone_1", Verb::Take, 0)).expect("across the open edge");
+    let pile = omnis_sim::ground::pile_at(&world, &data, yard(&data), (omnis_core::Level(0), 0, 2))
+        .expect("the pile");
+    assert_eq!(
+        (pile.pos, &pile.items[..]),
+        ((-3, 3), &[(dagger, 2), (gem, 1)][..])
+    );
+    assert_eq!(lying(&world, &data, 1, 2), [], "nothing under the party");
+}
+
+#[test]
+fn a_found_item_is_laid_on_the_object_s_cell_only_where_the_party_reaches_it() {
+    use omnis_core::Level;
+    use omnis_sim::ground::found_at;
+    let (here, ahead) = ((Level(0), 3, 3), (0, 2));
+    // The yard's gate stands on (3, 2) and reaches into (3, 3); from (3, 3) facing south the
+    // party reaches (3, 3) and (3, 4), not the gate's own cell.
+    let reach = [(Level(0), 3, 3), (Level(0), 3, 4)];
+    assert_eq!(
+        found_at(&reach, (Level(0), 3, 2), (0, 4), here, ahead),
+        (here, ahead),
+        "out of reach: at the party's feet, as a dropped item"
+    );
+    assert_eq!(
+        found_at(&reach, (Level(0), 3, 4), (1, -1), here, ahead),
+        ((Level(0), 3, 4), (1, -1)),
+        "the faced cell: where the object stood"
+    );
+    assert_eq!(
+        found_at(&reach, here, (-2, 0), here, ahead),
+        (here, (-2, 0)),
+        "underfoot: where the object stood"
+    );
+    assert_eq!(
+        found_at(&reach, (Level(1), 3, 3), (0, 0), here, ahead),
+        (here, ahead),
+        "another level is not in reach"
+    );
+}
+
 #[test]
 fn a_once_interaction_succeeds_once() {
     let data = objects();
     let mut world = in_yard(&data, 0, 0, 2, Facing::East);
     let gem = item(&data, "base:item:gem");
     let events = apply(&mut world, &data, act("stone_1", Verb::Take, 0)).expect("in the cell");
-    assert!(events.contains(&Event::ItemFound {
-        item: "base:item:gem".into(),
-        count: 1,
-    }));
+    assert!(events.contains(&found("stone_1", "base:item:gem", 1)));
     assert!(events.contains(&Event::ObjectRemoved {
         object: "stone_1".into()
     }));
-    assert!(world.party.inventory.contains(&(gem, 1)));
+    assert!(lying(&world, &data, 0, 2).contains(&(gem, 1)));
     assert_eq!(
         apply(&mut world, &data, act("stone_1", Verb::Take, 0)),
         no_such("stone_1"),

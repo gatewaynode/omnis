@@ -12,8 +12,7 @@ use crate::combat::Roller;
 use crate::combat::state::can_fight;
 use crate::command::Rejection;
 use crate::event::{ActorRef, CheckKind, Event, ItemPlace};
-use crate::items::{add_to, count_of, take_from};
-use crate::names::id_of;
+use crate::items::{count_of, take_from};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::ItemId;
@@ -275,11 +274,7 @@ fn effect_of(
         }
         ObjectEffect::GiveItem { id, count } => {
             if let Some(item) = data.registry.items.get(id) {
-                add_to(&mut world.party.inventory, item, *count);
-                events.push(Event::ItemFound {
-                    item: id_of(&data.registry.items, item),
-                    count: *count,
-                });
+                crate::ground::found(world, data, placement, item, *count, events);
             }
         }
         ObjectEffect::Remove => {

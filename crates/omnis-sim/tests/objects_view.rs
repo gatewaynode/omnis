@@ -451,6 +451,26 @@ fn finding_taking_and_moving_items_change_what_a_level_lists() {
     };
     apply(&mut world, &data, take).expect("taken");
     assert!(!ids(&level(&world).0).contains(&"stone_1"), "taken away");
+    // What it hid lies where it stood, a second pile on the level, until it is picked up.
+    let gem = level(&world)
+        .1
+        .into_iter()
+        .find(|p| (p.x, p.y) == (0, 2))
+        .expect("the gem's pile");
+    assert_eq!((gem.pos, gem.items.len()), ((2, -2), 1));
+    assert_eq!(level(&world).1.len(), 2);
+    let member = world.party.members[0].id;
+    apply(
+        &mut world,
+        &data,
+        Command::Item(ItemCommand::PickUp {
+            member,
+            item: "base:item:gem".into(),
+            count: 1,
+        }),
+    )
+    .expect("the gem picked up");
+    assert_eq!(level(&world).1.len(), 1, "the arrows alone");
 
     world.position.x = 2;
     let member = world.party.members[0].id;

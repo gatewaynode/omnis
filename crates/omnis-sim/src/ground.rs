@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 use omnis_core::{CharacterId, Facing, ItemId, Level, MapId};
 use omnis_data::Data;
 use omnis_data::limits::MAX_PILE_STACKS;
-use omnis_data::placement::Pile;
+use omnis_data::placement::{Pile, ResolvedPlacement};
 
 /// Eighths ahead of the party a pile it lays down lies, when the cell has none.
 const DROP_AHEAD: i8 = 2;
@@ -158,6 +158,63 @@ pub(crate) fn lay(world: &mut World, data: &Data, items: &[(ItemId, u16)]) {
         add_to(&mut pile.items, item, count);
     }
     keep(world, data, pos.map, cell, pile);
+}
+
+/// Lay what an object gave on the ground (owner, 2026-11-13: a found item is taken through
+/// the loot window, never put in the stores unasked): on the object's own cell where the party
+/// reaches that cell's pile, else on the party's cell, since an object standing across two
+/// cells can be used from one its own is not reached from. A pile already there takes it; a
+/// new one lies where the object stood, or ahead of the party. As a fight's spoils, it is laid
+/// whatever the pile already holds: an effect cannot be refused, and nothing found is lost.
+pub(crate) fn found(
+    world: &mut World,
+    data: &Data,
+    object: &ResolvedPlacement,
+    item: ItemId,
+    count: u16,
+    events: &mut Vec<Event>,
+) {
+    let pos = world.position;
+    let (cell, at) = found_at(
+        &cells(world, data),
+        (object.level, object.x, object.y),
+        object.pos,
+        (pos.level, pos.x, pos.y),
+        ahead(pos.facing),
+    );
+    let mut pile = pile_at(world, data, pos.map, cell)
+        .cloned()
+        .unwrap_or(Pile {
+            pos: at,
+            items: Vec::new(),
+        });
+    add_to(&mut pile.items, item, count);
+    keep(world, data, pos.map, cell, pile);
+    events.push(moved(
+        data,
+        item,
+        count,
+        ItemPlace::Object(object.id.clone()),
+        ItemPlace::Ground,
+    ));
+}
+
+/// The cell a found item is laid on and where a new pile lies in it: the object's `anchor`
+/// and its own place there when the party's `reach` holds that cell, else the party's cell
+/// `here` and the place `ahead` of it.
+#[must_use]
+pub fn found_at(
+    reach: &[(Level, u16, u16)],
+    anchor: (Level, u16, u16),
+    stood: (i8, i8),
+    here: (Level, u16, u16),
+    ahead: (i8, i8),
+) -> ((Level, u16, u16), (i8, i8)) {
+    if reach.contains(&anchor) {
+        (anchor, stood)
+    } else {
+        (here, ahead)
+    }
 }
 
 /// The party's map and cell, while exploring.

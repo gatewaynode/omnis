@@ -55,17 +55,27 @@ fn act(object: &str, verb: Verb) -> Command {
 }
 
 #[test]
-fn a_found_gem_goes_to_the_stores_and_the_wish_spends_it_with_its_check() {
+fn a_found_gem_lies_on_the_ground_and_the_wish_spends_it_from_the_stores_with_its_check() {
     let data = objects_data();
     let mut world = yard(&data, 0, 2, Facing::East);
     let gem = labels::item(&data, "base:item:gem");
     assert_eq!(
         lines(&mut world, &data, act("stone_1", Verb::Take)),
         [
-            format!("Found {gem}; into the stores"),
+            format!("Found {gem}; on the ground"),
             "Under the stone lies a gem.".to_owned(),
             "Loose stone is gone".to_owned(),
         ]
+    );
+    // Stored from where it lies, for the fountain to take from the stores.
+    let stash = Command::Item(omnis_sim::ItemCommand::Stash {
+        from: ItemPlace::Ground,
+        item: "base:item:gem".into(),
+        count: 1,
+    });
+    assert_eq!(
+        lines(&mut world, &data, stash),
+        [format!("{gem} goes into the stores")]
     );
     // The fountain, from the cell south of it (the hedge runs north of it). A failed wish keeps
     // the gem; try until one holds.

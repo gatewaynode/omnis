@@ -139,6 +139,8 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
                     format!("{what} goes into the stores")
                 }
                 (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
+                // What an object gave lies where it stood (owner, 2026-11-13).
+                (ItemPlace::Object(_), ItemPlace::Ground) => format!("Found {what}; on the ground"),
                 // The engine moves nothing else between these.
                 _ => format!("{what} is moved"),
             }
