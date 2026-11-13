@@ -15,6 +15,7 @@ pub mod host;
 pub mod hud;
 pub mod icons;
 pub mod lines;
+pub mod loot;
 pub mod minimap;
 pub mod movement;
 pub mod notice;

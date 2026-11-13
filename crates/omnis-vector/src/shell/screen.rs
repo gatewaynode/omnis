@@ -23,7 +23,6 @@ use super::settings::{Current, Fitted};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
-use crate::screen::actions::{Does, default_action};
 use crate::screen::load_report::Refusal;
 use crate::screen::nav::{Escape, Nav};
 use crate::screen::{
@@ -390,7 +389,7 @@ fn route(
         return;
     }
     if let Some(session) = session.as_deref_mut() {
-        action_keys(&used.keys, &used.mouse, session, &mut screens.nav);
+        super::loot::action_keys(&used.keys, &used.mouse, session, screens);
     }
     {
         let game = session.as_deref().map(|s| &s.views);
@@ -498,49 +497,6 @@ fn applied(
             None
         }
         Err(_) => None,
-    }
-}
-
-/// Space or a right click opens or closes the square's actions while exploring; with Shift it
-/// runs the default action, or opens them when there is none. R opens or closes the camp. L opens
-/// the full log.
-fn action_keys(
-    keys: &ButtonInput<KeyCode>,
-    mouse: &ButtonInput<MouseButton>,
-    session: &mut Session,
-    nav: &mut Nav,
-) {
-    let action = keys.just_pressed(KeyCode::Space) || mouse.just_pressed(MouseButton::Right);
-    let free = matches!(
-        nav.top(Some(&session.views)),
-        None | Some(ScreenId::Actions)
-    );
-    // R opens the camp, or closes it, as its button does.
-    if keys.just_pressed(KeyCode::KeyR)
-        && matches!(nav.top(Some(&session.views)), None | Some(ScreenId::Camp))
-    {
-        nav.toggle(ScreenId::Camp, Some(&session.views));
-    }
-    // L opens the full log where no screen is up; it never closes it, for the filter takes
-    // typing (Esc, Close or the button do).
-    if keys.just_pressed(KeyCode::KeyL) && nav.top(Some(&session.views)).is_none() {
-        nav.open(ScreenId::Log, Some(&session.views));
-    }
-    if !action || !free || !session.views.exploring() || session.views.combat.is_some() {
-        return;
-    }
-    if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
-        match default_action(&session.world, &session.data) {
-            Some(Does::Command(command)) => {
-                session.order(command);
-                nav.settle(Some(&session.views), true);
-            }
-            Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
-            Some(Does::Loot) => nav.open(ScreenId::Loot, Some(&session.views)),
-            None => nav.open(ScreenId::Actions, Some(&session.views)),
-        }
-    } else {
-        nav.toggle(ScreenId::Actions, Some(&session.views));
     }
 }
 

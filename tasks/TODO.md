@@ -697,6 +697,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     lies a gem.") is not carried into the loot window: `Forms::shown` clears a screen's message when the
     top screen changes, so it is read in the log and as the notice once the window closes. Not seen in a
     window by me. `ARCHITECTURE.md` and `docs/api.md` changed under the approved plan.
+- [ ] **The loot window opens on fight spoils and on an opened container** (`tasks/plans/loot-everywhere.md`,
+  approved 2026-11-13; client only). The plan lists every way the party gains items or gold.
+  - [x] Step 0: the plan filed.
+  - [x] Step 1: the move. `shell/loot.rs` (`open(.., from)`, the find's opener, the "Pick up..." button,
+    `action_keys` from `shell/screen.rs`, now 956 lines); `Session.found` became `Session.offer:
+    Option<ItemPlace>`. No behaviour change; the tests pass with two import paths moved.
+  - [ ] Step 2: fight spoils.
+  - [ ] Step 3: containers, and "Take from ..." in Actions.
+  - [ ] Step 4: documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
