@@ -166,21 +166,17 @@ fn stand(app: &mut App, x: u16, y: u16) {
     app.update();
 }
 
-/// The crest mesh's handle and vertex count.
-fn crest_mesh(app: &mut App) -> (Handle<Mesh>, usize) {
+/// The crest mesh's handle and vertex count; `None` while the entity has no mesh.
+fn crest_mesh(app: &mut App) -> Option<(Handle<Mesh>, usize)> {
     let world = app.world_mut();
-    let mut q = world.query_filtered::<&Mesh3d, With<ViewCrests>>();
-    let handle = q
-        .single(world)
-        .expect("the crest entity has a mesh")
-        .0
-        .clone();
+    let mut q = world.query_filtered::<Option<&Mesh3d>, With<ViewCrests>>();
+    let handle = q.single(world).expect("the crest entity")?.0.clone();
     let count = world
         .resource::<Assets<Mesh>>()
         .get(&handle)
         .expect("the mesh")
         .count_vertices();
-    (handle, count)
+    Some((handle, count))
 }
 
 /// How many crests the ground shows from where the camera stands.
@@ -215,7 +211,9 @@ fn the_crests_are_found_from_the_eye_and_again_only_when_it_moves() {
         }
         stand(&mut app, x, y);
         let n = crests_seen(&mut app);
-        assert_eq!(crest_mesh(&mut app).1, n * 4, "at ({x}, {y})");
+        // No crest, no mesh: an empty one is never hung.
+        let drawn = crest_mesh(&mut app).map(|(_, count)| count);
+        assert_eq!(drawn, (n > 0).then_some(n * 4), "at ({x}, {y})");
         seen.push(((x, y), n));
     }
     let (with, n) = *seen
@@ -224,25 +222,38 @@ fn the_crests_are_found_from_the_eye_and_again_only_when_it_moves() {
         .expect("a crest somewhere");
     let (other, _) = *seen
         .iter()
-        .find(|(_, m)| *m != n)
-        .expect("a different view");
+        .find(|(_, m)| *m != n && *m > 0)
+        .expect("a different view with crests");
+    assert!(seen.iter().any(|(_, m)| *m == 0), "and a view with none");
 
     // Standing still, the crests are not found again: a mesh put in their place stays.
     stand(&mut app, with.0, with.1);
-    let (handle, count) = crest_mesh(&mut app);
+    let (handle, count) = crest_mesh(&mut app).expect("crests here");
     assert_eq!(count, n * 4);
-    let empty = omnis_vector::shell::lines::mesh(&Strokes::default());
+    let one = Strokes::of([(
+        &omnis_vector::geometry::Segment {
+            a: [0.0; 3],
+            b: [1.0; 3],
+            kind: omnis_vector::geometry::SegKind::Wall,
+            rgb: (0, 0, 0),
+        },
+        1.0,
+    )]);
     app.world_mut()
         .resource_mut::<Assets<Mesh>>()
-        .insert(handle.id(), empty)
+        .insert(handle.id(), omnis_vector::shell::lines::mesh(&one))
         .expect("the handle lives");
     app.update();
     app.update();
-    assert_eq!(crest_mesh(&mut app).1, 0, "nothing moved: left alone");
+    assert_eq!(
+        crest_mesh(&mut app).map(|(_, count)| count),
+        Some(4),
+        "nothing moved: left alone"
+    );
     // The eye moves: found again, in the same mesh.
     stand(&mut app, other.0, other.1);
     stand(&mut app, with.0, with.1);
-    let (again, count) = crest_mesh(&mut app);
+    let (again, count) = crest_mesh(&mut app).expect("crests again");
     assert_eq!(count, n * 4);
     assert_eq!(again, handle, "replaced in place");
 }

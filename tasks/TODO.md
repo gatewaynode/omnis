@@ -627,6 +627,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     day: "Rendering switch seems to hold up, might even be significantly smoother." (The offscreen timing
     showed no difference; the window's frame pacing was not measured, so "smoother" is the owner's
     observation, unexplained.) Open: size 2's decision.
+- [x] Rendering size 2, part 1: edge feathering (2026-11-12; the owner: "edge feathering first makes sense.
+  Please go ahead."). `lines.wesl` only: the quad is half a pixel wider each side and the alpha is the line's
+  cover of the pixel across its width. Checked by capture (the gate cannot see it): zoomed crops of the yard
+  at Low and High, before and after: stair-stepped and broken-looking slanted lines are smooth; no notch
+  where a near line crosses a far one; about 1.0% of pixels change at 1600x900 (line edges). Not seen in a
+  window by me. **Fixed on the way** (a defect of size 1's step 3, found in the capture's log): a view with
+  no crests hung an empty mesh, which Bevy warns about each time it is uploaded; now the crest entity has no
+  mesh while there are none (`hang_crests`; the two tests say so; two mutations caught). Gate 1293.
+  Parts 2 to 6 of `tasks/plans/rendering-size-2.md` are not started and not approved.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

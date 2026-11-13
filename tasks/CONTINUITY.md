@@ -5,8 +5,9 @@ Written 2026-11-12. **Rendering size 1 is built in full and tried by the owner**
 the 3D view's and the editor preview's lines are retained Bevy meshes under `LineMaterial` (Bevy's `Material`,
 `shell/lines.rs`, `shell/lines.wesl` embedded, WESL), from `strokes.rs` (a quad a segment; `style` kept for size
 2); crests a second mesh (`lines::hang_crests`); the gizmo renderer and `--lines` are gone (the fight's 2D lines
-stay gizmos). Commits `536efc5a`, `81e127e8`, `23459e72`. Gate 1293. **Next: the owner's
-decision on size 2** (`tasks/plans/rendering-size-2.md`: six parts; recommended next is edge feathering; a
+stay gizmos). Commits `536efc5a`, `81e127e8`, `23459e72`. Gate 1293. **Size 2, part 1 (edge feathering) is built** (shader only, checked by zoomed captures, not yet tried by
+the owner; an empty crest mesh is no longer hung). **Next: the owner's try of the feathering, then the owner's
+decision on the rest of size 2** (`tasks/plans/rendering-size-2.md`: six parts; recommended next is edge feathering; a
 proposed presentation-PRD amendment is at its end, not applied). **How a shader is checked** (the gate cannot):
 offscreen capture pairs with `--settings .omnis/test-saves/still.ron` (`(reduced_motion: true)`), because the eye
 eases by real time; `<scratchpad>/pixdiff.py`, `pairs.sh`, `still.sh`, `timing.sh`; scratch copies of the fixture

@@ -305,7 +305,7 @@ fn the_preview_s_lines_are_meshes_on_its_layer_under_its_own_material() {
     let (layer, crest_material, crest_mesh) = q.single(world).expect("the preview's crests");
     assert_eq!(*layer, RenderLayers::layer(2));
     assert_eq!(crest_material.0, material, "one material a view");
-    assert!(crest_mesh.is_some(), "found once the camera stands");
+    assert!(crest_mesh.is_none(), "the town is flat: no crest, no mesh");
     let held = world
         .resource::<Assets<LineMaterial>>()
         .get(&material)

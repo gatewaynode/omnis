@@ -1,6 +1,6 @@
 # Rendering size 2: the look computed on the GPU (design, for the owner's decision)
 
-Status: **design only, 2026-11-12**. Nothing here is built or approved. It is step 5 of
+Status: **design, 2026-11-12; part 1 (edge feathering) built the same day at the owner's go**. Nothing else here is built or approved. It is step 5 of
 `tasks/plans/rendering-size-1.md`: the owner chose size 1 "with size 2 designed in". Building any part of it
 needs the owner's go and, for the parts marked *amendment*, the presentation-PRD text at the end.
 
@@ -23,7 +23,7 @@ Each is one plan-mode step of its own, independent unless said. "Shader only" me
 
 | # | Part | What changes | Needs |
 |---|------|--------------|-------|
-| 1 | **Edge feathering** | The fragment stage fades the quad's last pixel across its width, so lines are smooth without relying on MSAA, and a line thinner than a pixel dims instead of flickering. Shader only: the quad already carries `corner.y`. | Nothing. The smallest step; a visible gain at Low quality (1 px). |
+| 1 | **Edge feathering** | The fragment stage fades the quad's last pixel across its width, so lines are smooth without relying on MSAA, and a line thinner than a pixel dims instead of flickering. Shader only: the quad already carries `corner.y`. | Nothing. **Built 2026-11-12**: slanted lines are smooth at Low and High in zoomed captures, no artifact where lines cross; about 1% of pixels change (line edges). |
 | 2 | **Patterns and weight** (presentation-ARCHITECTURE §7.1) | `style.x` weight and `style.y` pattern (solid, dashed, dotted, double) drawn in the fragment stage from the distance along the line in pixels. `strokes.rs` writes them per `SegKind` from a table. | The pattern vocabulary is M8.5 step 5's open question (which kinds get which pattern). The mechanism can be built first with one pattern as proof. |
 | 3 | **Colour roles as a palette** (X18, X19; M8.5 step 5) | The vertex carries a role index (`style.z`), not a colour; the material holds the palette (a small uniform array, or a 1D texture a biosphere supplies). Changing biosphere or a colour-deficiency preset swaps the palette with no mesh rebuild. | *Amendment.* It is M8.5 step 5's rendering half; the role set and where a biosphere is assigned are the owner's open questions there. |
 | 4 | **Depth levels** (X17) | `style.w` level (immediate, intermediate, distant) selects width, brightness and fog per level in the shader; the neighbour dim (0.2 today, baked into the colour's alpha) becomes one of them. | The three levels' looks are a design choice (X17 names them; no numbers yet). |

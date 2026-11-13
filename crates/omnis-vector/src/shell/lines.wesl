@@ -3,7 +3,9 @@
 // line shader (bevy_gizmos_render `lines.wesl`, from
 // https://wwwtyro.net/2019/11/18/instanced-lines.html), and lifts it toward the eye so a line is
 // not hidden by the fill it lies on. The fragment stage fades it with its distance from the eye
-// over the ground: full to half the fog's end, nothing at the end.
+// over the ground: full to half the fog's end, nothing at the end; and it feathers the line's
+// two long edges over one pixel (rendering size 2, part 1), for which the quad is drawn half a
+// pixel wider on each side than the line.
 
 import bevy_pbr::render::mesh_view_bindings::view;
 
@@ -27,7 +29,13 @@ struct Varying {
     @builtin(position) clip: vec4<f32>,
     @location(0) colour: vec4<f32>,
     @location(1) world: vec3<f32>,
+    // x: how far this corner lies from the line's middle, in pixels, signed by its side.
+    // y: half the line's width in pixels.
+    @location(2) edge: vec2<f32>,
 };
+
+// The pixels beyond the line's own edge on each side that the quad covers, so the edge can fade.
+const FEATHER: f32 = 0.5;
 
 const EPSILON: f32 = 4.88e-04;
 
@@ -73,7 +81,9 @@ fn vertex(in: Vertex) -> Varying {
         width = 1.0;
     }
 
-    let screen = mix(screen_a, screen_b, along) + width * 0.5 * in.corner.y * across;
+    let half = width * 0.5;
+    let reach = half + FEATHER;
+    let screen = mix(screen_a, screen_b, along) + reach * in.corner.y * across;
 
     // The gizmo shader's bias: depth * (w / depth)^-bias, toward the eye for a negative bias.
     var depth: f32;
@@ -87,6 +97,7 @@ fn vertex(in: Vertex) -> Varying {
     out.clip = vec4(clip.w * ((2.0 * screen) / resolution - 1.0), depth, clip.w);
     out.colour = vec4(colour.rgb * thin, colour.a);
     out.world = mix(world_a, world_b, along);
+    out.edge = vec2(reach * in.corner.y, half);
     return out;
 }
 
@@ -96,7 +107,10 @@ fn fragment(in: Varying) -> @location(0) vec4<f32> {
     let start = end * 0.5;
     let distance = length(in.world.xz - view.world_position.xz);
     let fade = clamp(1.0 - (distance - start) / (end - start), 0.0, 1.0);
+    // How much of this pixel the line covers across its width: all of it inside, none half a
+    // pixel beyond its edge.
+    let cover = clamp(in.edge.y + FEATHER - abs(in.edge.x), 0.0, 1.0);
     // Blended by alpha, as the gizmo lines were: the colour is scaled by the fade and the
-    // level's brightness, and the fade is the alpha.
-    return vec4(in.colour.rgb * fade * in.colour.a, fade);
+    // level's brightness, and the fade is the alpha, here thinned by the cover.
+    return vec4(in.colour.rgb * fade * in.colour.a, fade * cover);
 }

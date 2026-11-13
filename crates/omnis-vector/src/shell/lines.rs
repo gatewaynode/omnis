@@ -159,12 +159,11 @@ pub fn crests(ground: &Ground, eye: [f32; 3], reach: f32) -> Strokes {
 pub struct CrestsAt {
     eye: Option<[f32; 3]>,
     reach: f32,
-    any: bool,
 }
 
 /// The crests of `ground` on `entity` as a mesh, when the eye has moved, the reach changed or
-/// `fresh` says the ground did. The entity's mesh is replaced in place once it has one, and a
-/// view with no crest before and none now is left alone.
+/// `fresh` says the ground did. The entity's mesh is replaced in place while there are crests,
+/// and taken off when there are none: an empty mesh is nothing to upload.
 pub fn hang_crests(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -176,21 +175,20 @@ pub fn hang_crests(
     if !fresh && at.eye == Some(eye) && at.reach == reach {
         return;
     }
-    let strokes = crests(ground, eye, reach);
-    let was = at.any;
     *at = CrestsAt {
         eye: Some(eye),
         reach,
-        any: !strokes.is_empty(),
     };
-    if !was && !at.any && held.is_some() {
-        return;
-    }
+    let strokes = crests(ground, eye, reach);
     match held {
+        Some(_) if strokes.is_empty() => {
+            commands.entity(entity).remove::<Mesh3d>();
+        }
         Some(held) => {
             // The handle is the entity's own and alive, so the insert cannot fail.
             let _ = meshes.insert(held.0.id(), mesh(&strokes));
         }
+        None if strokes.is_empty() => {}
         None => {
             commands
                 .entity(entity)
