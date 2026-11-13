@@ -4,6 +4,7 @@
 //! together in the same place time starts to align with them"). A wild region keeps its own
 //! clock and never sets the party's date. Every map belongs to exactly one region.
 
+use crate::biosphere::BiosphereDef;
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, string_fits};
 use crate::registry::Interner;
@@ -52,6 +53,9 @@ pub struct RegionDef {
     /// The maps this region owns.
     #[serde(default)]
     pub maps: Vec<String>,
+    /// The biosphere its maps are drawn in, unless a map names its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biosphere: Option<String>,
 }
 
 impl RegionDef {
@@ -109,6 +113,8 @@ pub struct Region {
     pub couplings: Vec<RegionId>,
     /// Owned maps, in file order.
     pub maps: Vec<MapId>,
+    /// The biosphere its maps are drawn in, by id.
+    pub biosphere: Option<String>,
 }
 
 /// Intern every region and check its references: maps and couplings exist, every map belongs to
@@ -119,7 +125,7 @@ pub(crate) fn resolve(
     maps: &BTreeMap<&str, MapId>,
     regions: &mut Interner<RegionId>,
     text: &Interner<TextKey>,
-    rules: &Rules,
+    (rules, biospheres): (&Rules, &BTreeMap<String, BiosphereDef>),
     errors: &mut Vec<DataError>,
 ) -> (BTreeMap<RegionId, Region>, BTreeMap<MapId, RegionId>) {
     for id in raw.keys() {
@@ -158,6 +164,14 @@ pub(crate) fn resolve(
                     }
                 }
             }
+        }
+        if let Some(named) = def.biosphere.as_deref()
+            && !biospheres.contains_key(named)
+        {
+            errors.push(DataError::new(
+                &file,
+                format!("biosphere '{named}' is not defined by any loaded pack"),
+            ));
         }
         let couplings = def
             .couplings
@@ -203,6 +217,7 @@ pub(crate) fn resolve(
                 rule: def.rule,
                 couplings,
                 maps: owned,
+                biosphere: def.biosphere,
             },
         );
     }

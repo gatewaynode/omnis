@@ -2,6 +2,7 @@
 //! own functions before it is written as typed. The directory says the type; a path the loader
 //! never reads is refused, since nothing would check it.
 
+use crate::biosphere::BiosphereDef;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::Content;
@@ -75,6 +76,7 @@ pub fn check_text(rel: &str, text: &str, data: &Data) -> Result<Vec<DataError>, 
         "data/objects" => typed::<ObjectKind>("object", text, path, &mut errors),
         "data/loot" => typed::<LootTable>("loot", text, path, &mut errors),
         "data/flags" => typed::<FlagDef>("flag", text, path, &mut errors),
+        "data/biospheres" => typed::<BiosphereDef>("biosphere", text, path, &mut errors),
         "notes" => {
             if let Some(notes) = loader::parse_checked::<NotesFile>(text, path, &mut errors) {
                 notes.validate(path, &mut errors);

@@ -2,6 +2,7 @@
 //! spells, monsters, services, and rules. Cross-references are checked by id string while the file paths
 //! are still known, then everything is interned and the rules are compiled.
 
+use crate::biosphere::BiosphereDef;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::error::DataError;
@@ -40,8 +41,20 @@ macro_rules! content {
     )*};
 }
 content!(
-    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef,
-    ObjectKind, LootTable, FlagDef
+    Tileset,
+    Race,
+    Class,
+    Background,
+    Item,
+    Spell,
+    Monster,
+    RulesFile,
+    ServiceDef,
+    RegionDef,
+    ObjectKind,
+    LootTable,
+    FlagDef,
+    BiosphereDef
 );
 
 impl Content for Condition {
@@ -70,6 +83,7 @@ pub(crate) struct RawContent {
     pub objects: Files<ObjectKind>,
     pub loot: Files<LootTable>,
     pub flags: Files<FlagDef>,
+    pub biospheres: Files<BiosphereDef>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -96,6 +110,9 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     // After `check_objects` interned the flags object kinds name, so a declaration never moves
     // the number of a flag a save already holds.
     data.flags = intern(raw.flags, &mut data.registry.flags);
+    data.biospheres = (raw.biospheres.into_iter())
+        .map(|(id, (_, biosphere))| (id, biosphere))
+        .collect();
 }
 
 fn intern<I: Copy + Ord + From<u32> + Into<u32>, T>(
@@ -206,6 +223,9 @@ fn monster_may_cast(spell: &crate::Spell) -> bool {
 /// Every display key must exist in at least one language.
 fn check_text_keys(raw: &RawContent, data: &Data, errors: &mut Vec<DataError>) {
     let mut keys: Vec<(&Path, &str)> = Vec::new();
+    for (file, biosphere) in raw.biospheres.values() {
+        keys.push((file, &biosphere.name));
+    }
     for (file, race) in raw.races.values() {
         keys.push((file, &race.name));
         keys.extend(

@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 pub mod action;
+pub mod biosphere;
 pub mod catalog;
 pub mod character;
 pub mod condition;
@@ -47,6 +48,7 @@ pub mod text;
 pub mod tileset;
 
 pub use action::{Cost, FeatureEffect, Recharge, Uses};
+pub use biosphere::{BiosphereDef, ColourRole, Ink};
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;

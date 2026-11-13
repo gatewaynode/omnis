@@ -8,4 +8,5 @@
     rule: "time.wild",
     couplings: [],
     maps: ["objects:map:yard"],
+    biosphere: Some("objects:biosphere:ember"),
 )

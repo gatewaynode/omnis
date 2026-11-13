@@ -16,6 +16,7 @@ use fields::{
     pair_list, pairs, read_creatures, read_pairs, u8_of, u16_of,
 };
 use omnis_sim::omnis_core::{Facing, Level};
+use omnis_sim::omnis_data::ColourRole;
 use omnis_sim::omnis_data::edit::{Edit, Place, Target};
 use omnis_sim::omnis_data::encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, Stand,
@@ -573,6 +574,8 @@ impl Form {
             step_minutes: u32::try_from(self.number_of("step minutes")).unwrap_or(1),
             climb: u16_of(self.number_of("climb")),
             join: JOINS.get(self.chosen_of("join")).copied().flatten(),
+            role: (self.chosen_of("role").checked_sub(1))
+                .and_then(|i| ColourRole::ALL.get(i).copied()),
         })
     }
 }
@@ -633,6 +636,19 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
                     .map(|j| j.map_or_else(|| "none".to_owned(), |j| format!("{j:?}")))
                     .collect(),
                 join_at,
+            ),
+            // What its lines mean in the 3D view (owner, 2026-11-13): "default" is ground
+            // underfoot and structure where it is solid.
+            form::choice(
+                "role",
+                std::iter::once("default".to_owned())
+                    .chain(
+                        ColourRole::ALL
+                            .iter()
+                            .map(|r| format!("{r:?}").to_lowercase()),
+                    )
+                    .collect(),
+                was.and_then(|t| t.role).map_or(0, |r| r.index() + 1),
             ),
         ],
         Vec::new(),

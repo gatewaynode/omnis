@@ -516,6 +516,14 @@ pub(crate) fn resolve_one(
     targets: &dyn MapTargets,
     errors: &mut Vec<DataError>,
 ) -> Option<Resolved> {
+    if let Some(named) = def.biosphere.as_deref()
+        && !data.biospheres.contains_key(named)
+    {
+        errors.push(DataError::new(
+            file,
+            format!("biosphere '{named}' is not defined by any loaded pack"),
+        ));
+    }
     let Some(tileset) = data.registry.tilesets.get(&def.tileset) else {
         errors.push(DataError::new(
             file,

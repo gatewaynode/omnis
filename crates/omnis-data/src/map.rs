@@ -29,6 +29,7 @@
 //! by stairs, ladders and holes (M8.5 step 1b): see [`crate::levels`]. A tile written `_` has
 //! no ground on its level.
 
+use crate::biosphere::ColourRole;
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::levels::{LevelDef, NO_GROUND};
@@ -107,6 +108,10 @@ pub struct Terrain {
     /// How a tile of this terrain joins its level to the next, if it does.
     #[serde(default)]
     pub join: Option<Join>,
+    /// What the terrain's lines mean in the 3D view, where that is more than ground underfoot
+    /// and structure where it is solid: lava is a danger, a ley pool magic (owner, 2026-11-13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<ColourRole>,
 }
 
 fn grey() -> (u8, u8, u8) {
@@ -196,6 +201,9 @@ pub struct MapDef {
     pub kind: MapKind,
     /// Tileset id.
     pub tileset: String,
+    /// The biosphere this map is drawn in, where it is not its region's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biosphere: Option<String>,
     /// Tiles across.
     pub width: u16,
     /// Tiles down.
@@ -448,6 +456,7 @@ mod tests {
                 step_minutes: 1,
                 climb: 2,
                 join: None,
+                role: None,
             }],
             layout: layout.iter().map(|s| (*s).to_owned()).collect(),
             heights: vec![],
@@ -461,6 +470,7 @@ mod tests {
             objects: vec![],
             ground: vec![],
             lore: vec![],
+            biosphere: None,
         }
     }
 

@@ -4,8 +4,8 @@
 
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{
-    Background, Class, Condition, DataError, FlagDef, Item, MapDef, Monster, PackFingerprint,
-    PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
+    Background, BiosphereDef, Class, Condition, DataError, FlagDef, Item, MapDef, Monster,
+    PackFingerprint, PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
 use omnis_sim::api::Change;
 use omnis_sim::omnis_core::{Clock, EraId, Facing, Level, MapId, Position};
@@ -264,6 +264,21 @@ const FLAG: &str = r#"(
     scope: Party,
 )"#;
 
+// A biosphere: the colour of each role of the world's lines in a place. A region names one
+// (`biosphere: Some("example:biosphere:fen")`) and a map may name its own; a terrain may name
+// the role its lines carry (`role: Some(Danger)`). A role left out takes the client's default;
+// `glow` is per mille, 1000 when left out, at most 4000.
+const BIOSPHERE: &str = r#"(
+    schema: 1,
+    id: "example:biosphere:fen",
+    name: "example:text:biosphere.fen.name",
+    palette: {
+        Structure: (rgb: (90, 220, 160), glow: 2800),
+        Ground: (rgb: (60, 110, 90), glow: 700),
+        Danger: (rgb: (255, 60, 40), glow: 3000),
+    },
+)"#;
+
 // A pack migration (M8.5 7h6): saves made before `to` are offered its steps, in order. A step
 // names only its own pack's ids; cells are (level, x, y).
 const MIGRATION: &str = r#"(
@@ -337,6 +352,11 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
     section(out, "data/regions/<name>.ron", &parse::<RegionDef>(REGION)?)?;
     section(out, "data/flags/<name>.ron", &parse::<FlagDef>(FLAG)?)?;
+    section(
+        out,
+        "data/biospheres/<name>.ron",
+        &parse::<BiosphereDef>(BIOSPHERE)?,
+    )?;
     section(
         out,
         "migrations/NNNN.ron",

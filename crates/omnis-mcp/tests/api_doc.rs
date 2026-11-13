@@ -116,6 +116,7 @@ fn terrain() -> omnis_cli::omnis_sim::omnis_data::Terrain {
         step_minutes: 1,
         climb: 2,
         join: None,
+        role: None,
     }
 }
 

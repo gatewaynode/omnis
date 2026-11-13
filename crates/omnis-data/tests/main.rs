@@ -3,6 +3,7 @@
 
 mod bad_packs;
 mod beings;
+mod biospheres;
 mod catalog;
 mod common;
 mod edit_authoring;

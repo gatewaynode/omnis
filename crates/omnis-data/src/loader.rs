@@ -3,6 +3,7 @@
 //! simulation can use without touching the file system again.
 
 use crate::SCHEMA;
+use crate::biosphere::BiosphereDef;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
@@ -95,6 +96,8 @@ pub struct Data {
     pub loot: BTreeMap<LootTableId, LootTable>,
     /// Flags a pack declared, by id; an undeclared flag is the world's.
     pub flags: BTreeMap<FlagId, FlagDef>,
+    /// Biospheres as written, by id: the palettes of the world's lines.
+    pub biospheres: BTreeMap<String, BiosphereDef>,
     /// Each pack's migrations, by pack id, in file order (M8.5 7h6).
     pub migrations: Migrations,
     /// The packs that wrote each definition, by its id, in load order: the last supplied the one
@@ -107,6 +110,17 @@ impl Data {
     #[must_use]
     pub fn flag_scope(&self, flag: FlagId) -> FlagScope {
         self.flags.get(&flag).map_or(FlagScope::World, |f| f.scope)
+    }
+
+    /// The biosphere `map` is drawn in: the one the map names, else the one its region names,
+    /// else none, and the client draws in its own default (owner, 2026-11-13).
+    #[must_use]
+    pub fn biosphere_of(&self, map: MapId) -> Option<&BiosphereDef> {
+        let named = self.maps.get(&map)?.def.biosphere.as_deref().or_else(|| {
+            let region = self.regions.values().find(|r| r.maps.contains(&map))?;
+            region.biosphere.as_deref()
+        })?;
+        self.biospheres.get(named)
     }
 
     /// The calendar's shape from `rules/time.ron`, each value the default when it is missing.
@@ -600,6 +614,15 @@ fn gather_content(
         &mut content.flags,
         supplied,
     );
+    gather(
+        root,
+        "data/biospheres",
+        "biosphere",
+        hasher,
+        errors,
+        &mut content.biospheres,
+        supplied,
+    );
 }
 
 pub(crate) trait HasSchema {
@@ -633,6 +656,7 @@ has_schema!(
     ObjectKind,
     LootTable,
     FlagDef,
+    BiosphereDef,
     Migration,
 );
 
@@ -718,7 +742,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         &map_ids,
         &mut data.registry.regions,
         &data.registry.text,
-        &data.rules,
+        (&data.rules, &data.biospheres),
         errors,
     );
     data.regions = regions;

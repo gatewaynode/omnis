@@ -318,6 +318,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
+| `Data::biosphere_of(MapId)` | `Option<&BiosphereDef>`: the palette `map` is drawn in, the one the map names, else its region's, else none (the client draws in its default). Presentation only | none |
 | `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
 | `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
 | `archive_len(&World)` | `usize`: how many archive segments the folds have put away (M8.5 7e) | none |
@@ -721,7 +722,7 @@ arguments as RON, on a new headless game).
 monster's numbers, a hidden object's kind, any text. A client that shows them to a player
 decides what to show. A per-party gate is a requirement of the multiplayer step (PRD D30).
 
-`KindCount`: `kind` (the word an id carries: `background`, `class`, `condition`, `flag`, `item`,
+`KindCount`: `kind` (the word an id carries: `background`, `biosphere`, `class`, `condition`, `flag`, `item`,
 `loot`, `map`, `monster`, `object`, `race`, `region`, `rules`, `service`, `spell`, `tileset`),
 `count`. A kind the packs gain later appears here with no change to the ops. A `rules` definition
 is one rules file as written, each entry with its priority; what the files come to once merged
@@ -1202,7 +1203,18 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-13 (latest, found items; the owner's choice "Drop it, open the loot window"): a change in what one
+- 2026-11-13 (latest, biospheres; presentation-PRD X23, the owner's answers of that day): a pack format
+  addition, no wire shape changed. Pack files `data/biospheres/<name>.ron` (`BiosphereDef { schema, id, name,
+  palette }`, `palette` a map from `ColourRole` to `Ink { rgb, glow }`, `glow` per mille, 1000 when left out,
+  1 to 4000): the colour of each role of the world's lines in a place. `ColourRole` is `Structure`, `Ground`,
+  `Passage`, `Thing`, `Party`, `Hostile`, `Magic`, `Danger`, `Interface`; a role a palette leaves out takes the
+  client's default. `RegionDef` and `MapDef` gain an optional `biosphere` (an id; unknown is a load error) and
+  `Terrain` an optional `role`; all three are left out of a file when unset, so no pack's seal moves.
+  `Data::biosphere_of(MapId)` (Tier 1) answers the map's own, else its region's, else none. `biosphere` is
+  the sixteenth kind of the `data.*` ops. Presentation data: no rule, command, event or rejection reads it.
+  The fixture packs `objects` (0.1.3) and `levels` (0.1.1) are resealed with biospheres; `base` and `test`
+  are untouched, so no golden moved.
+- 2026-11-13 (found items; the owner's choice "Drop it, open the loot window"): a change in what one
   data effect does, with no wire shape added, removed or renamed. The object effect `GiveItem` lays the item
   on the ground as a pile (the object's cell where the party reaches it, else the party's) and emits
   `ItemMoved` from `{"Object": id}` to `"Ground"`; it no longer adds to the stores, and `ItemFound` is no

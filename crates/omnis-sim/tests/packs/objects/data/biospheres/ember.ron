@@ -1,0 +1,17 @@
+// The yard's biosphere: warm, every role written out.
+(
+    schema: 1,
+    id: "objects:biosphere:ember",
+    name: "objects:text:biosphere.ember.name",
+    palette: {
+        Structure: (rgb: (255, 120, 40), glow: 2800),
+        Ground: (rgb: (150, 80, 50), glow: 700),
+        Passage: (rgb: (255, 230, 90), glow: 3000),
+        Thing: (rgb: (120, 220, 255), glow: 2600),
+        Party: (rgb: (255, 255, 255), glow: 2000),
+        Hostile: (rgb: (255, 60, 160), glow: 3000),
+        Magic: (rgb: (170, 120, 255), glow: 2600),
+        Danger: (rgb: (255, 40, 30), glow: 3200),
+        Interface: (rgb: (255, 200, 140)),
+    },
+)

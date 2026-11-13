@@ -171,6 +171,7 @@ fn target_exists(key: &str, data: &Data, open: Option<&MapDef>) -> bool {
         "tileset" => r.tilesets.get(id).is_some(),
         "text" => r.text.get(id).is_some(),
         "flag" => r.flags.get(id).is_some(),
+        "biosphere" => data.biospheres.contains_key(id),
         "race" => r.races.get(id).is_some(),
         "class" => r.classes.get(id).is_some(),
         "background" => r.backgrounds.get(id).is_some(),

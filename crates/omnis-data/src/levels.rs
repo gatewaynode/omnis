@@ -467,6 +467,7 @@ mod tests {
             step_minutes: 1,
             climb: 2,
             join,
+            role: None,
         }
     }
 
@@ -522,6 +523,7 @@ mod tests {
             objects: vec![],
             ground: vec![],
             lore: vec![],
+            biosphere: None,
         }
     }
 

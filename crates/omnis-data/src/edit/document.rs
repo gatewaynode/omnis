@@ -152,6 +152,7 @@ impl Document {
             name: new.name,
             kind: new.kind,
             tileset: new.tileset,
+            biosphere: None,
             width: new.width,
             height: new.height,
             start: (0, 0, Facing::East),

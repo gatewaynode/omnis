@@ -14,6 +14,7 @@
     name: "levels:text:map.tower.name",
     kind: Outdoor,
     tileset: "test:tileset:outdoor",
+    biosphere: Some("levels:biosphere:deep"),
     width: 7,
     height: 5,
     start: (0, 2, East),
@@ -28,7 +29,7 @@
         (glyph: 'u', name: "stair up", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 3, join: Some(Up)),
         (glyph: 'd', name: "stair down", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 3, join: Some(Down)),
         (glyph: 'l', name: "ladder", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 5, join: Some(Ladder)),
-        (glyph: 'h', name: "hole", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, join: Some(Hole)),
+        (glyph: 'h', name: "hole", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, join: Some(Hole), role: Some(Danger)),
     ],
     layout: [
         "+-+-+-+-+-+-+-+",

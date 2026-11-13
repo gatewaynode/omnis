@@ -1,0 +1,10 @@
+// The tower's region's biosphere: cold. The tower names its own, so this one is never drawn.
+(
+    schema: 1,
+    id: "levels:biosphere:frost",
+    name: "levels:text:biosphere.frost.name",
+    palette: {
+        Structure: (rgb: (120, 200, 255), glow: 2800),
+        Ground: (rgb: (60, 90, 140), glow: 700),
+    },
+)

@@ -8,4 +8,5 @@
     rule: "time.wild",
     couplings: [],
     maps: ["levels:map:tower"],
+    biosphere: Some("levels:biosphere:frost"),
 )

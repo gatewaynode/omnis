@@ -4,6 +4,7 @@
         "objects:text:map.yard.name": "Test Yard",
         "objects:text:map.yard.loft": "Loft",
         "objects:text:region.yard.name": "Test Yard",
+        "objects:text:biosphere.ember.name": "Ember",
         "objects:text:monster.pack_rat.name": "Pack rat",
         "objects:text:monster.pack_rat.bite": "Bite",
         "objects:text:crate.name": "Crate",

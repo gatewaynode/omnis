@@ -6,6 +6,7 @@
 //! A rules file is a definition as the others are; what its entries come to once every file is
 //! merged by priority is the compiled set, which `rules.list` serves with each rule's origin.
 
+use crate::biosphere::BiosphereDef;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::flag::FlagDef;
@@ -61,6 +62,8 @@ pub enum Definition {
     Loot(LootTable),
     /// A declared flag.
     Flag(FlagDef),
+    /// A biosphere: the palette of the world's lines in a place.
+    Biosphere(BiosphereDef),
 }
 
 /// One kind of definition: the word its ids carry and how the loaded data answers for it.
@@ -134,8 +137,14 @@ macro_rules! kind {
 }
 
 /// Every kind of definition, in the order a listing gives them: by word.
-pub const KINDS: [Kind; 15] = [
+pub const KINDS: [Kind; 16] = [
     kind!("background", backgrounds, Background),
+    Kind {
+        word: "biosphere",
+        ids: |data| data.biospheres.keys().map(String::as_str).collect(),
+        get: |data, id| (data.biospheres.get(id).cloned()).map(Definition::Biosphere),
+        name: |data, id| data.biospheres.get(id).map(|b| b.name.as_str()),
+    },
     kind!("class", classes, Class),
     kind!("condition", conditions, Condition),
     kind!("flag", flags, Flag, unnamed),
@@ -199,6 +208,7 @@ fn region(data: &Data, id: &str) -> Option<Definition> {
             .iter()
             .map(|m| named(registry.maps.name(*m)))
             .collect(),
+        biosphere: loaded.biosphere.clone(),
     }))
 }
 

@@ -1,0 +1,10 @@
+// The tower's own biosphere: only two roles written, the rest the client's default.
+(
+    schema: 1,
+    id: "levels:biosphere:deep",
+    name: "levels:text:biosphere.deep.name",
+    palette: {
+        Structure: (rgb: (200, 120, 255), glow: 2800),
+        Passage: (rgb: (120, 255, 200), glow: 3000),
+    },
+)

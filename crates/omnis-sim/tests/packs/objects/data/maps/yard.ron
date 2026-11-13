@@ -24,7 +24,7 @@
     door_open: Some("gate.open"),
     terrains: [
         (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
-        (glyph: 'f', name: "loft floor", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1),
+        (glyph: 'f', name: "loft floor", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, role: Some(Structure)),
         (glyph: 'l', name: "ladder", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 5, join: Some(Ladder)),
     ],
     layout: [

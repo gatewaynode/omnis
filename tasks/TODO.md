@@ -723,8 +723,13 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   interface); a region names its biosphere, a map may override; a terrain names its role; the 3D view and
   the editor preview now, the fight screen, minimap and HUD in a following plan before part 4.
   - [x] Step 0: the plan filed; X23 and the additions to X10, X18 and X19 applied; §12.2 and §12.3 answered.
-  - [ ] Step 1: data. `ColourRole`, the `biosphere` kind, `Terrain.role`, `biosphere` on a region and a
-    map, `Data::biosphere_of`, the catalogue (16 kinds), the CLI schema, fixtures, `docs/api.md`.
+  - [x] Step 1: data. `omnis-data/src/biosphere.rs` (`ColourRole`, `Ink`, `BiosphereDef`), the `biosphere`
+    kind held by id as rules files are (no new registry table, so no save shape moves), `Terrain.role`,
+    `biosphere` on a region and a map, `Data::biosphere_of`, the catalogue (16 kinds), the CLI schema,
+    `docs/api.md`. Fixtures: `objects` 0.1.3 (ember, named by the yard's region; the loft floor's role),
+    `levels` 0.1.1 (frost on the region, deep on the tower; the hole's role). Gate 1312 to 1319; nine
+    mutations caught. Brought forward from step 5: the terrain form's role field, because a form without
+    it would have erased a terrain's role on every edit.
   - [ ] Step 2: roles on the CPU. `style::{Ink, Palette}`, `strokes::role`, `Segment.role`, `style.z`.
   - [ ] Step 3: the palette on the line material; swapped with the map, no mesh rebuilt; captures.
   - [ ] Step 4: the contrast and colour-deficiency checks; the default palette tuned.
