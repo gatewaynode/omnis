@@ -1,5 +1,25 @@
 # Continuity notes
 
+Written 2026-11-13, later the same day. **The owner tried part 3 and reported two things; both are built,
+not yet tried** (`tasks/plans/editor-forms-and-tips.md`, approved in plan mode; the owner's script
+`tasks/acceptance/editor-forms-and-tips.md`, which ends with six decisions).
+- **The report**: "no hatching on the cliffs in the meadow" were the trees terrain's *blocks*, which part 3
+  made the walls' colour (the meadow has no heights). Lesson recorded: a look change's report walks the
+  mapping arm by arm and says what the owner's own maps will show.
+- **Built**: `Terrain.face` (`Plain`/`Hatched`; the owner sets it on their trees, their pack is untouched);
+  the editor's form in two columns (`Row::field`, `Kind::Flag` tick box, group headings); the kit's
+  tooltips (`Control.tip`, `shell/tips.rs` on Bevy's `Popover`); tip text for the whole editor
+  (`editor/tips.rs`, listed at the plan's foot). Fixture `heights` is 0.1.2. See the code-map's last section.
+- **Next**: the owner's try and decisions (this sheet's six, part 3's five, loot everywhere's try); then,
+  in the owner's order, the fight screen, minimap and HUD on the palette, then parts 4, 5, 6.
+- **Process notes**: the plain headless test app has no layout and no `InputFocus`; `ui_editor_app` has a
+  layout. An editor capture with a form open needs a temporary probe in `shell/editor.rs::route` (the
+  capture flags cannot press a control); `--editor` refuses `--seed`. An unquoted heredoc eats backticks
+  and backslash-newlines: write Rust text through a quoted heredoc or a file. If a mutation run is
+  interrupted, grep the mutated strings before anything else.
+
+The notes below were written earlier on 2026-11-13 and still hold, except "next".
+
 Written 2026-11-13, after rendering size 2 part 3. **Part 3 (colour roles as a palette, with biospheres in
 pack data) is built, not yet tried by the owner** (`tasks/plans/rendering-size-2-palette.md`, approved
 2026-11-13; the owner's script `tasks/acceptance/rendering-size-2-palette.md`, which ends with five decisions

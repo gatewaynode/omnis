@@ -764,7 +764,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     palette to its author; a preset in Settings; the channel check of 7.3. Consequences the owner should
     judge by eye: floors no longer differ by terrain; cliffs are the walls' colour; piles are the objects'
     colour; the walls' green differs from the HUD's. Not seen in a window by me.
-- [ ] **A terrain's block face, the editor form's layout, and tooltips** (owner's try of part 3, 2026-11-13;
+- [x] **A terrain's block face, the editor form's layout, and tooltips** (built, not yet tried by the owner) (owner's try of part 3, 2026-11-13;
   `tasks/plans/editor-forms-and-tips.md`, approved in plan mode the same day). The meadow has no cliffs: the
   owner saw the trees terrain's blocks, which part 3 made the walls' colour. The form in the editor's right
   column is unclear and has no tooltips.
@@ -794,8 +794,21 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     (`editor/tips.rs::field`); the rest is step 4. Gate 1332 to 1337; seven mutations caught, and one
     survivor that showed a redundant branch, removed. Seen in one capture through the temporary probe
     (`target/shots/form/tip.png`); not seen following a real pointer.
-  - [ ] Step 4: tip text for the whole editor (`editor/tips.rs`), listed in the plan for the owner.
-  - [ ] Step 5: documents, `tasks/acceptance/editor-forms-and-tips.md`, continuity.
+  - [x] Step 4: `editor/tips.rs` holds every text: `field` (each field of each form, in its own fields and
+    in a list's row), `tool`, `entry`, `act`; `explain` gives each control of the tools column, the bar and
+    the inspector its tip, and the properties modal's fields have theirs. Each claim was checked against
+    the data crate's own documentation before it was written. Two tests walk every form and the three
+    columns in every palette state and refuse a control without a sentence. Six mutations caught. The
+    140 texts are listed at the foot of the plan for the owner to correct.
+  - [x] Step 5: code-map, `tasks/acceptance/editor-forms-and-tips.md` (ends with the decisions), continuity.
+  - Review (2026-11-13). Built in six commits; gate 1326 to 1339. Departures, said in their steps: a
+    list's row is one field a line, not side by side; the layout tests run on the laid-out test app, not
+    by `screen_text` on the plain headless one, which has no layout; the terrain form's field tips came
+    in step 3 so the facility could be tested; the tip list was generated into the plan at step 4, not
+    written at step 0. Process: a full literal fixed by a script touched one `Segment` literal by mistake
+    (caught by the compiler, read and removed); an interrupted mutation run left a mutant in the tree,
+    found by the next run's own assertion and restored. Not built: tips and the new rows on the game's
+    screens and Settings; a tip listing in `screen.text`. Not seen by me: a tip following a real pointer.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
   palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

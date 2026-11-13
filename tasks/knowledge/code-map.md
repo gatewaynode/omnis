@@ -526,3 +526,24 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
   `LinesPlugin`), `shell/preview.rs` (`PreviewLines`, `PreviewCrests`), `settings::apply_quality` (the width on
   every `LineMaterial`). Tests `tests/strokes.rs`, `tests/lines.rs`, `tests/editor_preview.rs`. The fight
   screen's 2D lines are still gizmos (`shell/combat.rs`).
+
+## The editor's form rows, the tick box and tooltips (2026-11-13, `tasks/plans/editor-forms-and-tips.md`)
+- Data: `omnis_data::Face { Plain, Hatched }` on `Terrain.face` (left out of a file when plain).
+  `geometry::cells` takes the block's face; `geometry::hatched` adds three uprights a side as
+  `SegKind::Block`. Fixture: `heights` hills, a boulder at (8, 4).
+- Kit (`screen/mod.rs`): `Row.aligned` and `Row::field(label, control)` (the name dim in a labels' column,
+  the control drawn `bare` in its own box); `Kind::Flag(bool)` (a tick box, `Payload::Press`);
+  `Control.tip` and `Control::explained`; all three are in `Screen::shape`.
+- Drawing: `shell/screen_draw.rs` (`rows`, `control_node(.., (tint, bare), ..)`, `boxed(.., bare)`, `LABELS`
+  158); `shell/screen_parts.rs` (`arrow`, `slider`, `thumbs`, `tick`), split out to keep the first under
+  1000 lines.
+- Tooltips: `shell/tips.rs` (`Tip { text, beside }` on a field's row or on a node wrapping any other control;
+  `TipBox`; `Rest::due`; `show`; `TipsPlugin`, added by `ScreenPlugin`; Bevy's `ui_widgets::popover::Popover`
+  with `OverrideClip`; `REST` 0.4 s on `Time<Real>`).
+- The editor's words: `editor/tips.rs` (`section`, `field(kind, list, label)`, `tool`, `entry`, `act`,
+  `explain(&mut Screen, palette)`); `view::{tools, bar, inspector}` wrap their `_plain` builders in
+  `explained`; `Form::field_row` and `props_rows` set a field's tip.
+- Tests: `tests/editor_layout.rs` and one of `tests/tips.rs` need a layout and use `common::app::ui_editor_app`
+  (the plain headless app lays nothing out: every rectangle of `screen_text` is 0, and it has no
+  `InputFocus` unless a test inserts one). A tip's node is found by its text; `Hovered` is inserted by hand.
+
