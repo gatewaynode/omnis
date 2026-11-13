@@ -7,7 +7,8 @@
 // two long edges over one pixel (rendering size 2, part 1), for which the quad is drawn half a
 // pixel wider on each side than the line. A line's pattern (part 2) is cut from its cover:
 // dashes and dots measured along the line in the world, so they stay on the thing they are
-// drawn on, and two rails across its width.
+// drawn on, and two rails across its width. A line's colour (part 3) is its role's ink from the
+// material's palette, times the strength its vertex carries.
 
 import bevy_pbr::render::mesh_view_bindings::view;
 
@@ -16,15 +17,21 @@ import bevy_pbr::render::mesh_view_bindings::view;
 @group(constants::MATERIAL_BIND_GROUP) @binding(0)
 var<uniform> params: vec4<f32>;
 
+// The ink of each colour role at its number (part 3): linear, above 1.0 where it glows. The
+// biosphere's, set on the material; no mesh holds a colour.
+const SLOTS: u32 = 16u;
+@group(constants::MATERIAL_BIND_GROUP) @binding(1)
+var<uniform> palette: array<vec4<f32>, 16>;
+
 struct Vertex {
     @location(0) a: vec3<f32>,
     @location(1) b: vec3<f32>,
     // x: along the segment, 0 at a and 1 at b. y: the side, -1 or +1.
     @location(2) corner: vec2<f32>,
-    // rgb: linear colour. a: the level's brightness.
+    // rgb: a factor on the ink of the line's role. a: the level's brightness.
     @location(3) colour: vec4<f32>,
     // x: weight, a factor on the width. y: pattern (0 solid, 1 dashed, 2 dotted, 3 double).
-    // z, w: role and level, kept for size 2.
+    // z: the colour role's number in the palette. w: the level, kept for part 4.
     @location(4) style: vec4<f32>,
 };
 
@@ -112,7 +119,8 @@ fn vertex(in: Vertex) -> Varying {
     let forward = normalize(screen_b - screen_a);
     let across = vec2(-forward.y, forward.x);
 
-    var colour = in.colour;
+    let role = min(u32(max(in.style.z, 0.0) + 0.5), SLOTS - 1u);
+    let colour = vec4(palette[role].rgb * in.colour.rgb, in.colour.a);
     var width = params.y * in.style.x;
     // A line thinner than a pixel is drawn a pixel wide and fainter.
     var thin = 1.0;

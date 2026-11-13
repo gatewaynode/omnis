@@ -28,7 +28,6 @@ use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::{Config, Session};
 use omnis_vector::strokes::AIM;
-use omnis_vector::style::Palette;
 
 const SIZE: (f32, f32) = (1600.0, 900.0);
 
@@ -254,10 +253,9 @@ fn outline(app: &mut App) -> Option<Vec<[f32; 3]>> {
     else {
         panic!("colours");
     };
-    let [r, g, b] = Palette::default().ink(omnis_sim::omnis_data::ColourRole::Thing);
     assert!(
-        colours.iter().all(|c| *c == [r, g, b, 1.0]),
-        "a thing's colour"
+        colours.iter().all(|c| *c == [1.0, 1.0, 1.0, 1.0]),
+        "a thing's ink at full strength"
     );
     Some(a.chunks(4).map(|quad| quad[0]).collect())
 }

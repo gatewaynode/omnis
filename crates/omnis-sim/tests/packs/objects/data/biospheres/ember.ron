@@ -5,7 +5,7 @@
     name: "objects:text:biosphere.ember.name",
     palette: {
         Structure: (rgb: (255, 120, 40), glow: 2800),
-        Ground: (rgb: (150, 80, 50), glow: 700),
+        Ground: (rgb: (200, 120, 70), glow: 1400),
         Passage: (rgb: (255, 230, 90), glow: 3000),
         Thing: (rgb: (120, 220, 255), glow: 2600),
         Party: (rgb: (255, 255, 255), glow: 2000),

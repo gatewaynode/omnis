@@ -293,3 +293,105 @@ fn the_crests_are_found_from_the_eye_and_again_only_when_it_moves() {
     assert_eq!(count, n * 4);
     assert_eq!(again, handle, "replaced in place");
 }
+
+/// The shell in a game with the fixture maps that name biospheres, and the view's renderer.
+fn biospheres() -> App {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut packs = config().packs;
+    for pack in ["objects", "levels"] {
+        packs.push(root.join("crates/omnis-sim/tests/packs").join(pack));
+    }
+    let mut app = shell(
+        omnis_vector::shell::session::Config { packs, ..config() },
+        true,
+    );
+    app.add_plugins(AssetPlugin::default())
+        .init_asset::<Mesh>()
+        .init_asset::<StandardMaterial>()
+        .add_plugins(RenderPlugin);
+    app.update();
+    app.update();
+    app
+}
+
+/// Put the party on `(x, y)` of `map` and let the view follow.
+fn go(app: &mut App, map: &str, x: u16, y: u16) {
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let session = &mut *session;
+        let map = common::map(&session.data, map);
+        session.pose = common::place(
+            &mut session.world,
+            map,
+            x,
+            y,
+            omnis_sim::omnis_core::Facing::East,
+        );
+        session.refresh();
+    }
+    app.update();
+    app.update();
+}
+
+/// The palette is the material's and follows the party's map: the default where no biosphere
+/// is named, the region's in the yard, the map's own in the tower. The mesh carries no ink, so
+/// nothing in it depends on the palette (rendering size 2, part 3).
+#[test]
+fn the_material_s_palette_is_the_map_s_biosphere_s_and_the_mesh_holds_no_ink() {
+    use omnis_sim::omnis_data::ColourRole;
+    use omnis_vector::style::Palette;
+    let mut app = biospheres();
+    let default = Palette::default();
+    assert_eq!(material(&app).palette(), default, "the town names none");
+    assert_eq!(LineMaterial::new(1.0, 1.0, 0.0).palette(), default);
+
+    go(&mut app, "objects:map:yard", 0, 2);
+    let ember = {
+        let data = &app.world().resource::<Session>().data;
+        Palette::of(data.biosphere_of(common::map(data, "objects:map:yard")))
+    };
+    assert_ne!(ember, default);
+    assert_eq!(material(&app).palette(), ember, "the yard's region's");
+    // What the shader reads: a role's ink at its number, four floats a slot.
+    let m = material(&app);
+    let [r, g, b] = ember.ink(ColourRole::Danger);
+    assert_eq!(
+        m.palette[ColourRole::Danger.index()],
+        Vec4::new(r, g, b, 1.0)
+    );
+    assert_eq!(m.palette.len(), omnis_vector::style::SLOTS);
+
+    // The mesh's colour is a strength on the ink, the same on each channel: no ink is in it.
+    let world = app.world_mut();
+    let mut q = world.query_filtered::<&Mesh3d, With<ViewLines>>();
+    let handle = q.single(world).expect("the line entity").0.clone();
+    let mesh = world.resource::<Assets<Mesh>>().get(&handle).unwrap();
+    let Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) =
+        mesh.attribute(ATTRIBUTE_COLOUR)
+    else {
+        panic!("the colour is four floats a vertex");
+    };
+    assert!(colours.iter().all(|c| c[0] == c[1] && c[1] == c[2]));
+    assert!(colours.iter().any(|c| c[0] == 1.0));
+
+    go(&mut app, "levels:map:tower", 3, 2);
+    let deep = material(&app).palette();
+    assert_ne!(
+        deep.ink(ColourRole::Structure),
+        ember.ink(ColourRole::Structure)
+    );
+    assert_eq!(
+        deep.ink(ColourRole::Ground),
+        default.ink(ColourRole::Ground),
+        "a role the tower's biosphere leaves out"
+    );
+    // The fog and the width are untouched by the palette.
+    assert_eq!(material(&app).width(), Quality::default().line_width());
+
+    go(&mut app, "test:map:town", 1, 1);
+    assert_eq!(
+        material(&app).palette(),
+        default,
+        "back where none is named"
+    );
+}

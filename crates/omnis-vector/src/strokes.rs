@@ -3,14 +3,14 @@
 //! constant width in pixels, so the view's lines are a retained mesh and not a loop over
 //! segments each frame. No Bevy here: `shell/lines.rs` wraps the buffers in a mesh.
 //!
-//! A vertex carries both of its segment's ends, which corner of the quad it is, a colour with
-//! its level's brightness in the alpha, and a `style` the shader reads:
+//! A vertex carries both of its segment's ends, which corner of the quad it is, a strength on
+//! its role's ink with its level's brightness in the alpha, and a `style` the shader reads:
 //! `[weight, pattern, role, level]`. The weight and the pattern are the kind's ([`channels`];
 //! rendering size 2, part 2); the role is whose colour the line is drawn in ([`role`]; part 3);
 //! the level is kept for the depth levels, so the mesh's layout does not change again.
 
 use crate::geometry::{SegKind, Segment};
-use crate::style::{Palette, Pattern, Weight};
+use crate::style::{Pattern, Weight};
 use omnis_sim::omnis_data::ColourRole;
 
 /// The corners of a segment's quad, in the order its vertices are written: how far along the
@@ -71,7 +71,8 @@ pub struct Strokes {
     pub b: Vec<[f32; 3]>,
     /// Which corner of the quad: along (0 or 1) and side (-1 or +1).
     pub corner: Vec<[f32; 2]>,
-    /// The line's linear colour, its level's brightness in the alpha.
+    /// How strongly the line's role's ink is laid on, a factor a channel, and its level's
+    /// brightness in the alpha.
     pub colour: Vec<[f32; 4]>,
     /// Weight, pattern, role and level.
     pub style: Vec<[f32; 4]>,
@@ -94,13 +95,13 @@ impl Strokes {
         // A scene's vertex count is far below u32's range.
         #[allow(clippy::cast_possible_truncation)]
         let first = self.a.len() as u32;
-        // Until the palette is the material's (step 3), the default's ink is laid in here.
-        let [r, g, b_] = Palette::default().ink(look.role).map(|c| c * look.strength);
+        // No ink: the palette is the material's, and the shader lays the role's on.
+        let s = look.strength;
         for corner in CORNERS {
             self.a.push(a);
             self.b.push(b);
             self.corner.push(corner);
-            self.colour.push([r, g, b_, dim]);
+            self.colour.push([s, s, s, dim]);
             self.style.push(look.style());
         }
         self.indices.extend(QUAD.iter().map(|i| first + i));

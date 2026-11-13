@@ -116,7 +116,15 @@ impl Data {
     /// else none, and the client draws in its own default (owner, 2026-11-13).
     #[must_use]
     pub fn biosphere_of(&self, map: MapId) -> Option<&BiosphereDef> {
-        let named = self.maps.get(&map)?.def.biosphere.as_deref().or_else(|| {
+        self.biosphere_for(&self.maps.get(&map)?.def)
+    }
+
+    /// The biosphere a map with the definition `def` is drawn in, as [`Data::biosphere_of`]
+    /// answers for a loaded map: for a map being written, whose definition is not the loaded one.
+    #[must_use]
+    pub fn biosphere_for(&self, def: &MapDef) -> Option<&BiosphereDef> {
+        let named = def.biosphere.as_deref().or_else(|| {
+            let map = self.registry.maps.get(&def.id)?;
             let region = self.regions.values().find(|r| r.maps.contains(&map))?;
             region.biosphere.as_deref()
         })?;

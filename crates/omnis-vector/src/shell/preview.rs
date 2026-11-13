@@ -17,6 +17,7 @@ use super::settings::Current;
 use crate::editor::preview;
 use crate::scene::Scene;
 use crate::strokes::Strokes;
+use crate::style::Palette;
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -73,7 +74,7 @@ impl Plugin for PreviewPlugin {
                 (
                     switch::<true>.run_if(resource_added::<Editing>),
                     switch::<false>.run_if(resource_removed::<Editing>),
-                    (rebuild, place, crests)
+                    (rebuild, paint, place, crests)
                         .chain()
                         .run_if(resource_exists::<Editing>),
                 )
@@ -188,6 +189,21 @@ fn rebuild(
         let strokes = Strokes::of(preview.scene.strokes(grid));
         let handle = meshes.add(lines::mesh(&strokes));
         commands.entity(entity).insert(Mesh3d(handle));
+    }
+}
+
+/// The preview's lines in the edited map's biosphere, as the game would draw them.
+fn paint(
+    (packs, editing): (Res<Packs>, Res<Editing>),
+    materials: Option<ResMut<Assets<LineMaterial>>>,
+    parts: Query<&MeshMaterial3d<LineMaterial>, With<PreviewLines>>,
+) {
+    let (Some(mut materials), Some(map)) = (materials, editing.resolved.as_ref()) else {
+        return;
+    };
+    let palette = Palette::of(packs.data.biosphere_for(&map.def));
+    for part in &parts {
+        LineMaterial::paint(&mut materials, &part.0, &palette);
     }
 }
 

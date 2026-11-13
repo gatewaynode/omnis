@@ -15,6 +15,7 @@ use crate::fill::Tri;
 use crate::ground::{ease_eye, eye};
 use crate::scene::Scene;
 use crate::strokes::Strokes;
+use crate::style::Palette;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -192,8 +193,8 @@ fn spawn_lines(mut commands: Commands, mut materials: ResMut<Assets<LineMaterial
     commands.insert_resource(ViewMaterial(material));
 }
 
-/// The fog's end follows the party's sight (the width follows the quality in
-/// `settings::apply_quality`).
+/// The fog's end follows the party's sight, and the palette the biosphere of the party's map
+/// (the width follows the quality in `settings::apply_quality`). Neither rebuilds a mesh.
 fn tune(
     session: Res<Session>,
     material: Res<ViewMaterial>,
@@ -206,6 +207,8 @@ fn tune(
     if stale && let Some(mut m) = materials.get_mut(&material.0) {
         m.params.x = end;
     }
+    let biosphere = session.data.biosphere_of(session.views.position.map);
+    LineMaterial::paint(&mut materials, &material.0, &Palette::of(biosphere));
 }
 
 /// The ground's crests from where the camera stands, found again when it has moved or the

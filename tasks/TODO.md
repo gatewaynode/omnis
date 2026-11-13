@@ -736,7 +736,13 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     palette, so floors no longer take their terrain's colour, cliffs are the walls' green, piles the
     objects' violet. Until step 3 the default's ink is laid into the vertex. Gate 1319 to 1321; nine
     mutations caught.
-  - [ ] Step 3: the palette on the line material; swapped with the map, no mesh rebuilt; captures.
+  - [x] Step 3: the palette on Bevy's line material (`LineMaterial.palette`, sixteen four-float slots at
+    binding 1; `lines.wesl` lays the role's ink on the vertex's strength). The view's follows the party's
+    map (`render::tune`), the preview's the edited map (`preview::paint`, `Data::biosphere_for`); the mesh
+    holds no ink. Seen in captures at Low and High (`target/shots/p3/`): the town in the default, the yard
+    in ember, the tower in deep with its hole's floor in danger red. The fixture ember's ground was
+    brightened after the first Low capture (objects 0.1.4). Gate 1321 to 1323; seven mutations caught.
+    Not seen in a window by me.
   - [ ] Step 4: the contrast and colour-deficiency checks; the default palette tuned.
   - [ ] Step 5: the terrain form's role; documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

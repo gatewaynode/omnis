@@ -6,6 +6,7 @@
 
 use crate::ground::Ground;
 use crate::strokes::{AIM, CREST, Strokes};
+use crate::style::{Palette, SLOTS};
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology};
@@ -23,7 +24,7 @@ pub const ATTRIBUTE_END: MeshVertexAttribute =
 /// A vertex's corner of the quad: along (0 or 1) and side (-1 or +1).
 pub const ATTRIBUTE_CORNER: MeshVertexAttribute =
     MeshVertexAttribute::new("LineCorner", 0x6f6d_6e69_0002, VertexFormat::Float32x2);
-/// The line's linear colour, its level's brightness in the alpha.
+/// A factor on the ink of the line's role, its level's brightness in the alpha.
 pub const ATTRIBUTE_COLOUR: MeshVertexAttribute =
     MeshVertexAttribute::new("LineColour", 0x6f6d_6e69_0003, VertexFormat::Float32x4);
 /// Weight, pattern, role and level.
@@ -38,6 +39,10 @@ pub struct LineMaterial {
     /// toward the eye; `w`: unused.
     #[uniform(0)]
     pub params: Vec4,
+    /// The ink of each colour role at its number (rendering size 2, part 3): linear, the glow
+    /// in; `w` unused. A biosphere changes this and no mesh.
+    #[uniform(1)]
+    pub palette: [Vec4; SLOTS],
 }
 
 impl LineMaterial {
@@ -46,6 +51,29 @@ impl LineMaterial {
     pub fn new(fog_end: f32, width: f32, depth_bias: f32) -> LineMaterial {
         LineMaterial {
             params: Vec4::new(fog_end, width, depth_bias, 0.0),
+            palette: inks(&Palette::default()),
+        }
+    }
+
+    /// The palette its lines are drawn in.
+    #[must_use]
+    pub fn palette(&self) -> Palette {
+        Palette {
+            inks: self.palette.map(|ink| [ink.x, ink.y, ink.z]),
+        }
+    }
+
+    /// Draw its lines in `palette`, when that is not what they are drawn in already: a write
+    /// marks the material changed, and it is sent to the GPU again.
+    pub fn paint(
+        materials: &mut Assets<LineMaterial>,
+        handle: &Handle<LineMaterial>,
+        palette: &Palette,
+    ) {
+        let inks = inks(palette);
+        let stale = materials.get(handle).is_some_and(|m| m.palette != inks);
+        if stale && let Some(mut material) = materials.get_mut(handle) {
+            material.palette = inks;
         }
     }
 
@@ -60,6 +88,11 @@ impl LineMaterial {
     pub fn width(&self) -> f32 {
         self.params.y
     }
+}
+
+/// A palette as the shader takes it.
+fn inks(palette: &Palette) -> [Vec4; SLOTS] {
+    palette.inks.map(|[r, g, b]| Vec4::new(r, g, b, 1.0))
 }
 
 /// The shader, compiled into the binary.

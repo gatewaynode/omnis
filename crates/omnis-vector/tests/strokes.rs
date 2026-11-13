@@ -58,11 +58,11 @@ fn a_segment_is_a_quad_of_four_vertices_with_both_ends_and_two_triangles() {
     assert_eq!(strokes.indices, [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
     assert_eq!(QUAD, [0, 1, 2, 0, 2, 3]);
     // The brightness rides in the alpha; the style names the role: structure, then a passage.
-    let palette = Palette::default();
-    let [r, g, b] = palette.ink(ColourRole::Structure);
-    assert_eq!(strokes.colour[..4], [[r, g, b, 1.0]; 4]);
-    let [r, g, b] = palette.ink(ColourRole::Passage);
-    assert_eq!(strokes.colour[4..], [[r, g, b, 0.5]; 4]);
+    // The colour is no ink but the kind's strength on its role's: the palette is the material's.
+    assert_eq!(strokes.colour[..4], [[1.0, 1.0, 1.0, 1.0]; 4]);
+    assert_eq!(strokes.colour[4..], [[1.0, 1.0, 1.0, 0.5]; 4]);
+    let ceiling = Strokes::of([(&segment(SegKind::Ceiling, None), 1.0)]);
+    assert_eq!(ceiling.colour, [[0.5, 0.5, 0.5, 1.0]; 4]);
     assert_eq!(strokes.style[..4], [[1.0, 0.0, 0.0, 0.0]; 4]);
     assert_eq!(strokes.style[4..], [[1.0, 0.0, 2.0, 0.0]; 4]);
     assert!(Strokes::default().is_empty());
@@ -294,10 +294,10 @@ fn a_scene_s_buffers_keep_its_order_its_dims_and_the_grid_setting() {
         assert_eq!(strokes.len(), lines.len());
         for (i, (segment, dim)) in lines.iter().enumerate() {
             let look = look(segment);
-            let [r, g, b] = Palette::default().ink(look.role).map(|c| c * look.strength);
+            let s = look.strength;
             assert_eq!(strokes.a[i * 4], segment.a, "line {i} in the scene's order");
             assert_eq!(strokes.b[i * 4 + 3], segment.b);
-            assert_eq!(strokes.colour[i * 4], [r, g, b, *dim]);
+            assert_eq!(strokes.colour[i * 4], [s, s, s, *dim]);
             assert_eq!(strokes.style[i * 4], look.style());
         }
         let dims: Vec<f32> = strokes.colour.iter().map(|c| c[3]).collect();

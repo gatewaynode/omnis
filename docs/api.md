@@ -318,7 +318,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
-| `Data::biosphere_of(MapId)` | `Option<&BiosphereDef>`: the palette `map` is drawn in, the one the map names, else its region's, else none (the client draws in its default). Presentation only | none |
+| `Data::biosphere_of(MapId)` | `Option<&BiosphereDef>`: the palette `map` is drawn in, the one the map names, else its region's, else none (the client draws in its default). `Data::biosphere_for(&MapDef)` answers the same for a definition being written. Presentation only | none |
 | `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
 | `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
 | `archive_len(&World)` | `usize`: how many archive segments the folds have put away (M8.5 7e) | none |
@@ -1210,9 +1210,10 @@ Additive (§13), so `PROTOCOL` stays 2:
   `Passage`, `Thing`, `Party`, `Hostile`, `Magic`, `Danger`, `Interface`; a role a palette leaves out takes the
   client's default. `RegionDef` and `MapDef` gain an optional `biosphere` (an id; unknown is a load error) and
   `Terrain` an optional `role`; all three are left out of a file when unset, so no pack's seal moves.
-  `Data::biosphere_of(MapId)` (Tier 1) answers the map's own, else its region's, else none. `biosphere` is
+  `Data::biosphere_of(MapId)` (Tier 1) answers the map's own, else its region's, else none, and
+  `Data::biosphere_for(&MapDef)` the same for a map being written. `biosphere` is
   the sixteenth kind of the `data.*` ops. Presentation data: no rule, command, event or rejection reads it.
-  The fixture packs `objects` (0.1.3) and `levels` (0.1.1) are resealed with biospheres; `base` and `test`
+  The fixture packs `objects` (0.1.4) and `levels` (0.1.1) are resealed with biospheres; `base` and `test`
   are untouched, so no golden moved.
 - 2026-11-13 (found items; the owner's choice "Drop it, open the loot window"): a change in what one
   data effect does, with no wire shape added, removed or renamed. The object effect `GiveItem` lays the item

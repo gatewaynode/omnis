@@ -317,3 +317,56 @@ fn the_preview_s_lines_are_meshes_on_its_layer_under_its_own_material() {
     app.update();
     assert_eq!(lines(&mut app), expected(&app, false), "without the grids");
 }
+
+/// The preview is drawn in the edited map's biosphere, as the game would draw it (rendering
+/// size 2, part 3): the yard's region names ember; the town names none.
+#[test]
+fn the_preview_s_palette_is_the_edited_map_s_biosphere_s() {
+    use bevy::asset::AssetPlugin;
+    use bevy::prelude::*;
+    use common::app::{config, shell};
+    use omnis_vector::shell::lines::{LineMaterial, LinesPlugin};
+    use omnis_vector::shell::preview::{PreviewLines, PreviewPlugin};
+    use omnis_vector::shell::session::{Config, Packs};
+    use omnis_vector::style::Palette;
+    // The editor writes the last pack loaded, so the town is opened without the yard's pack.
+    let palette_of = |map: &str, with_objects: bool| {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut packs = config().packs;
+        if with_objects {
+            packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
+        }
+        let mut app = shell(
+            Config {
+                packs,
+                editor: Some(Some(map.to_owned())),
+                ..config()
+            },
+            false,
+        );
+        app.add_plugins(AssetPlugin::default())
+            .init_asset::<Mesh>()
+            .init_asset::<Image>()
+            .init_asset::<StandardMaterial>()
+            .add_plugins((LinesPlugin, PreviewPlugin));
+        app.update();
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<&MeshMaterial3d<LineMaterial>, With<PreviewLines>>();
+        let handle = q.single(world).expect("the preview's lines").0.clone();
+        let held = world
+            .resource::<Assets<LineMaterial>>()
+            .get(&handle)
+            .expect("the preview's material")
+            .palette();
+        let data = &world.resource::<Packs>().data;
+        let named = Palette::of(data.biosphere_of(common::map(data, map)));
+        (held, named)
+    };
+    let (held, ember) = palette_of("objects:map:yard", true);
+    assert_eq!(held, ember);
+    assert_ne!(ember, Palette::default());
+    let (held, none) = palette_of("test:map:town", false);
+    assert_eq!(held, Palette::default());
+    assert_eq!(none, Palette::default());
+}
