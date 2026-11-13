@@ -36,6 +36,7 @@ mod editor_start;
 mod fight;
 mod fight_screen;
 mod fill;
+mod found;
 mod full_log;
 mod game_io;
 mod geometry;

@@ -356,6 +356,9 @@ pub struct Session {
     pub names: Names,
     /// A door moved: the 3D lines must be rebuilt.
     pub reshape: bool,
+    /// An object gave something, now lying on the ground: the loot window opens on it
+    /// (`shell/aim.rs`), which clears this.
+    pub found: bool,
     /// What the session started from, for a restart.
     pub config: Config,
     /// Why the binder's log no longer replays this world, once something outside it changed
@@ -487,6 +490,7 @@ impl Session {
             fight_log: Vec::new(),
             names,
             reshape: true,
+            found: false,
             config,
             unreplayable: None,
         }
@@ -597,6 +601,7 @@ impl Session {
     fn take_in(&mut self, events: &[Event]) -> Vec<(bool, String)> {
         self.refresh();
         self.reshape |= events.iter().any(reshapes);
+        self.found |= events.iter().any(finds);
         self.names.observe(&self.views.party);
         self.names.locate(self.views.position.map);
         // Each event's fight line, for the full log when the HUD has none for it.
@@ -703,6 +708,19 @@ impl Session {
         let excess = self.lines.len().saturating_sub(LOG_LINES);
         self.lines.drain(..excess);
     }
+}
+
+/// Whether an event is a find: what an object gave, laid on the ground for the party to take.
+#[must_use]
+pub fn finds(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::ItemMoved {
+            from: ItemPlace::Object(_),
+            to: ItemPlace::Ground,
+            ..
+        }
+    )
 }
 
 /// Whether an event changes what the view draws of the map: a door, an object's state, an

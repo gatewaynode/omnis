@@ -128,6 +128,22 @@ fn open(screens: &mut Screens, views: Option<&crate::sim::Views>) {
     screens.nav.open(ScreenId::Loot, views);
 }
 
+/// What an object gave lies on the ground: the loot window opens on it at once, over whatever
+/// screen the verb came from, so it is not left behind for want of looking (owner,
+/// 2026-11-13). Where the world does not allow the window, the find stays a pile.
+fn found(session: Option<ResMut<Session>>, screens: Option<ResMut<Screens>>) {
+    let (Some(mut session), Some(mut screens)) = (session, screens) else {
+        return;
+    };
+    if !session.found {
+        return;
+    }
+    session.found = false;
+    if !session.views.objects.ground.is_empty() {
+        open(&mut screens, Some(&session.views));
+    }
+}
+
 /// Marks the "Pick up..." button over the view.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PickUp;
@@ -234,6 +250,6 @@ pub(super) fn plugin(app: &mut App) {
     app.init_resource::<Aimed>()
         .add_systems(Startup, spawn)
         .add_systems(Update, aim.before(VectorSet::Grab))
-        .add_systems(Update, pick_up.in_set(VectorSet::Input))
+        .add_systems(Update, (pick_up, found).in_set(VectorSet::Input))
         .add_systems(Update, offer.in_set(VectorSet::Screens));
 }
