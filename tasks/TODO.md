@@ -636,6 +636,13 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   no crests hung an empty mesh, which Bevy warns about each time it is uploaded; now the crest entity has no
   mesh while there are none (`hang_crests`; the two tests say so; two mutations caught). Gate 1293.
   Parts 2 to 6 of `tasks/plans/rendering-size-2.md` are not started and not approved.
+- [ ] Rendering size 2, part 2: line patterns and weight (plan `tasks/plans/rendering-size-2-patterns.md`,
+  approved 2026-11-12; the owner chose dashes measured in the world, and a provisional table from
+  presentation-PRD section 5.3).
+  - [ ] Step 0: the plan filed; baseline captures.
+  - [ ] Step 1: `style::Pattern` and `Weight`, `strokes::channels` by `SegKind`, written into the mesh's style.
+  - [ ] Step 2: dashed, dotted and double in `lines.wesl`, with the far filter; captures and timing.
+  - [ ] Step 3: documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
