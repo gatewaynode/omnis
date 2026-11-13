@@ -572,7 +572,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     we can move on." (Store and the takes named; the ceiling, Destroy, the pile stamp and the quiet not named.)
     Open: an open
     container's way into the window; Store and Destroy act on a whole row (no count asked).
-- [ ] The rendering direction (BACKLOG, 2026-10-20, "GPU-first"). **The owner chose 2026-11-12: size 1 with size 2
+- [x] The rendering direction, size 1 built 2026-11-12, awaiting the owner's try (BACKLOG, 2026-10-20, "GPU-first"). **The owner chose 2026-11-12: size 1 with size 2
   designed in** ("sounds correct"; the direction is to lean on Bevy more: its meshes and `Material`, not its
   debug gizmos). Plan mode next. Before the choice: the owner chooses a size; the recommendation
   is size 1 (retained line meshes with an own WGSL material) straight after 0.20, with size 2 designed in the
@@ -618,8 +618,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     presentation-ARCHITECTURE §8.2, §8.6, VA1, VA4, Q3; presentation-PRD §11 Built; BACKLOG; code-map. The
     fight screen's 2D lines stay gizmos. `fade` (the CPU fade) went with its last caller; the shader's comment
     carries the formula.
-  - [ ] 5. Size 2's design: `tasks/plans/rendering-size-2.md` and the proposed presentation-PRD amendment.
-  - [ ] `tasks/acceptance/rendering-size-1.md`.
+  - [x] 5. Size 2's design (2026-11-12): `tasks/plans/rendering-size-2.md`, six parts in a build order, with
+    the proposed presentation-PRD amendment at its end (not applied: the owner's to approve).
+  - [x] `tasks/acceptance/rendering-size-1.md` (2026-11-12).
+  - Review (2026-11-12): built as planned in commits `536efc5a` (steps 0 to 2), `81e127e8` (3), `23459e72`
+    (4). Gate 1285 to 1293. Would a staff engineer approve: the shader is checked only by captures on one
+    machine (Metal); no window, no hand test, no other GPU. Open: the owner's try; size 2's decision.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

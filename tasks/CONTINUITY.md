@@ -1,6 +1,21 @@
 # Continuity notes
 
-Written 2026-11-12. **The loot window and ceiling plan is built in full**, `tasks/plans/loot-window-and-ceiling.md`
+Written 2026-11-12. **Rendering size 1 is built in full, not yet tried by the owner**
+(`tasks/plans/rendering-size-1.md`, approved 2026-11-12; the owner's script `tasks/acceptance/rendering-size-1.md`):
+the 3D view's and the editor preview's lines are retained Bevy meshes under `LineMaterial` (Bevy's `Material`,
+`shell/lines.rs`, `shell/lines.wesl` embedded, WESL), from `strokes.rs` (a quad a segment; `style` kept for size
+2); crests a second mesh (`lines::hang_crests`); the gizmo renderer and `--lines` are gone (the fight's 2D lines
+stay gizmos). Commits `536efc5a`, `81e127e8`, `23459e72`. Gate 1293. **Next: the owner's try, and the owner's
+decision on size 2** (`tasks/plans/rendering-size-2.md`: six parts; recommended next is edge feathering; a
+proposed presentation-PRD amendment is at its end, not applied). **How a shader is checked** (the gate cannot):
+offscreen capture pairs with `--settings .omnis/test-saves/still.ron` (`(reduced_motion: true)`), because the eye
+eases by real time; `<scratchpad>/pixdiff.py`, `pairs.sh`, `still.sh`, `timing.sh`; scratch copies of the fixture
+packs with an `entry` under `<scratchpad>/packs/`; `tasks/knowledge/verification.md` has the method.
+**Bevy 0.20 shader facts** (read from source): shaders are WESL (`import a::b;`, `@if(DEF)`), the material bind
+group is `@group(constants::MATERIAL_BIND_GROUP)`, `Material` is in `bevy_pbr`, `specialize` is also called for
+the prepass and shadow pipelines (so the line material turns both off), `Material::depth_bias` only sorts.
+
+Before that, the same day: **the loot window and ceiling plan is built in full**, `tasks/plans/loot-window-and-ceiling.md`
 (approved by the owner 2026-11-12): step 1, the ceiling over a dip (`ead8e8c0`, `Ground::roof`); step 2, reach
 (`ee803d45`: `ground::in_reach`, `PickUp` and `ObjectsView.ground` over the party's cell then the faced cell);
 step 3, the loot window and the click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `shell/aim.rs`, `Does::Loot`,
@@ -8,10 +23,7 @@ step 3, the loot window and the click (`b6492d3b`: `screen/loot.rs`, `aim.rs`, `
 `Destroy` with `from: ItemPlace`, `Event::ItemDestroyed` (74 events), `Rejection::NotFromThere` (72), `items::lift`
 over `ground::take` and `container::take`; `LootAct::{Store, Destroy, Confirm, Cancel}`, `Loot.asking`). The
 owner's script is `tasks/acceptance/loot-and-ceiling.md`. **The owner tried it 2026-11-12**: "tested piles now store and release chosen items. I think we can move on."
-(the ceiling, Destroy, the pile stamp and the quiet were not named). **Next: the rendering direction, size 1 with size 2
-designed in** (the owner's choice 2026-11-12, as leaning on Bevy more: Bevy meshes and its `Material` trait in
-place of the debug gizmos; BACKLOG "Rendering direction: GPU-first"). Its plan mode comes first: a plan under
-`tasks/plans/` and the presentation-PRD amendment text for size 2's design. **Open with the owner**: an open
+(the ceiling, Destroy, the pile stamp and the quiet were not named). The rendering direction followed (above). **Open with the owner**: an open
 container has no way into the loot window yet (recommended: "Take from..." under an open container on the verbs
 screen); Store and Destroy act on a whole row, with no count asked; `Item` has no "kept" mark, so Destroy is
 never dimmed for a quest item. Pinned counts moved by step 4: `schema_proof.rs` 122 instances and 177 branches,
@@ -24,7 +36,7 @@ replays rebaselined; the roll itself measured right at 2.95%). `editor/mod.rs` i
 The plan came from the owner's hand test of Bevy 0.20, which went well: "the upgrade went pretty smoothly",
 "the left click loss is fixed" (`74772b2a`: a button covered while pressed stayed `Pressed`; `controls::
 button_up`; lesson in `tasks/LESSONS.md`). Bevy 0.20 commits on `W-2_look_and_engine`: `84edc6e9`, `a1117c72`,
-`d67ba116`, `3c00f762`, `74772b2a`. Gate 1285. **Still to hear from the owner**: the word "accepted" for 0.20,
+`d67ba116`, `3c00f762`, `74772b2a`. Gate 1293. **Still to hear from the owner**: the word "accepted" for 0.20,
 and the departure (`controls::Control` with own left-button observers, not Bevy's `ui_widgets::Button`).
 The owner's edits to `packs/the_lower_kingdoms` (dungeon heights, a pile at (4, 23), version 0.2.22) are
 uncommitted and theirs: never staged. After this plan: ask the owner for the size of the rendering direction
