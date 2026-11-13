@@ -102,6 +102,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
                     max: i64::from(member.spendable),
                 },
                 why_not: None,
+                tip: None,
             }]
         } else {
             Vec::new()

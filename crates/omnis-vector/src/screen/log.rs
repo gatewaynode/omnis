@@ -48,6 +48,7 @@ pub fn content(game: Game, forms: &Forms) -> Screen {
             lines: 1,
         },
         why_not: None,
+        tip: None,
     };
     Screen {
         id: ScreenId::Log,

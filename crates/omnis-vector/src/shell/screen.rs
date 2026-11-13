@@ -102,6 +102,7 @@ impl Plugin for ScreenPlugin {
             .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
             .init_resource::<Beside>()
+            .add_plugins(super::tips::TipsPlugin)
             .add_observer(slid)
             .add_systems(Startup, (spawn, super::roster::spawn, open_start))
             .add_systems(

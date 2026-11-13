@@ -9,6 +9,7 @@ use super::controls::pressable;
 use super::icons::{self, IconOf, NeedsIcon};
 pub(super) use super::screen_parts::thumbs;
 use super::screen_parts::{arrow, slider, tick};
+use super::tips::Tip;
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
@@ -565,50 +566,70 @@ pub(super) fn rows(
             .controls
             .iter()
             .any(|c| matches!(c.kind, Kind::Document { .. }));
-        column
-            .spawn(Node {
-                flex_wrap: if fills || row.aligned {
-                    FlexWrap::NoWrap
-                } else {
-                    FlexWrap::Wrap
-                },
-                align_items: if fills {
-                    AlignItems::Stretch
-                } else {
-                    AlignItems::Center
-                },
-                flex_grow: if fills { 1.0 } else { 0.0 },
-                min_height: if fills { Val::Px(0.0) } else { Val::Auto },
-                column_gap: gap,
-                row_gap: gap,
-                ..default()
-            })
-            .with_children(|line| {
-                let before = row.spans.len();
-                if row.aligned {
-                    // The labels' column: the same width on every such row.
-                    line.spawn(Node {
-                        width: Val::Px(scaled(LABELS, spawn.height)),
-                        flex_shrink: 0.0,
-                        ..default()
-                    })
-                    .with_children(|cell| {
-                        for (s, span) in row.spans.iter().enumerate() {
-                            span_node(cell, (p, r, s), span, spawn);
-                        }
-                    });
-                } else {
+        let mut line = column.spawn(Node {
+            flex_wrap: if fills || row.aligned {
+                FlexWrap::NoWrap
+            } else {
+                FlexWrap::Wrap
+            },
+            align_items: if fills {
+                AlignItems::Stretch
+            } else {
+                AlignItems::Center
+            },
+            flex_grow: if fills { 1.0 } else { 0.0 },
+            min_height: if fills { Val::Px(0.0) } else { Val::Auto },
+            column_gap: gap,
+            row_gap: gap,
+            ..default()
+        });
+        // A field's row explains its field wherever the pointer is on it, its name included.
+        if let Some(text) = row.controls.first().and_then(|c| c.tip.clone())
+            && row.aligned
+        {
+            line.insert(Tip { text, beside: true });
+        }
+        line.with_children(|line| {
+            let before = row.spans.len();
+            if row.aligned {
+                // The labels' column: the same width on every such row.
+                line.spawn(Node {
+                    width: Val::Px(scaled(LABELS, spawn.height)),
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_children(|cell| {
                     for (s, span) in row.spans.iter().enumerate() {
-                        span_node(line, (p, r, s), span, spawn);
+                        span_node(cell, (p, r, s), span, spawn);
                     }
+                });
+            } else {
+                for (s, span) in row.spans.iter().enumerate() {
+                    span_node(line, (p, r, s), span, spawn);
                 }
-                for c in &row.controls {
-                    control_node(line, keys, c, (row.tint, row.aligned), spawn);
+            }
+            for c in &row.controls {
+                match &c.tip {
+                    // Any other control with a tip stands in a node that carries it.
+                    Some(text) if !row.aligned => {
+                        line.spawn((
+                            Node::default(),
+                            Tip {
+                                text: text.clone(),
+                                beside: false,
+                            },
+                        ))
+                        .with_children(|held| {
+                            control_node(held, keys, c, (row.tint, false), spawn);
+                        });
+                    }
+                    _ => control_node(line, keys, c, (row.tint, row.aligned), spawn),
                 }
-                for (s, span) in row.after.iter().enumerate() {
-                    span_node(line, (p, r, before + s), span, spawn);
-                }
-            });
+            }
+            for (s, span) in row.after.iter().enumerate() {
+                span_node(line, (p, r, before + s), span, spawn);
+            }
+        });
     }
 }
 

@@ -785,7 +785,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     window (`ui_editor_app`; the plain headless app has no layout, every rectangle is 0). Gate 1329 to
     1332; five mutations caught. Seen in one capture through a temporary probe that opened the form at
     start (`target/shots/form/terrain.png`); the probe is not in the tree.
-  - [ ] Step 3: the kit's tooltip (`Control.tip`, `shell/tips.rs` on Bevy's `Popover`).
+  - [x] Step 3: `Control.tip` (in the screen's shape) and `shell/tips.rs`: a node that carries a `Tip`
+    shows it in a box once the pointer has rested 0.4 s on it, and at once while it holds the keyboard;
+    the box goes when the pointer leaves or a control is pressed. The box is a child of the node placed
+    by Bevy 0.20's `ui_widgets::Popover` (left of a field's row first, so it falls over the plan; under
+    any other control first), with `OverrideClip` so the scrolling column does not cut it. A field's row
+    carries its field's tip, so the name explains it too. The terrain form's fields have their text
+    (`editor/tips.rs::field`); the rest is step 4. Gate 1332 to 1337; seven mutations caught, and one
+    survivor that showed a redundant branch, removed. Seen in one capture through the temporary probe
+    (`target/shots/form/tip.png`); not seen following a real pointer.
   - [ ] Step 4: tip text for the whole editor (`editor/tips.rs`), listed in the plan for the owner.
   - [ ] Step 5: documents, `tasks/acceptance/editor-forms-and-tips.md`, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the

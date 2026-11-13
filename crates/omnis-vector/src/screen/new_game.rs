@@ -70,6 +70,7 @@ pub fn content(form: &NewGameForm) -> Screen {
             lines: 1,
         },
         why_not: None,
+        tip: None,
     };
     let rule = Control {
         id: ControlId::Rule,
@@ -82,6 +83,7 @@ pub fn content(form: &NewGameForm) -> Screen {
             at: form.rule_at(),
         },
         why_not: None,
+        tip: None,
     };
     let permadeath = if form.settings.permadeath {
         "On"

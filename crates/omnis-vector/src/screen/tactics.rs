@@ -213,6 +213,7 @@ fn choice(
         label: label.to_owned(),
         kind: Kind::Choice { options, at },
         why_not: why_not.map(str::to_owned),
+        tip: None,
     }
 }
 
@@ -319,6 +320,7 @@ fn condition_row(i: u8, draft: &Draft, choices: &Choices, lock: Option<&str>) ->
                 max: i64::from(max),
             },
             why_not: lock.map(str::to_owned),
+            tip: None,
         });
     }
     controls.push(button(TacticAct::Drop(i), "Drop", lock.map(str::to_owned)));
@@ -443,6 +445,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
                 at: usize::from(m.tactics.reactions_on),
             },
             why_not: tried(data, game, &switch),
+            tip: None,
         },
         Control::button(ControlId::Close, "Close"),
     ])];

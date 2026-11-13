@@ -84,6 +84,7 @@ fn offer_row(data: &Data, game: Game, view: &ServiceView, index: usize) -> Optio
             label: labels::offer_caption(&offer.command).to_owned(),
             kind: Kind::Button,
             why_not: offer.refusal.as_ref().map(labels::service_reason),
+            tip: None,
         }],
         after: if note.is_empty() {
             Vec::new()
@@ -133,6 +134,7 @@ fn bank_row(data: &Data, game: Game, bank: &str) -> Row {
                 lines: 1,
             },
             why_not: None,
+            tip: None,
         },
         button(ControlId::Deposit, "Deposit", true),
         button(ControlId::Withdraw, "Withdraw", false),

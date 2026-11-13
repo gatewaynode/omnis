@@ -414,6 +414,15 @@ impl Form {
         }
     }
 
+    /// Field `i`'s row: its name, its input, and what it is for (`tips::field`), in the form's
+    /// own fields or in a row of the list named `list`.
+    fn field_row(&self, i: usize, list: Option<&str>) -> Row {
+        let f = &self.fields[i];
+        let mut control = f.control(i);
+        control.tip = tips::field(&self.kind, list, f.label).map(str::to_owned);
+        Row::field(f.label, control)
+    }
+
     /// The form as kit rows: the heading, the form's own fields one to a row, each list's
     /// heading with Add row, its rows each with Remove, then Apply, Cancel and, when it edits
     /// something already there, Remove.
@@ -433,7 +442,7 @@ impl Form {
                 if let Some(section) = tips::section(&self.kind, f.label) {
                     rows.push(heading(section));
                 }
-                rows.push(Row::field(f.label, f.control(i)));
+                rows.push(self.field_row(i, None));
             }
         }
         if self.kind == FormKind::Portal {
@@ -457,8 +466,7 @@ impl Form {
             for (r, row) in self.rows_of(l).into_iter().enumerate() {
                 let r = u8::try_from(r).unwrap_or(u8::MAX);
                 for i in row {
-                    let f = &self.fields[i];
-                    rows.push(Row::field(f.label, f.control(i)));
+                    rows.push(self.field_row(i, Some(list.label)));
                 }
                 rows.push(Row::controls(vec![Control::button(
                     edit(EditAct::ListRemove(l, r)),

@@ -362,9 +362,19 @@ pub struct Control {
     pub kind: Kind,
     /// Why it cannot be used now; it is drawn dim with this reason and takes no input.
     pub why_not: Option<String>,
+    /// What it is for, in a sentence or two (owner, 2026-11-13): shown in a box beside it when
+    /// the pointer rests on it or it holds the keyboard.
+    pub tip: Option<String>,
 }
 
 impl Control {
+    /// The control with `tip` to explain it.
+    #[must_use]
+    pub fn explained(mut self, tip: impl Into<String>) -> Control {
+        self.tip = Some(tip.into());
+        self
+    }
+
     /// A live button.
     #[must_use]
     pub fn button(id: ControlId, label: impl Into<String>) -> Control {
@@ -373,6 +383,7 @@ impl Control {
             label: label.into(),
             kind: Kind::Button,
             why_not: None,
+            tip: None,
         }
     }
 }
@@ -482,7 +493,7 @@ impl Screen {
     }
 
     /// A hash of the screen's shape: its panels, rows, spans' count and controls' ids, kinds,
-    /// whether they are live and which icon is chosen, not their words. The renderer rebuilds its
+    /// tips, whether they are live and which icon is chosen, not their words. The renderer rebuilds its
     /// nodes only when the shape changes, and rewrites the words in place otherwise.
     #[must_use]
     pub fn shape(&self) -> u64 {
@@ -502,6 +513,7 @@ impl Screen {
                         core::mem::discriminant(&c.kind),
                         c.why_not.is_some(),
                         chosen,
+                        &c.tip,
                     )
                         .hash(&mut h);
                 }

@@ -457,6 +457,7 @@ impl<'a> Look<'a> {
                 lines: 1,
             },
             why_not: None,
+            tip: None,
         }
     }
 
@@ -497,6 +498,7 @@ fn choice(act: DebugAct, label: &str, options: Vec<String>, at: usize) -> Contro
         label: label.to_owned(),
         kind: Kind::Choice { options, at },
         why_not: None,
+        tip: None,
     }
 }
 

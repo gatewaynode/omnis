@@ -217,6 +217,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
                     .unwrap_or(0),
             },
             why_not: None,
+            tip: None,
         },
         Control::button(ControlId::Close, "Close"),
     ])];

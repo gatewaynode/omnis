@@ -45,6 +45,7 @@ fn choice(field: Field, label: &str, options: Vec<String>, at: usize) -> Row {
         label: label.to_owned(),
         kind: Kind::Choice { options, at },
         why_not: None,
+        tip: None,
     }])
 }
 

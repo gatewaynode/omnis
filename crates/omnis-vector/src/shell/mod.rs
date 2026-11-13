@@ -32,6 +32,7 @@ pub mod settings;
 #[cfg(feature = "devtools")]
 pub mod socket;
 pub mod text;
+pub mod tips;
 
 use bevy::prelude::*;
 

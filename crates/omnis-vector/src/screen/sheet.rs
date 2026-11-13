@@ -256,6 +256,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
                     at: forms.page.at(),
                 },
                 why_not: None,
+                tip: None,
             },
             Control {
                 why_not: game

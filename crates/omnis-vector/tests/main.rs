@@ -70,4 +70,5 @@ mod shell;
 mod socket;
 mod strokes;
 mod tactics;
+mod tips;
 mod verbs;

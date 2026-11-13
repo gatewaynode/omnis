@@ -112,6 +112,7 @@ pub fn content(data: &Data, game: Game, form: &FightForm) -> Screen {
                 at: usize::from(on),
             },
             why_not: crate::trial::why(world, data, &game.views.party, &command),
+            tip: None,
         }]));
     }
     let entries = menu.entries(world, data);
@@ -121,6 +122,7 @@ pub fn content(data: &Data, game: Game, form: &FightForm) -> Screen {
             label: e.label.clone(),
             kind: Kind::Button,
             why_not: e.blocked.clone(),
+            tip: None,
         })
     });
     if menu.picking() {

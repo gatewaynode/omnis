@@ -124,6 +124,7 @@ fn choice(id: ControlId, label: &str, options: Vec<String>, at: usize) -> Contro
         label: label.to_owned(),
         kind: Kind::Choice { options, at },
         why_not: None,
+        tip: None,
     }
 }
 
@@ -150,6 +151,7 @@ pub fn content(data: &Data, game: Game, form: &CreateForm) -> Screen {
                 lines: 1,
             },
             why_not: None,
+            tip: None,
         }]),
         Row::controls(vec![choice(
             ControlId::Race,
@@ -241,6 +243,7 @@ pub fn content(data: &Data, game: Game, form: &CreateForm) -> Screen {
                         max: i64::from(view.score_max),
                     },
                     why_not: None,
+                    tip: None,
                 }],
                 after,
                 ..Row::default()

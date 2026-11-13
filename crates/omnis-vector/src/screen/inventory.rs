@@ -82,6 +82,7 @@ pub fn owner_choice(game: Game, owner: CharacterId, label: &str) -> Control {
             at: members.iter().position(|m| m.member == owner).unwrap_or(0),
         },
         why_not: None,
+        tip: None,
     }
 }
 
