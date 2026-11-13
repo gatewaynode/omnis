@@ -2,7 +2,8 @@
 //! can be clicked. No Bevy here: a point of the world is put on the screen through the eye
 //! (where it is, its yaw and pitch, the vertical field of view), a pile's box becomes the
 //! rectangle around its eight corners, and the pointer is on the pile when it is in that
-//! rectangle, grown a little so a small heap is not a small target. Only piles in reach are
+//! rectangle, grown a little, or anywhere on the floor of the pile's cell, so a small heap is
+//! not a small target. Only piles in reach are
 //! asked about (the party's cell and the one it faces across an open edge), so nothing can
 //! stand between and no wall is tested.
 
@@ -73,8 +74,41 @@ pub fn rect(eye: &Eye, size: (f32, f32), body: &Body) -> Option<[f32; 4]> {
     Some(out)
 }
 
+/// Where the floor of cell `(x, y)` is on the screen: its corners north-west, north-east,
+/// south-east and south-west at the ground's heights; `None` when a corner is behind the eye,
+/// as the party's own cell's always are, or the cell is off the map.
+#[must_use]
+pub fn floor(
+    eye: &Eye,
+    size: (f32, f32),
+    ground: &Ground,
+    x: u16,
+    y: u16,
+) -> Option<[(f32, f32); 4]> {
+    let heights = ground.patch(x, y)?.corners;
+    let (w, n) = (f32::from(x), f32::from(y));
+    let at = [(w, n), (w + 1.0, n), (w + 1.0, n + 1.0), (w, n + 1.0)];
+    let mut out = [(0.0, 0.0); 4];
+    for i in 0..4 {
+        out[i] = project(eye, size, [at[i].0, heights[i], at[i].1])?;
+    }
+    Some(out)
+}
+
+/// Whether a screen point is inside a convex quad, its corners in order either way round.
+#[must_use]
+pub fn inside(point: (f32, f32), quad: &[(f32, f32); 4]) -> bool {
+    let side = |i: usize| {
+        let (a, b) = (quad[i], quad[(i + 1) % 4]);
+        (b.0 - a.0) * (point.1 - a.1) - (b.1 - a.1) * (point.0 - a.0)
+    };
+    let sides = [side(0), side(1), side(2), side(3)];
+    sides.iter().all(|s| *s >= 0.0) || sides.iter().all(|s| *s <= 0.0)
+}
+
 /// Which of `piles` the screen point is on, as they are drawn on `ground`: the first whose
-/// rectangle, grown by [`MARGIN`], holds it.
+/// rectangle, grown by [`MARGIN`], holds it, or whose cell's floor does (owner, 2026-11-13: the
+/// heap alone was too small a target).
 #[must_use]
 pub fn pile_under(
     point: (f32, f32),
@@ -85,11 +119,18 @@ pub fn pile_under(
 ) -> Option<usize> {
     piles.iter().position(|p| {
         let body = Body::of(p.x, p.y, p.pos, Facing::North, &PILE_LOOK, ground);
-        rect(eye, size, &body).is_some_and(|[l, t, r, b]| {
-            point.0 >= l - MARGIN
-                && point.0 <= r + MARGIN
-                && point.1 >= t - MARGIN
-                && point.1 <= b + MARGIN
-        })
+        on_heap(point, size, eye, &body)
+            || floor(eye, size, ground, p.x, p.y).is_some_and(|quad| inside(point, &quad))
+    })
+}
+
+/// Whether the screen point is in a body's rectangle grown by [`MARGIN`].
+#[must_use]
+pub fn on_heap(point: (f32, f32), size: (f32, f32), eye: &Eye, body: &Body) -> bool {
+    rect(eye, size, body).is_some_and(|[l, t, r, b]| {
+        point.0 >= l - MARGIN
+            && point.0 <= r + MARGIN
+            && point.1 >= t - MARGIN
+            && point.1 <= b + MARGIN
     })
 }

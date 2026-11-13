@@ -30,7 +30,7 @@ use std::path::PathBuf;
 const DAGGER: &str = "base:item:dagger";
 const ARROWS: &str = "base:item:arrows";
 
-fn yard(data: &Data, x: u16, y: u16, facing: Facing) -> SimWorld {
+pub(crate) fn yard(data: &Data, x: u16, y: u16, facing: Facing) -> SimWorld {
     let (mut world, _) = town_session(data);
     let map = common::map(data, "objects:map:yard");
     place(&mut world, map, x, y, facing);
@@ -451,7 +451,7 @@ fn store_sends_all_of_it_to_the_stores_and_destroy_asks_before_anything_is_sent(
 }
 
 /// The shell on the yard, the party at `(x, y)` facing `facing`.
-fn yard_app(x: u16, y: u16, facing: Facing) -> App {
+pub(crate) fn yard_app(x: u16, y: u16, facing: Facing) -> App {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut packs = config().packs;
     packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
@@ -649,13 +649,13 @@ fn heap_on_screen(app: &App) -> (f32, f32) {
     )
 }
 
-fn cursor(app: &mut App) -> Option<CursorIcon> {
+pub(crate) fn cursor(app: &mut App) -> Option<CursorIcon> {
     let world = app.world_mut();
     let mut q = world.query_filtered::<Option<&CursorIcon>, With<PrimaryWindow>>();
     q.single(world).ok().flatten().cloned()
 }
 
-fn hover(app: &mut App, point: (f32, f32)) {
+pub(crate) fn hover(app: &mut App, point: (f32, f32)) {
     let world = app.world_mut();
     let mut q = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
     q.single_mut(world)
@@ -864,15 +864,20 @@ fn the_pointer_is_on_a_pile_inside_its_rectangle_and_a_margin_and_not_beyond() {
         "a heap, not a dot: {l} {t} {r} {b}"
     );
     assert!(t > 450.0, "on the floor, below the horizon");
-    let on = |x: f32, y: f32| aim::pile_under((x, y), size, &view, &piles, &ground);
+    // The heap's own rectangle; the floor of its cell is a target too (`pile_reach.rs`).
+    let on = |x: f32, y: f32| aim::on_heap((x, y), size, &view, &body);
     let m = aim::MARGIN;
-    assert_eq!(on((l + r) / 2.0, (t + b) / 2.0), Some(0));
-    assert_eq!(on(l - m + 1.0, t - m + 1.0), Some(0), "inside the margin");
-    assert_eq!(on(r + m - 1.0, b + m - 1.0), Some(0));
-    assert_eq!(on(l - m - 1.0, (t + b) / 2.0), None, "left of it");
-    assert_eq!(on(r + m + 1.0, (t + b) / 2.0), None, "right of it");
-    assert_eq!(on((l + r) / 2.0, t - m - 1.0), None, "above it");
-    assert_eq!(on((l + r) / 2.0, b + m + 1.0), None, "below it");
+    assert_eq!(
+        aim::pile_under(((l + r) / 2.0, (t + b) / 2.0), size, &view, &piles, &ground),
+        Some(0)
+    );
+    assert!(on((l + r) / 2.0, (t + b) / 2.0));
+    assert!(on(l - m + 1.0, t - m + 1.0), "inside the margin");
+    assert!(on(r + m - 1.0, b + m - 1.0));
+    assert!(!on(l - m - 1.0, (t + b) / 2.0), "left of it");
+    assert!(!on(r + m + 1.0, (t + b) / 2.0), "right of it");
+    assert!(!on((l + r) / 2.0, t - m - 1.0), "above it");
+    assert!(!on((l + r) / 2.0, b + m + 1.0), "below it");
     // Looking the other way, the heap is behind the eye: never under the pointer.
     let back = Eye {
         yaw: view.yaw + core::f32::consts::PI,

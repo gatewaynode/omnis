@@ -658,6 +658,14 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     red from my own mutation script leaving a mutant compiled (lesson written).
     Also built, at the owner's request: `--entry <map-id>` and `just qa [map]` (the fixtures' maps in a
     window; a test starts a game on the meadow and refuses an unknown map).
+- [ ] **A ground pile that is easy to get to** (`tasks/plans/pile-reach.md`, approved 2026-11-13). From the
+  owner's hand test the same day: the click target was too small, and a pile underfoot was unseen.
+  - [x] Step 0: the plan filed.
+  - [x] Step 1: the floor of a pile's cell is its click target (`aim::floor`, `aim::inside`, `aim::on_heap`;
+    `tests/pile_reach.rs`, four tests; five mutations caught).
+  - [ ] Step 2: the floor's outline lights under the pointer (`Aimed` as the cell, `ViewAim`).
+  - [ ] Step 3: a "Pick up..." button on the view while anything on the ground is in reach.
+  - [ ] Step 4: documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

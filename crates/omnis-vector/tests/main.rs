@@ -53,6 +53,7 @@ mod minimap;
 mod notice;
 mod object_lines;
 mod overlay;
+mod pile_reach;
 mod piles;
 mod rolllog;
 mod roster;
