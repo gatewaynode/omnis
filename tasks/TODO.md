@@ -717,6 +717,18 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     opens a container and gives an item (the find should win; no fixture does both); a flight, beyond the
     `finds` unit test. Not changed and named for the owner: gold goes straight to the party; a dead
     member's kit goes to the stores unseen at a fight's end. Not seen in a window by me.
+- [ ] **Rendering size 2, part 3: colour roles as a palette, with biospheres in pack data** (M8.5 step 5's
+  colour half; `tasks/plans/rendering-size-2-palette.md`, approved 2026-11-13; presentation-PRD X23 applied).
+  The owner's answers: nine roles (structure, ground, passage, thing, party, hostile, magic, danger,
+  interface); a region names its biosphere, a map may override; a terrain names its role; the 3D view and
+  the editor preview now, the fight screen, minimap and HUD in a following plan before part 4.
+  - [x] Step 0: the plan filed; X23 and the additions to X10, X18 and X19 applied; §12.2 and §12.3 answered.
+  - [ ] Step 1: data. `ColourRole`, the `biosphere` kind, `Terrain.role`, `biosphere` on a region and a
+    map, `Data::biosphere_of`, the catalogue (16 kinds), the CLI schema, fixtures, `docs/api.md`.
+  - [ ] Step 2: roles on the CPU. `style::{Ink, Palette}`, `strokes::role`, `Segment.role`, `style.z`.
+  - [ ] Step 3: the palette on the line material; swapped with the map, no mesh rebuilt; captures.
+  - [ ] Step 4: the contrast and colour-deficiency checks; the default palette tuned.
+  - [ ] Step 5: the terrain form's role; documents, the acceptance sheet, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

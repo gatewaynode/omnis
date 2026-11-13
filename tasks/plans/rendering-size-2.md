@@ -1,6 +1,6 @@
 # Rendering size 2: the look computed on the GPU (design, for the owner's decision)
 
-Status: **design, 2026-11-12; part 1 (edge feathering) built the same day at the owner's go; part 2 (patterns and weight) built 2026-11-13**. Nothing else here is built or approved. It is step 5 of
+Status: **design, 2026-11-12; part 1 (edge feathering) built the same day at the owner's go; part 2 (patterns and weight) built 2026-11-13**. **The owner's order 2026-11-13: parts 3 to 6, in the order 3, 4, 5, 6, each its own plan; the amendment at the end approved as written and applied to `presentation-PRD.md` as X23. Part 3's plan: `tasks/plans/rendering-size-2-palette.md`.** It is step 5 of
 `tasks/plans/rendering-size-1.md`: the owner chose size 1 "with size 2 designed in". Building any part of it
 needs the owner's go and, for the parts marked *amendment*, the presentation-PRD text at the end.
 
@@ -54,7 +54,7 @@ Then 2 to 4 together with M8.5 step 5 (the colour scheme), since step 5 decides 
 Then 5. Hold 6 until relief is actually wanted on screen; it is the only part with a real risk to the
 collision mirror.
 
-## Proposed amendment to `presentation-PRD.md` (not applied; the owner's to approve or change)
+## The amendment to `presentation-PRD.md` (approved as written and applied 2026-11-13)
 
 > **X23 (the next free number). The look is computed on the GPU (owner, 2026-11-12, "GPU-first", size 2).** The client decides
 > *what* exists on the CPU (cells, edges, objects, their roles and states) and sends it once as meshes,
