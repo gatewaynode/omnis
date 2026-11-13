@@ -755,3 +755,15 @@
   or a thing that stays in view; a log line alone is not enough.
 - **Rule** (process): before asserting what a menu shows in a test, read it (`screen_text`); the stone's
   entry is "Use", not its verb's name.
+
+## 2026-11-13: a look change's report names every kind it merges, and where the owner will meet it
+- **What happened**: part 3 made a terrain's block *structure* unless its terrain names a role. My report
+  and the acceptance sheet named three merges (floors, cliffs, piles) and left out blocks. The owner walked
+  their meadow, saw the trees' blocks drawn as walls, took them for cliffs and reported the hatching gone.
+  The sheet's cliff step pointed at a fixture map; nothing told the owner what their own maps would show.
+- **Rule**: when a change maps several kinds to one look, walk the mapping function arm by arm (here
+  `strokes::role`, every `SegKind`) and list each kind that now shares a look with another. The list in
+  the report is that walk, not what I remember changing.
+- **Rule**: read the owner's pack (read only, never in a test) for which of those kinds it uses, and say
+  in the report what they will see on their own maps ("the meadow's trees are blocks: they will look like
+  walls").

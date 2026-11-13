@@ -764,6 +764,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     palette to its author; a preset in Settings; the channel check of 7.3. Consequences the owner should
     judge by eye: floors no longer differ by terrain; cliffs are the walls' colour; piles are the objects'
     colour; the walls' green differs from the HUD's. Not seen in a window by me.
+- [ ] **A terrain's block face, the editor form's layout, and tooltips** (owner's try of part 3, 2026-11-13;
+  `tasks/plans/editor-forms-and-tips.md`, approved in plan mode the same day). The meadow has no cliffs: the
+  owner saw the trees terrain's blocks, which part 3 made the walls' colour. The form in the editor's right
+  column is unclear and has no tooltips.
+  - [x] Step 0: this plan, the lesson (a look change's report names every kind it merges, blocks included).
+  - [ ] Step 1: `Terrain.face` (plain or hatched), the hatched block's lines, the form's choice, a fixture.
+  - [ ] Step 2: aligned field rows (dim label column, each input its own box), the tick box, sections.
+  - [ ] Step 3: the kit's tooltip (`Control.tip`, `shell/tips.rs` on Bevy's `Popover`).
+  - [ ] Step 4: tip text for the whole editor (`editor/tips.rs`), listed in the plan for the owner.
+  - [ ] Step 5: documents, `tasks/acceptance/editor-forms-and-tips.md`, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
   palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
