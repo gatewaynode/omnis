@@ -33,6 +33,56 @@ impl Role {
     }
 }
 
+/// A line's pattern, the channel that says what kind of thing it is without colour
+/// (presentation-PRD X19, 5.3). Open for more: sawtooth waits for a quad wider than its line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Pattern {
+    /// An unbroken line.
+    Solid,
+    /// Dashes, measured along the line in the world.
+    Dashed,
+    /// Short dashes, closer together.
+    Dotted,
+    /// Two rails with a gap between them.
+    Double,
+}
+
+impl Pattern {
+    /// What the line shader reads in a vertex's style.
+    #[must_use]
+    pub const fn code(self) -> f32 {
+        match self {
+            Pattern::Solid => 0.0,
+            Pattern::Dashed => 1.0,
+            Pattern::Dotted => 2.0,
+            Pattern::Double => 3.0,
+        }
+    }
+}
+
+/// A line's weight, the channel that says how much it matters now (presentation-PRD 5.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Weight {
+    /// Scenery: half the view's line width.
+    Hairline,
+    /// The view's line width.
+    Normal,
+    /// What matters now: half as wide again.
+    Heavy,
+}
+
+impl Weight {
+    /// The factor on the view's line width.
+    #[must_use]
+    pub const fn factor(self) -> f32 {
+        match self {
+            Weight::Hairline => 0.5,
+            Weight::Normal => 1.0,
+            Weight::Heavy => 1.5,
+        }
+    }
+}
+
 /// A control's background at rest, hovered and pressed, sRGB; opaque, so the lines behind never
 /// cross a label (PRD §7).
 pub const SHADES: [[f32; 3]; 3] = [[0.0, 0.08, 0.03], [0.05, 0.25, 0.1], [0.15, 0.5, 0.2]];

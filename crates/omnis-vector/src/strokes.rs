@@ -5,11 +5,12 @@
 //!
 //! A vertex carries both of its segment's ends, which corner of the quad it is, the line's
 //! colour (linear, above 1.0 where it glows) with its level's brightness in the alpha, and a
-//! `style` the shader reads: `[weight, pattern, role, level]`. Size 1 writes `[1, 0, 0, 0]`;
-//! the other three are kept for size 2 (patterns, colour roles, depth levels) so the mesh's
-//! layout does not change again.
+//! `style` the shader reads: `[weight, pattern, role, level]`. The weight and the pattern are
+//! the kind's ([`channels`]; rendering size 2, part 2); the role and the level are kept for the
+//! colour roles and the depth levels, so the mesh's layout does not change again.
 
 use crate::geometry::{SegKind, Segment};
+use crate::style::{Pattern, Weight};
 
 /// The corners of a segment's quad, in the order its vertices are written: how far along the
 /// segment (0 at `a`, 1 at `b`) and which side of it (-1 or +1).
@@ -18,7 +19,7 @@ pub const CORNERS: [[f32; 2]; 4] = [[0.0, -1.0], [0.0, 1.0], [1.0, 1.0], [1.0, -
 /// The two triangles of a quad over [`CORNERS`].
 pub const QUAD: [u32; 6] = [0, 1, 2, 0, 2, 3];
 
-/// The style of every line in size 1: weight 1, no pattern, no role, the party's depth level.
+/// A plain line's style: the normal weight, solid, no role, the party's depth level. A crest's.
 pub const PLAIN: [f32; 4] = [1.0, 0.0, 0.0, 0.0];
 
 /// A crest's line, where the ground turns away from the eye. Provisional until the colour roles
@@ -47,13 +48,22 @@ impl Strokes {
     pub fn of<'s>(lines: impl IntoIterator<Item = (&'s Segment, f32)>) -> Strokes {
         let mut strokes = Strokes::default();
         for (segment, dim) in lines {
-            strokes.push(segment.a, segment.b, colour(segment), dim);
+            let (weight, pattern) = channels(segment.kind);
+            let style = [weight.factor(), pattern.code(), 0.0, 0.0];
+            strokes.push(segment.a, segment.b, colour(segment), dim, style);
         }
         strokes
     }
 
-    /// One more line from `a` to `b` in `rgb` at brightness `dim`.
-    pub fn push(&mut self, a: [f32; 3], b: [f32; 3], (r, g, b_): (f32, f32, f32), dim: f32) {
+    /// One more line from `a` to `b` in `rgb` at brightness `dim`, drawn in `style`.
+    pub fn push(
+        &mut self,
+        a: [f32; 3],
+        b: [f32; 3],
+        (r, g, b_): (f32, f32, f32),
+        dim: f32,
+        style: [f32; 4],
+    ) {
         // A scene's vertex count is far below u32's range.
         #[allow(clippy::cast_possible_truncation)]
         let first = self.a.len() as u32;
@@ -62,7 +72,7 @@ impl Strokes {
             self.b.push(b);
             self.corner.push(corner);
             self.colour.push([r, g, b_, dim]);
-            self.style.push(PLAIN);
+            self.style.push(style);
         }
         self.indices.extend(QUAD.iter().map(|i| first + i));
     }
@@ -77,6 +87,31 @@ impl Strokes {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.a.is_empty()
+    }
+}
+
+/// A kind's weight and pattern, the channels that carry its meaning without colour
+/// (presentation-PRD X19). Provisional until the roles (M8.5 step 5), after the PRD's own
+/// examples (5.3): structure and terrain plain, the grids hairline as scenery, what can be used
+/// heavy and dashed, beings heavy with two rails (until there is a sawtooth), a portal's mark
+/// dotted.
+#[must_use]
+pub fn channels(kind: SegKind) -> (Weight, Pattern) {
+    match kind {
+        SegKind::Wall
+        | SegKind::Door
+        | SegKind::Block
+        | SegKind::Barrier
+        | SegKind::Cliff
+        | SegKind::Ramp
+        | SegKind::Stair
+        | SegKind::Ladder
+        | SegKind::Hole
+        | SegKind::Activity => (Weight::Normal, Pattern::Solid),
+        SegKind::Floor | SegKind::Ceiling => (Weight::Hairline, Pattern::Solid),
+        SegKind::Object | SegKind::Pile => (Weight::Heavy, Pattern::Dashed),
+        SegKind::Being => (Weight::Heavy, Pattern::Double),
+        SegKind::Portal => (Weight::Normal, Pattern::Dotted),
     }
 }
 

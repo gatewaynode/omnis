@@ -5,7 +5,7 @@
 //! mesh is built when the scene changes; nothing walks the segments each frame.
 
 use crate::ground::Ground;
-use crate::strokes::{CREST, Strokes};
+use crate::strokes::{CREST, PLAIN, Strokes};
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology};
@@ -148,7 +148,7 @@ pub fn bundle(material: Handle<LineMaterial>) -> impl Bundle {
 pub fn crests(ground: &Ground, eye: [f32; 3], reach: f32) -> Strokes {
     let mut strokes = Strokes::default();
     for (a, b) in ground.crests(eye, reach) {
-        strokes.push(a, b, CREST, 1.0);
+        strokes.push(a, b, CREST, 1.0, PLAIN);
     }
     strokes
 }

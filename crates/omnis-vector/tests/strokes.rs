@@ -10,7 +10,8 @@ use omnis_sim::omnis_core::Level;
 use omnis_vector::geometry::{SegKind, Segment};
 use omnis_vector::scene::{NEIGHBOUR_DIM, Scene};
 use omnis_vector::sim::SimWorld;
-use omnis_vector::strokes::{CORNERS, PLAIN, QUAD, Strokes, colour};
+use omnis_vector::strokes::{CORNERS, PLAIN, QUAD, Strokes, channels, colour};
+use omnis_vector::style::{Pattern, Weight};
 
 fn segment(kind: SegKind, rgb: (u8, u8, u8)) -> Segment {
     Segment {
@@ -74,6 +75,75 @@ fn terrain_kinds_take_the_terrain_s_colour_and_the_rest_their_own() {
         (r - 0.3).abs() < 1e-6,
         "the ceiling grid is dimmer than the floor's"
     );
+}
+
+#[test]
+fn a_kind_s_weight_and_pattern_ride_in_every_vertex_s_style() {
+    use SegKind::{
+        Activity, Barrier, Being, Block, Ceiling, Cliff, Door, Floor, Hole, Ladder, Object, Pile,
+        Portal, Ramp, Stair, Wall,
+    };
+    // The provisional table (presentation-PRD 5.3, until M8.5 step 5): structure plain, the
+    // grids hairline, what can be used heavy and dashed, beings heavy with two rails, a
+    // portal's mark dotted.
+    let table = [
+        (
+            vec![
+                Wall, Door, Block, Barrier, Cliff, Ramp, Stair, Ladder, Hole, Activity,
+            ],
+            (Weight::Normal, Pattern::Solid),
+        ),
+        (vec![Floor, Ceiling], (Weight::Hairline, Pattern::Solid)),
+        (vec![Object, Pile], (Weight::Heavy, Pattern::Dashed)),
+        (vec![Being], (Weight::Heavy, Pattern::Double)),
+        (vec![Portal], (Weight::Normal, Pattern::Dotted)),
+    ];
+    let mut kinds = 0;
+    for (row, expected) in table {
+        for kind in row {
+            kinds += 1;
+            assert_eq!(channels(kind), expected, "{kind:?}");
+            let strokes = Strokes::of([(&segment(kind, (9, 9, 9)), 1.0)]);
+            let (weight, pattern) = expected;
+            assert_eq!(
+                strokes.style,
+                [[weight.factor(), pattern.code(), 0.0, 0.0]; 4],
+                "{kind:?}: the same style at each corner"
+            );
+        }
+    }
+    assert_eq!(kinds, 16, "every kind of line has its row");
+
+    // What the shader reads: a factor on the width, and a code a pattern, solid being none.
+    assert_eq!(
+        [Weight::Hairline, Weight::Normal, Weight::Heavy].map(Weight::factor),
+        [0.5, 1.0, 1.5]
+    );
+    assert_eq!(
+        [
+            Pattern::Solid,
+            Pattern::Dashed,
+            Pattern::Dotted,
+            Pattern::Double
+        ]
+        .map(Pattern::code),
+        [0.0, 1.0, 2.0, 3.0]
+    );
+    assert_eq!(
+        PLAIN,
+        [Weight::Normal.factor(), Pattern::Solid.code(), 0.0, 0.0]
+    );
+
+    // A line pushed by hand carries the style it is given.
+    let mut strokes = Strokes::default();
+    strokes.push(
+        [0.0; 3],
+        [1.0; 3],
+        (1.0, 1.0, 1.0),
+        1.0,
+        [1.5, 2.0, 0.0, 0.0],
+    );
+    assert_eq!(strokes.style, [[1.5, 2.0, 0.0, 0.0]; 4]);
 }
 
 #[test]

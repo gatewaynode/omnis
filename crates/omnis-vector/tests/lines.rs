@@ -78,6 +78,20 @@ fn the_scene_s_lines_hang_on_one_entity_as_quads_under_the_line_material() {
     ] {
         assert!(mesh.attribute(attribute).is_some(), "{attribute:?}");
     }
+    // The mesh carries each line's weight and pattern as the strokes hold them: the town has
+    // walls at the plain style and a floor grid at the hairline.
+    let Some(bevy::mesh::VertexAttributeValues::Float32x4(styles)) =
+        mesh.attribute(ATTRIBUTE_STYLE)
+    else {
+        panic!("the style is four floats a vertex");
+    };
+    let held = {
+        let s = world.resource::<Session>();
+        let pos = s.views.position;
+        Strokes::of(Scene::build(&s.data, pos.map, pos.level, &s.world).strokes(true)).style
+    };
+    assert_eq!(styles, &held);
+    assert!(styles.contains(&[1.0, 0.0, 0.0, 0.0]) && styles.contains(&[0.5, 0.0, 0.0, 0.0]));
     assert_eq!(
         mesh.indices().map(bevy::mesh::Indices::len),
         Some(lines * 6)
@@ -179,6 +193,22 @@ fn crest_mesh(app: &mut App) -> Option<(Handle<Mesh>, usize)> {
     Some((handle, count))
 }
 
+/// How many of the crest mesh's vertices carry the plain style: all of them, or the test fails.
+fn crest_styles(app: &mut App) -> usize {
+    let Some((handle, count)) = crest_mesh(app) else {
+        return 0;
+    };
+    let meshes = app.world().resource::<Assets<Mesh>>();
+    let Some(bevy::mesh::VertexAttributeValues::Float32x4(styles)) =
+        meshes.get(&handle).unwrap().attribute(ATTRIBUTE_STYLE)
+    else {
+        panic!("the style is four floats a vertex");
+    };
+    assert!(styles.iter().all(|s| *s == omnis_vector::strokes::PLAIN));
+    assert_eq!(styles.len(), count);
+    count
+}
+
 /// How many crests the ground shows from where the camera stands.
 fn crests_seen(app: &mut App) -> usize {
     let world = app.world_mut();
@@ -211,6 +241,7 @@ fn the_crests_are_found_from_the_eye_and_again_only_when_it_moves() {
         }
         stand(&mut app, x, y);
         let n = crests_seen(&mut app);
+        assert_eq!(crest_styles(&mut app), n * 4, "crests are plain lines");
         // No crest, no mesh: an empty one is never hung.
         let drawn = crest_mesh(&mut app).map(|(_, count)| count);
         assert_eq!(drawn, (n > 0).then_some(n * 4), "at ({x}, {y})");
