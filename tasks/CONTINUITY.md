@@ -1,5 +1,18 @@
 # Continuity notes
 
+Written 2026-11-13, later. **A ground pile that is easy to get to is built, not yet tried by the owner**
+(`tasks/plans/pile-reach.md`, approved 2026-11-13; the owner's script `tasks/acceptance/pile-reach.md`), from
+the owner's hand test ("Click target too small", "Underfoot pile unseen"): the floor of a pile's cell is its
+click target (`aim::floor`, `inside`, `on_heap`); `Aimed` is the aimed pile's cell and `render::ViewAim` its
+floor's outline (`lines::aim_mark`, `lines::hang` shared with the crests); a "Pick up..." button
+(`shell/aim.rs` `PickUp`) stands on the view while the ground in reach holds anything. Tests in
+`tests/pile_reach.rs` (six). Gate 1301. **The owner said "Manually tested" of patterns and weight and
+`just qa` (2026-11-13), no fault named.** Captures on a pile's own cell: a scratch copy of the objects pack
+with the yard's `start` moved, sealed with `omnis-cli pack seal` (`--walk` does not step the party).
+**Next: the owner's try, then their decision on size 2 parts 3 to 6.**
+
+The notes below were written earlier on 2026-11-13 and still hold, except "not yet tried" and "next".
+
 Written 2026-11-13. **Rendering size 2, part 2 (line weight and pattern) is built, not yet tried by the owner**
 (`tasks/plans/rendering-size-2-patterns.md` with an "As built" section; the owner's script
 `tasks/acceptance/rendering-size-2-patterns.md`). `style::{Pattern, Weight}`, `strokes::channels(SegKind)` (a

@@ -658,7 +658,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     red from my own mutation script leaving a mutant compiled (lesson written).
     Also built, at the owner's request: `--entry <map-id>` and `just qa [map]` (the fixtures' maps in a
     window; a test starts a game on the meadow and refuses an unknown map).
-- [ ] **A ground pile that is easy to get to** (`tasks/plans/pile-reach.md`, approved 2026-11-13). From the
+- [x] **A ground pile that is easy to get to** (built 2026-11-13, awaiting the owner's try) (`tasks/plans/pile-reach.md`, approved 2026-11-13). From the
   owner's hand test the same day: the click target was too small, and a pile underfoot was unseen.
   - [x] Step 0: the plan filed.
   - [x] Step 1: the floor of a pile's cell is its click target (`aim::floor`, `aim::inside`, `aim::on_heap`;
@@ -666,8 +666,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] Step 2: the floor's outline lights under the pointer (`Aimed` as the cell, `render::ViewAim`,
     `lines::aim_mark`, `lines::hang` shared with the crests; one test, five mutations caught). Not seen in a
     window by me: no capture has a pointer.
-  - [ ] Step 3: a "Pick up..." button on the view while anything on the ground is in reach.
-  - [ ] Step 4: documents, the acceptance sheet, continuity.
+  - [x] Step 3: a "Pick up..." button on the view while anything on the ground is in reach (`shell/aim.rs`
+    `PickUp`, `offer`, `pick_up`; one test, seven mutations caught). Seen in a capture standing on the pile at
+    1280 by 720: over the bottom rows, clear of both groups.
+  - [x] Step 4: documents, `tasks/acceptance/pile-reach.md`, continuity.
+  - Review (2026-11-13). Built as planned (`e404b395`, `d5bbd8b3`, and the two commits after). Gate 1295 to
+    1301. The button stands 102 pixels up, above both bottom rows, so it does not depend on the window's
+    width. Not seen in a window by me: the hand and the outline under a real pointer (no capture has one).
+    The "not exploring" case is tested by moving the view's mode alone, since no fixture has a pile where a
+    fight starts. Facing a pile, the button lies over part of the floor target; both do the same thing.
+    Would a staff engineer approve: the tests were written after the code in steps 1 to 3 and proved by
+    mutation (seventeen caught, none survived), not red first as the plan said.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

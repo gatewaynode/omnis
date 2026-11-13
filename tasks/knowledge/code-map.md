@@ -201,7 +201,10 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
 - The loot window and the click on a pile (2026-11-12, `tasks/plans/loot-window-and-ceiling.md`): engine
   `ground::{cells, in_reach}` and `objects_view::piles_in_reach` (reach as `objects::reach`); client
   `screen/loot.rs` (`Loot`, `LootAct`, `gone`, `receiver`; `Forms.loot`, `ControlId::Loot`, `Effect::Commands`),
-  `aim.rs` (`Eye`, `project`, `rect`, `pile_under`, Bevy-free), `shell/aim.rs` (`Aimed`, the cursor, the click,
+  `aim.rs` (`Eye`, `project`, `rect`, `on_heap`, `floor`, `inside`, `pile_under`: the heap or its cell's floor,
+  2026-11-13; Bevy-free), `render::ViewAim` + `lines::aim_mark` (the aimed floor's outline), `shell/aim.rs`
+  (`PickUp`, the "Pick up..." button while the ground in reach holds anything; `tests/pile_reach.rs`),
+  `shell/aim.rs` (`Aimed`, the aimed pile's cell, the cursor, the click,
   registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`. Store and destroy (step 4):
   `items::lift` over `ground::take` and `objects::container::take` (`ItemCommand::{Stash, Destroy}`,
   `Event::ItemDestroyed`, `Rejection::NotFromThere`), `LootAct::{Store, Destroy, Confirm, Cancel}` and
