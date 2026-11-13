@@ -28,7 +28,9 @@ collision mirror to the simulation on every map. An offscreen capture:
 `cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]
 [--screen title|new-game|pause|actions]` (paths must be relative, without `..`); `--editor <map> --screenshot
 <png>` captures the editor with its preview (since 2026-11-12). **Comparing two captures** (a renderer or shader
-change; the gate has no GPU and cannot see a shader): capture with `--settings .omnis/test-saves/still.ron`
+change; the gate has no GPU and cannot see a shader; `--entry <map-id>` starts on any loaded map, so the
+fixture packs are loaded as they are, and `just qa [map]` shows the owner the same maps in a window; a view a
+start does not face still needs a scratch copy of the fixture with its `start` turned): capture with `--settings .omnis/test-saves/still.ron`
 holding `(reduced_motion: true)`, because the eye's height eases by real time and two builds settle at
 different sub-pixel heights (0.3% to 0.9% of pixels differ from that alone; with it off, the same build twice
 differs in under 0.02%, the frame-rate text). A fixture pack with no `entry` (heights, levels, objects) is

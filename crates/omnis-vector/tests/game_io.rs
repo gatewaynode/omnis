@@ -48,6 +48,37 @@ fn a_missing_pack_stops_the_start_with_its_name() {
     assert!(why.contains("no/such/pack"), "{why}");
 }
 
+/// `--entry` starts a new game on the named map, whatever the packs' own entry says, and refuses
+/// a map no loaded pack defines (the `just qa` recipe leans on it for the fixtures' maps).
+#[test]
+fn an_entry_named_on_the_command_line_is_where_a_game_starts() {
+    let plain = crate::common::app::config();
+    let packs = Packs::load(&plain).expect("the packs load");
+    let town = packs.data.entry.expect("the fixture's entry");
+    assert_eq!(packs.data.registry.maps.get("test:map:town"), Some(town));
+
+    let config = Config {
+        entry: Some("test:map:meadow".to_owned()),
+        ..plain.clone()
+    };
+    let packs = Packs::load(&config).expect("the packs load");
+    let meadow = packs.data.registry.maps.get("test:map:meadow").unwrap();
+    assert_ne!(meadow, town);
+    assert_eq!(packs.data.entry, Some(meadow));
+    let session =
+        omnis_vector::shell::session::Session::start(&config).expect("a game on the meadow");
+    assert_eq!(session.views.position.map, meadow);
+
+    let config = Config {
+        entry: Some("test:map:nowhere".to_owned()),
+        ..plain
+    };
+    let Err(why) = Packs::load(&config) else {
+        panic!("an entry that is not there loads");
+    };
+    assert!(why.contains("test:map:nowhere"), "{why}");
+}
+
 /// A start that fails says why on stderr and leaves the line under `.omnis/` too: on Windows the
 /// binary has no console (Windows CI, 2026-11-08). The binary itself is run, on a pack that is
 /// not there, from a scratch working directory; it ends before any window.

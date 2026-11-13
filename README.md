@@ -70,6 +70,8 @@ just run                                     # the game, the same as the next li
 cargo run -p omnis-vector                    # the binary omnis: fullscreen, at the title; --windowed, --monitor N, --pack DIR
 cargo run -p omnis-vector -- --windowed --editor test:map:dungeon   # the editor (M5.4), that map open; --editor alone opens none
 cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed party of four; --save FILE names the quick save
+just qa                                      # a game on the test fixtures' yard, in a window; `just qa heights:map:hills`, `levels:map:tower`, `test:map:town`
+cargo run -p omnis-vector -- --seed 7 --entry test:map:meadow   # start on that map, not the packs' entry
 cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
 cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit

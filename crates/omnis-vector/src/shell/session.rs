@@ -58,6 +58,9 @@ pub struct Config {
     pub dev_socket: Option<String>,
     /// Start in the editor (`--editor`, M5.4), with this map open when one is named.
     pub editor: Option<Option<String>>,
+    /// The map a new game starts on (`--entry`), in place of the packs' own entry: a check of a
+    /// map no pack enters at, such as the fixtures' (`just qa`).
+    pub entry: Option<String>,
 }
 
 impl Default for Config {
@@ -83,6 +86,7 @@ impl Default for Config {
             timing: false,
             dev_socket: Some("127.0.0.1:0".to_owned()),
             editor: None,
+            entry: None,
         }
     }
 }
@@ -151,7 +155,8 @@ impl Config {
 /// report the frame times), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
 /// `--no-dev-socket`, and `--editor [map-id]` (start in the editor, with that map open; with
-/// `--screenshot` the capture is of the editor).
+/// `--screenshot` the capture is of the editor), and `--entry <map-id>` (a new game starts on
+/// that map, not the packs' entry).
 ///
 /// # Errors
 /// A message naming the bad argument.
@@ -242,6 +247,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                 }
                 config.editor = Some(map);
             }
+            "--entry" => {
+                let map = value("--entry")?;
+                omnis_sim::ops::bounded(&map)
+                    .map_err(|e| format!("--entry takes a map id: {e}"))?;
+                config.entry = Some(map);
+            }
             "--dev-socket" if cfg!(feature = "devtools") => {
                 config.dev_socket = Some(value("--dev-socket")?);
             }
@@ -296,7 +307,13 @@ impl Packs {
     /// The loader's report for packs that fail to load.
     pub fn load(config: &Config) -> Result<Packs, String> {
         let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
-        let data = load_packs(&roots).map_err(|report| report.to_string())?;
+        let mut data = load_packs(&roots).map_err(|report| report.to_string())?;
+        if let Some(entry) = &config.entry {
+            let map = data.registry.maps.get(entry).ok_or(format!(
+                "--entry: map '{entry}' is not defined by any loaded pack"
+            ))?;
+            data.entry = Some(map);
+        }
         Ok(Packs {
             data: Arc::new(data),
             config: config.clone(),
@@ -748,6 +765,11 @@ mod tests {
             (9, true, false)
         );
         assert_eq!(config.monitor, Some(1));
+        assert_eq!(config.entry, None);
+        let config = parse(args(&["--entry", "test:map:meadow"])).expect("valid");
+        assert_eq!(config.entry.as_deref(), Some("test:map:meadow"));
+        assert!(parse(args(&["--entry"])).is_err());
+        assert!(parse(args(&["--entry", &"x".repeat(5000)])).is_err());
         assert!(parse(args(&["--monitor", "x"])).is_err());
         assert!(parse(args(&["--monitor", "99"])).is_err());
     }
