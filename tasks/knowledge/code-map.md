@@ -279,8 +279,8 @@ size 1,903 is pinned there. `examples/show.rs` prints an icon as text.
 is the body, `Scene::build` the game's wrapper. Engine: `objects_view::placed_on_level(data, &MapData, level)`
 (placed state, hidden shown, the map's piles) and `beings::standing_as_placed`, both in `api`. `editor/preview.rs`:
 `AsPlaced { map }`, `SIGHT` 8, `map_id(data, map)`, `scene(data, map, level)`, `pose(cursor, facing)`,
-`look(scene, pose) -> (eye, yaw)`. `shell/render.rs`: `colour`, `CREST`, `fog_end`, `fade(distance, sight)` are
-`pub(super)` for the preview's draw. Tests `tests/editor_preview.rs`. `shell/preview.rs`:
+`look(scene, pose) -> (eye, yaw)`. `shell/render.rs`: `fog_end`, `LINE_WIDTH`, `LINE_DEPTH_BIAS` are
+`pub(super)` for the preview's material. Tests `tests/editor_preview.rs`. `shell/preview.rs`:
 `PreviewTarget(Handle<Image>)`, `PreviewCamera` (layer `LAYER` 2, `SIZE` 800×450, `Camera { is_active, order: -1 }`
 switched by `switch::<ON>` on `Editing` added/removed), `PreviewGizmos`, `PreviewFills`, `Preview { scene_key:
 (resolved_at, level), scene }`; `rebuild` → `preview::scene`, `place` → `preview::look` + `render::rotation`,
@@ -497,3 +497,10 @@ the top's words); `steps()` (done then undone, oldest first), `at()`, `goto(at)`
 EditorHistory` (nav's editor-only lists), `EditingCtx.history`, `shell::editor::answer`. Tests:
 `tests/editor_history.rs` (1), `edit_document.rs::steps_are_named_and_goto_walks_the_history`, `words.rs` unit
 test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `name_step` a no-op, rows reversed.
+- The lines as meshes (rendering size 1, 2026-11-12, `tasks/plans/rendering-size-1.md`): `strokes.rs` (Bevy-free:
+  `Strokes`, `CORNERS`, `QUAD`, `PLAIN`, `colour`, `CREST`), `shell/lines.rs` (`LineMaterial`, `LinesPlugin`,
+  `mesh`, `bundle`, `crests`, `hang_crests`, `CrestsAt`, the four `ATTRIBUTE_*`), `shell/lines.wesl` (embedded);
+  `shell/render.rs` (`ViewLines`, `ViewCrests`, `ViewMaterial`, `tune`, `crests`; `RenderPlugin` adds
+  `LinesPlugin`), `shell/preview.rs` (`PreviewLines`, `PreviewCrests`), `settings::apply_quality` (the width on
+  every `LineMaterial`). Tests `tests/strokes.rs`, `tests/lines.rs`, `tests/editor_preview.rs`. The fight
+  screen's 2D lines are still gizmos (`shell/combat.rs`).

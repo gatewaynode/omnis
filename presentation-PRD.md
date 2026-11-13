@@ -303,6 +303,11 @@ Three depth levels (X17):
   model with targets, the arena layout, the picture window, and the switch between the 3D view and
   the fight. Played by the owner on the ultrawide (B6).
 
+- **The lines as meshes (2026-11-12, rendering size 1):** the 3D view's and the editor preview's lines are
+  retained Bevy meshes drawn by a material and shader of the client's own, in place of Bevy's debug
+  gizmos; the look is unchanged (compared by capture). The owner's choice from the GPU-first direction, with
+  size 2 designed beside it (`tasks/plans/rendering-size-2.md`).
+
 ### Next (proposed; each planned in plan mode when the owner asks)
 
 1. **Merge** with the mechanics work (B7), then amend the main PRD per §2. Done 2026-10-10 (`tasks/plans/vector-adoption.md`; `PRD.md` v0.8, D27).

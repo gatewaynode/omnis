@@ -1,6 +1,8 @@
 //! The 3D view: a `Camera3d` with HDR and bloom following the pose over the ground, and the map
-//! drawn as glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7, §8.4)
-//! over dark solid fills that hide what lies behind them (§8.2, M8.5 step 3).
+//! drawn as glowing lines that fade with distance (presentation-ARCHITECTURE.md §7, §8.4) over
+//! dark solid fills that hide what lies behind them (§8.2, M8.5 step 3). Lines and fills are
+//! meshes built when the scene changes; the lines are drawn by `lines::LineMaterial`
+//! (rendering size 1).
 
 use super::VectorSet;
 use super::capture::Offscreen;
@@ -12,7 +14,6 @@ use crate::fill::Tri;
 use crate::ground::{ease_eye, eye};
 use crate::scene::Scene;
 use crate::strokes::Strokes;
-pub(super) use crate::strokes::{CREST, colour};
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -26,8 +27,8 @@ const FOG_EXTRA: f32 = 2.0;
 /// Line width in logical pixels.
 pub(super) const LINE_WIDTH: f32 = 2.0;
 /// How far the lines are drawn toward the camera, so a wall's own edges and the floor grid are
-/// not hidden by the face they lie on: the gizmos' bias, a power of the depth (presentation-
-/// ARCHITECTURE.md §8.2). Tuned on the captures.
+/// not hidden by the face they lie on: a power of the depth, as Bevy's gizmo lines have it
+/// (presentation-ARCHITECTURE.md §8.2). Tuned on the captures.
 pub(super) const LINE_DEPTH_BIAS: f32 = -0.002;
 /// Vertical field of view, radians: about 55°, which gives roughly 90° across 16:9 and 128°
 /// across 32:9.
@@ -70,17 +71,6 @@ pub struct ViewCamera;
 /// Marks the entity that holds the scene's fills.
 #[derive(Component)]
 pub struct Fills;
-
-/// Which renderer draws the view's lines while both exist (rendering size 1, step 2): the
-/// gizmos until the meshes' captures match them.
-#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum LineRenderer {
-    /// Bevy's gizmos, a line a segment each frame.
-    #[default]
-    Gizmo,
-    /// Retained meshes through [`LineMaterial`].
-    Mesh,
-}
 
 /// Marks the entity that holds the view's lines as a mesh: one mesh in the scene's order, since
 /// of two lines in the same place the first shows.
@@ -125,22 +115,16 @@ pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<lines::LinesPlugin>() {
+            app.add_plugins(lines::LinesPlugin);
+        }
         app.init_resource::<Lines>()
             .init_resource::<Current>()
             .insert_resource(ClearColor(Color::BLACK))
-            .init_resource::<LineRenderer>()
-            .add_systems(
-                Startup,
-                (spawn_camera, spawn_fills, spawn_lines, line_style),
-            )
+            .add_systems(Startup, (spawn_camera, spawn_fills, spawn_lines))
             .add_systems(
                 Update,
-                (
-                    rebuild,
-                    follow,
-                    draw.run_if(resource_equals(LineRenderer::Gizmo)),
-                    (tune, crests).run_if(resource_equals(LineRenderer::Mesh)),
-                )
+                (rebuild, follow, (tune, crests))
                     .chain()
                     .in_set(VectorSet::Draw),
             );
@@ -244,14 +228,6 @@ fn crests(
     );
 }
 
-fn line_style(store: Option<ResMut<GizmoConfigStore>>) {
-    // Headless there are no gizmos to style.
-    let Some(mut store) = store else { return };
-    let (config, _) = store.config_mut::<DefaultGizmoConfigGroup>();
-    config.line.width = LINE_WIDTH;
-    config.depth_bias = LINE_DEPTH_BIAS;
-}
-
 fn rebuild(
     mut commands: Commands,
     mut session: ResMut<Session>,
@@ -259,7 +235,7 @@ fn rebuild(
     mut meshes: ResMut<Assets<Mesh>>,
     fills: Query<Entity, With<Fills>>,
     parts: Query<Entity, With<ViewLines>>,
-    (renderer, current): (Res<LineRenderer>, Res<Current>),
+    current: Res<Current>,
 ) {
     let (map, level) = (session.views.position.map, session.views.position.level);
     let grid = current.0.grid;
@@ -275,12 +251,10 @@ fn rebuild(
             let handle = meshes.add(mesh(&lines.scene.fills));
             commands.entity(entity).insert(Mesh3d(handle));
         }
-        if *renderer == LineRenderer::Mesh {
-            for entity in &parts {
-                let strokes = Strokes::of(lines.scene.strokes(grid));
-                let handle = meshes.add(lines::mesh(&strokes));
-                commands.entity(entity).insert(Mesh3d(handle));
-            }
+        for entity in &parts {
+            let strokes = Strokes::of(lines.scene.strokes(grid));
+            let handle = meshes.add(lines::mesh(&strokes));
+            commands.entity(entity).insert(Mesh3d(handle));
         }
     }
 }
@@ -317,54 +291,6 @@ pub fn rotation(yaw: f32, pitch: f32) -> Quat {
 /// Where the fog of a sight of `sight` cells ends: `FOG_EXTRA` beyond it.
 pub(super) fn fog_end(sight: f32) -> f32 {
     sight + FOG_EXTRA
-}
-
-/// How bright a line whose middle lies `distance` from the eye is under a sight of `sight`
-/// cells: full to half the fog's end, fading to nothing at the end, none beyond.
-pub(super) fn fade(distance: f32, sight: f32) -> Option<f32> {
-    let end = fog_end(sight);
-    let start = end * 0.5;
-    if distance >= end {
-        None
-    } else if distance <= start {
-        Some(1.0)
-    } else {
-        Some(1.0 - (distance - start) / (end - start))
-    }
-}
-
-fn draw(
-    session: Res<Session>,
-    lines: Res<Lines>,
-    current: Res<Current>,
-    camera: Query<&Transform, With<ViewCamera>>,
-    mut gizmos: Gizmos,
-) {
-    let pose = session.pose;
-    let depth = f32::from(session.views.sight);
-    let end = fog_end(depth);
-    let grid = current.0.grid;
-    let fade = |a: [f32; 3], b: [f32; 3]| {
-        let mid = ((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5);
-        fade((mid.0 - pose.x).hypot(mid.1 - pose.z), depth)
-    };
-    let mut line = |a: [f32; 3], b: [f32; 3], (r, g, b_): (f32, f32, f32), dim: f32| {
-        let Some(fade) = fade(a, b) else { return };
-        let k = fade * dim;
-        gizmos.line(
-            Vec3::from_array(a),
-            Vec3::from_array(b),
-            LinearRgba::new(r * k, g * k, b_ * k, fade),
-        );
-    };
-    for (segment, dim) in lines.scene.strokes(grid) {
-        line(segment.a, segment.b, colour(segment), dim);
-    }
-    if let Ok(eye) = camera.single() {
-        for (a, b) in lines.scene.ground.crests(eye.translation.to_array(), end) {
-            line(a, b, CREST, 1.0);
-        }
-    }
 }
 
 #[cfg(test)]

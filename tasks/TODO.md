@@ -608,7 +608,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     `editor_preview::the_preview_s_lines_are_meshes_...`, the flag in `editor::the_command_line_...`; nine
     mutations, eight caught at once and the ninth after the test's expectation stopped using the code under
     test.
-  - [ ] 4. The swap: the gizmo loop and the switch go; timing; presentation docs.
+  - [x] 4. The swap (2026-11-12): the gizmo loops of the view and the preview, `LineRenderer` and `--lines`
+    are gone; `RenderPlugin` adds `LinesPlugin`. Timing before the swap, both renderers in one release binary
+    (300-frame walk, three runs, town and hills, 1920x1080 and 5120x1440): gizmo 1.95 to 2.10 ms mean, mesh
+    1.97 to 2.15 ms mean. No difference; the move is for capability. Final captures against the old renderer
+    with the eye's easing off: 0.02% to 0.10% of pixels (the frame-rate text, lines fading along their
+    length); the preview identical. A finding on the way: the eye eases by real time, so two builds differ in
+    0.3% to 0.9% of pixels from that alone; comparisons now use `reduced_motion` (`verification.md`). Docs:
+    presentation-ARCHITECTURE §8.2, §8.6, VA1, VA4, Q3; presentation-PRD §11 Built; BACKLOG; code-map. The
+    fight screen's 2D lines stay gizmos. `fade` (the CPU fade) went with its last caller; the shader's comment
+    carries the formula.
   - [ ] 5. Size 2's design: `tasks/plans/rendering-size-2.md` and the proposed presentation-PRD amendment.
   - [ ] `tasks/acceptance/rendering-size-1.md`.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

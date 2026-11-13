@@ -26,7 +26,16 @@ first failing step, so `cargo fmt --check && verify.sh > gate.txt` that fails at
 The vector client: `cargo test -p omnis-vector` (seconds once built); `tests/agreement.rs` holds its
 collision mirror to the simulation on every map. An offscreen capture:
 `cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]
-[--screen title|new-game|pause|actions]` (paths must be relative, without `..`). The window starts at the
+[--screen title|new-game|pause|actions]` (paths must be relative, without `..`); `--editor <map> --screenshot
+<png>` captures the editor with its preview (since 2026-11-12). **Comparing two captures** (a renderer or shader
+change; the gate has no GPU and cannot see a shader): capture with `--settings .omnis/test-saves/still.ron`
+holding `(reduced_motion: true)`, because the eye's height eases by real time and two builds settle at
+different sub-pixel heights (0.3% to 0.9% of pixels differ from that alone; with it off, the same build twice
+differs in under 0.02%, the frame-rate text). A fixture pack with no `entry` (heights, levels, objects) is
+captured through a scratch copy given one and resealed (`omnis-cli pack seal`), never by editing the fixture.
+The comparison of 2026-11-12 used a dependency-free script (PNG to BMP by `sips`, per-pixel largest channel
+difference); to prove a picture comes from a shader, tint the shader for one run and see which rectangle
+changes. The window starts at the
 title; tests that save name their own file under the crate's `.omnis/test-saves/` (the test config's
 quick save is `.omnis/test-saves/none.ron`, never the player's). The dev socket: `just run` writes `.omnis/dev.addr`; the loopback test is
 `tests/socket.rs` (headless, no renderer, so `screenshot` there answers "no window"). A window launched

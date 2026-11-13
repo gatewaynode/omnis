@@ -11,7 +11,7 @@
 use super::VectorSet;
 use super::editor::Editing;
 use super::lines::{self, LineMaterial};
-use super::render::{self, CREST, LINE_DEPTH_BIAS, LINE_WIDTH, LineRenderer, mesh};
+use super::render::{self, LINE_DEPTH_BIAS, LINE_WIDTH, mesh};
 use super::session::Packs;
 use super::settings::Current;
 use crate::editor::preview;
@@ -40,10 +40,6 @@ pub struct PreviewCamera;
 #[derive(Component)]
 struct PreviewFills;
 
-/// The preview's lines.
-#[derive(Default, Reflect, GizmoConfigGroup)]
-pub struct PreviewGizmos;
-
 /// Marks the entity that holds the preview's lines as a mesh, on its layer.
 #[derive(Component)]
 pub struct PreviewLines;
@@ -71,32 +67,18 @@ impl Plugin for PreviewPlugin {
     fn build(&self, app: &mut App) {
         // Not in `VectorSet::Draw`: that set runs only while a game session exists.
         app.init_resource::<Preview>()
-            .init_resource::<LineRenderer>()
             .add_systems(Startup, spawn)
             .add_systems(
                 Update,
                 (
                     switch::<true>.run_if(resource_added::<Editing>),
                     switch::<false>.run_if(resource_removed::<Editing>),
-                    (
-                        rebuild,
-                        place,
-                        crests.run_if(resource_equals(LineRenderer::Mesh)),
-                    )
+                    (rebuild, place, crests)
                         .chain()
                         .run_if(resource_exists::<Editing>),
                 )
                     .after(VectorSet::Screens),
             );
-        // The lines need the gizmos, which the headless shell has not.
-        if app.is_plugin_added::<bevy::gizmos::GizmoPlugin>() {
-            app.init_gizmo_group::<PreviewGizmos>().add_systems(
-                Update,
-                draw.after(place)
-                    .run_if(resource_exists::<Editing>)
-                    .run_if(resource_equals(LineRenderer::Gizmo)),
-            );
-        }
     }
 }
 
@@ -108,7 +90,6 @@ fn spawn(
     images: Option<ResMut<Assets<Image>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     lines: Option<ResMut<Assets<LineMaterial>>>,
-    store: Option<ResMut<GizmoConfigStore>>,
 ) {
     // The line entities need only their material's store, which a headless test can have.
     if let Some(mut lines) = lines {
@@ -162,12 +143,6 @@ fn spawn(
         Transform::default(),
         RenderLayers::layer(LAYER),
     ));
-    if let Some(mut store) = store {
-        let (config, _) = store.config_mut::<PreviewGizmos>();
-        config.line.width = LINE_WIDTH;
-        config.depth_bias = LINE_DEPTH_BIAS;
-        config.render_layers = RenderLayers::layer(LAYER);
-    }
 }
 
 /// The camera on while the editor is open, off otherwise.
@@ -186,7 +161,7 @@ fn rebuild(
     meshes: Option<ResMut<Assets<Mesh>>>,
     fills: Query<Entity, With<PreviewFills>>,
     parts: Query<Entity, With<PreviewLines>>,
-    (renderer, current): (Res<LineRenderer>, Res<Current>),
+    current: Res<Current>,
 ) {
     let key = (editing.resolved_at, editing.level);
     let grid = current.0.grid;
@@ -209,12 +184,10 @@ fn rebuild(
             commands.entity(entity).insert(Mesh3d(handle));
         }
     }
-    if *renderer == LineRenderer::Mesh {
-        for entity in &parts {
-            let strokes = Strokes::of(preview.scene.strokes(grid));
-            let handle = meshes.add(lines::mesh(&strokes));
-            commands.entity(entity).insert(Mesh3d(handle));
-        }
+    for entity in &parts {
+        let strokes = Strokes::of(preview.scene.strokes(grid));
+        let handle = meshes.add(lines::mesh(&strokes));
+        commands.entity(entity).insert(Mesh3d(handle));
     }
 }
 
@@ -254,43 +227,6 @@ fn place(
     for mut transform in &mut cameras {
         *transform = Transform::from_translation(Vec3::from_array(eye))
             .with_rotation(render::rotation(yaw, 0.0));
-    }
-}
-
-/// The scene's lines as the view draws them, faded over the preview's sight.
-fn draw(
-    editing: Res<Editing>,
-    preview: Res<Preview>,
-    current: Res<Current>,
-    cameras: Query<&Transform, With<PreviewCamera>>,
-    mut gizmos: Gizmos<PreviewGizmos>,
-) {
-    let pose = preview::pose(editing.cursor, editing.facing);
-    let fade = |a: [f32; 3], b: [f32; 3]| {
-        let mid = ((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5);
-        render::fade((mid.0 - pose.x).hypot(mid.1 - pose.z), preview::SIGHT)
-    };
-    let mut line = |a: [f32; 3], b: [f32; 3], (r, g, b_): (f32, f32, f32), dim: f32| {
-        let Some(fade) = fade(a, b) else { return };
-        let k = fade * dim;
-        gizmos.line(
-            Vec3::from_array(a),
-            Vec3::from_array(b),
-            LinearRgba::new(r * k, g * k, b_ * k, fade),
-        );
-    };
-    for (segment, dim) in preview.scene.strokes(current.0.grid) {
-        line(segment.a, segment.b, render::colour(segment), dim);
-    }
-    if let Ok(eye) = cameras.single() {
-        let reach = render::fog_end(preview::SIGHT);
-        for (a, b) in preview
-            .scene
-            .ground
-            .crests(eye.translation.to_array(), reach)
-        {
-            line(a, b, CREST, 1.0);
-        }
     }
 }
 

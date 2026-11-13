@@ -54,9 +54,6 @@ pub struct Config {
     pub size: (u32, u32),
     /// Run the capture uncapped and report its frame times (`--timing`).
     pub timing: bool,
-    /// Draw the view's lines as meshes, not gizmos (`--lines mesh`; rendering size 1, step 2,
-    /// while both renderers exist).
-    pub mesh_lines: bool,
     /// The dev socket's loopback address (feature `devtools`); `None` with `--no-dev-socket`.
     pub dev_socket: Option<String>,
     /// Start in the editor (`--editor`, M5.4), with this map open when one is named.
@@ -84,7 +81,6 @@ impl Default for Config {
             walk: 0,
             size: (1600, 900),
             timing: false,
-            mesh_lines: false,
             dev_socket: Some("127.0.0.1:0".to_owned()),
             editor: None,
         }
@@ -152,8 +148,7 @@ impl Config {
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
 /// `--size WxH` (the offscreen capture's size), `--timing` (with `--screenshot`: run uncapped and
-/// report the frame times), `--lines gizmo|mesh` (which renderer draws the view's lines while both
-/// exist), and with feature `devtools`
+/// report the frame times), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
 /// `--no-dev-socket`, and `--editor [map-id]` (start in the editor, with that map open; with
 /// `--screenshot` the capture is of the editor).
@@ -239,13 +234,6 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     .map_err(|_| "--walk takes a frame count".to_owned())?
             }
             "--timing" => config.timing = true,
-            "--lines" => {
-                config.mesh_lines = match value("--lines")?.as_str() {
-                    "mesh" => true,
-                    "gizmo" => false,
-                    other => return Err(format!("--lines: gizmo or mesh, not {other}")),
-                }
-            }
             "--editor" => {
                 let map = args.next_if(|a| !a.starts_with("--"));
                 if let Some(map) = &map {

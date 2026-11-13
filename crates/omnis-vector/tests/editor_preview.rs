@@ -247,7 +247,7 @@ fn wasd_moves_the_cursor_with_the_window_s_focus_plugins_on() {
     );
 }
 
-/// With the mesh renderer the preview's lines hang on its own entities, on its layer, under a
+/// The preview's lines hang on its own entities, on its layer, under a
 /// material of its own that fades over the preview's sight; the grid setting rebuilds the mesh
 /// (rendering size 1, step 3).
 #[test]
@@ -258,7 +258,6 @@ fn the_preview_s_lines_are_meshes_on_its_layer_under_its_own_material() {
     use common::app::{config, shell};
     use omnis_vector::shell::lines::{LineMaterial, LinesPlugin};
     use omnis_vector::shell::preview::{Preview, PreviewCrests, PreviewLines, PreviewPlugin};
-    use omnis_vector::shell::render::LineRenderer;
     use omnis_vector::shell::session::Config;
     use omnis_vector::shell::settings::Current;
     use omnis_vector::strokes::Strokes;
@@ -273,7 +272,6 @@ fn the_preview_s_lines_are_meshes_on_its_layer_under_its_own_material() {
         .init_asset::<Mesh>()
         .init_asset::<Image>()
         .init_asset::<StandardMaterial>()
-        .insert_resource(LineRenderer::Mesh)
         .add_plugins((LinesPlugin, PreviewPlugin));
     app.update();
     app.update();

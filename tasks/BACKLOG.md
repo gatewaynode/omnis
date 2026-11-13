@@ -138,6 +138,11 @@ What each size costs beyond code:
 - **Dependencies.** None at any size. Own WGSL in the repo matches the self-supporting rule; no line-rendering
   crate is needed.
 
+**Chosen and built (2026-11-12):** the owner chose size 1 with size 2 designed in; size 1 is built
+(`tasks/plans/rendering-size-1.md`, presentation-ARCHITECTURE §8.2), with one item of size 2 pulled forward at
+the owner's choice (screen-space line width: a plain line list is one pixel wide). Size 2's design is
+`tasks/plans/rendering-size-2.md`. The text below is the recommendation as it stood.
+
 **Recommendation:** size 1 straight after the Bevy 0.20 migration, with size 2 designed in the same amendment so
 the shader is written once with width, fog and relief in mind; size 3 stays a horizon. When the owner chooses, the
 chosen size moves to `tasks/TODO.md` with a plan under `tasks/plans/` and the amendment text for

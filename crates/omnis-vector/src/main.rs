@@ -149,9 +149,6 @@ fn main() -> AppExit {
     if config.frame_stats {
         app.add_plugins(LogDiagnosticsPlugin::default());
     }
-    if config.mesh_lines {
-        app.insert_resource(omnis_vector::shell::render::LineRenderer::Mesh);
-    }
     app.insert_resource(packs).add_plugins((
         FrameTimeDiagnosticsPlugin::default(),
         ShellPlugin,
@@ -169,11 +166,7 @@ fn main() -> AppExit {
         CapturePlugin,
     ));
     // The editor and its preview (M5.4, M5.7); a tuple of plugins holds fifteen at most.
-    app.add_plugins((
-        EditorPlugin,
-        PreviewPlugin,
-        omnis_vector::shell::lines::LinesPlugin,
-    ));
+    app.add_plugins((EditorPlugin, PreviewPlugin));
     app.run()
 }
 

@@ -1,8 +1,8 @@
-//! The view's lines as a mesh entity (rendering size 1, step 2), headless: with the mesh
-//! renderer chosen the scene's lines hang on one entity as a mesh of quads under the line
+//! The view's lines as a mesh entity (rendering size 1), headless: the scene's lines hang on
+//! one entity as a mesh of quads under the line
 //! material; the material's fog follows the party's sight and its width the quality; the grid
-//! setting and a reshape rebuild the mesh. (The gizmo renderer, kept beside it until the swap,
-//! needs a GPU-side plugin and is compared by capture.)
+//! setting and a reshape rebuild the mesh; the crests are a second mesh, found again as the eye
+//! moves. What the shader draws is compared by capture, not here.
 
 use crate::common;
 
@@ -12,23 +12,20 @@ use common::app::{config, shell};
 use omnis_vector::scene::Scene;
 use omnis_vector::settings::Quality;
 use omnis_vector::shell::lines::{
-    ATTRIBUTE_COLOUR, ATTRIBUTE_CORNER, ATTRIBUTE_END, ATTRIBUTE_STYLE, LineMaterial, LinesPlugin,
+    ATTRIBUTE_COLOUR, ATTRIBUTE_CORNER, ATTRIBUTE_END, ATTRIBUTE_STYLE, LineMaterial,
 };
-use omnis_vector::shell::render::{
-    LineRenderer, RenderPlugin, ViewCamera, ViewCrests, ViewLines, ViewMaterial,
-};
+use omnis_vector::shell::render::{RenderPlugin, ViewCamera, ViewCrests, ViewLines, ViewMaterial};
 use omnis_vector::shell::session::Session;
 use omnis_vector::shell::settings::Current;
 use omnis_vector::strokes::Strokes;
 
 /// The headless shell in a game, with the view's renderer and the assets it keeps.
-fn view(renderer: LineRenderer) -> App {
+fn view() -> App {
     let mut app = shell(config(), true);
     app.add_plugins(AssetPlugin::default())
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
-        .insert_resource(renderer)
-        .add_plugins((LinesPlugin, RenderPlugin));
+        .add_plugins(RenderPlugin);
     app.update();
     app.update();
     app
@@ -62,7 +59,7 @@ fn material(app: &App) -> LineMaterial {
 
 #[test]
 fn the_scene_s_lines_hang_on_one_entity_as_quads_under_the_line_material() {
-    let mut app = view(LineRenderer::Mesh);
+    let mut app = view();
     let lines = expected(&app, true);
     assert!(lines > 0);
     assert_eq!(vertices(&mut app), Some(lines * 4));
@@ -89,7 +86,7 @@ fn the_scene_s_lines_hang_on_one_entity_as_quads_under_the_line_material() {
 
 #[test]
 fn the_fog_follows_the_sight_and_the_width_the_quality() {
-    let mut app = view(LineRenderer::Mesh);
+    let mut app = view();
     let sight = f32::from(app.world().resource::<Session>().views.sight);
     let m = material(&app);
     assert_eq!(m.fog_end(), sight + 2.0, "two cells beyond the sight");
@@ -106,7 +103,7 @@ fn the_fog_follows_the_sight_and_the_width_the_quality() {
 
 #[test]
 fn the_grid_setting_and_a_reshape_rebuild_the_mesh() {
-    let mut app = view(LineRenderer::Mesh);
+    let mut app = view();
     let (shown, hidden) = (expected(&app, true), expected(&app, false));
     assert!(hidden < shown);
     assert_eq!(vertices(&mut app), Some(shown * 4));
@@ -143,8 +140,7 @@ fn hills(x: u16, y: u16) -> App {
     app.add_plugins(AssetPlugin::default())
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
-        .insert_resource(LineRenderer::Mesh)
-        .add_plugins((LinesPlugin, RenderPlugin));
+        .add_plugins(RenderPlugin);
     app.update();
     app.world_mut().resource_mut::<Current>().0.reduced_motion = true;
     stand(&mut app, x, y);
