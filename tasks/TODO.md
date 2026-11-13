@@ -623,7 +623,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] `tasks/acceptance/rendering-size-1.md` (2026-11-12).
   - Review (2026-11-12): built as planned in commits `536efc5a` (steps 0 to 2), `81e127e8` (3), `23459e72`
     (4). Gate 1285 to 1293. Would a staff engineer approve: the shader is checked only by captures on one
-    machine (Metal); no window, no hand test, no other GPU. Open: the owner's try; size 2's decision.
+    machine (Metal); no window, no hand test, no other GPU. The owner, after a try in the window the same
+    day: "Rendering switch seems to hold up, might even be significantly smoother." (The offscreen timing
+    showed no difference; the window's frame pacing was not measured, so "smoother" is the owner's
+    observation, unexplained.) Open: size 2's decision.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
