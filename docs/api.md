@@ -973,7 +973,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
-| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell; for `PickUp` also the cell it faces) or `{"Object": placement id}`) | Items moved. |
+| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell; for `PickUp` also the cell it faces; for what an object gave, the object's cell where the party reaches it, else the party's) or `{"Object": placement id}`) | Items moved. From an `Object` to `"Ground"`: an object gave the items (the effect `GiveItem`), and they lie as a pile to be taken. |
 | `ItemDestroyed` | `item`, `count`, `from` (`ItemPlace`: `"Ground"` or `{"Object": placement id}`) | `Destroy`: the items are gone for good. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
@@ -990,7 +990,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ObjectRemoved` | `object` | The object was taken away for good. |
 | `ObjectMessage` | `object`, `key` (a text key) | Text for the player. |
 | `GoldFound` | `amount` (copper) | Coin went to the party. |
-| `ItemFound` | `item`, `count` | Items went into the stores from the world. |
+| `ItemFound` | `item`, `count` | Items went into the stores from the world. Not produced since 2026-11-13 (see the changelog); kept so protocol 2 loses no name. |
 | `ItemSpent` | `item`, `count`, `from` (`{"Member": CharacterId}` or `"Stores"`) | Items were used up. |
 
 ### Town, rest and progression
@@ -1202,7 +1202,14 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-12 (latest, store and destroy; the loot and ceiling plan, step 4): `ItemCommand::Stash { from,
+- 2026-11-13 (latest, found items; the owner's choice "Drop it, open the loot window"): a change in what one
+  data effect does, with no wire shape added, removed or renamed. The object effect `GiveItem` lays the item
+  on the ground as a pile (the object's cell where the party reaches it, else the party's) and emits
+  `ItemMoved` from `{"Object": id}` to `"Ground"`; it no longer adds to the stores, and `ItemFound` is no
+  longer produced by anything. A client that opened nothing on `ItemFound` loses nothing; one that wants to
+  offer the find reads the `ItemMoved`. No saved shape changes and no golden moves.
+
+- 2026-11-12 (store and destroy; the loot and ceiling plan, step 4): `ItemCommand::Stash { from,
   item, count }` and `ItemCommand::Destroy { from, item, count }` (`from` an `ItemPlace`: the ground within
   reach or an open container in reach), `Event::ItemDestroyed { item, count, from }` (74 events) and
   `Rejection::NotFromThere` (72 rejections). `ItemMoved` may now go from `"Ground"` or an `Object` to

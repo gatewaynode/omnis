@@ -740,3 +740,18 @@
   timestamp, so cargo kept the mutant compiled; the gate went red on correct code.
 - **Rule**: a mutation script touches the file after restoring it (`mv orig file; touch file`), and the
   tests are run once more, green, before the gate.
+
+## 2026-11-13: an item that reaches the party goes through the loot window
+- **What happened**: the loot window was built for piles and open containers. An object's `GiveItem` still
+  put its item straight into the stores with one log line. The owner found it on a try: "when moving the
+  stone that hides the gem, a loot picker doesn't immediately open up ... people will leave such hidden
+  items behind". The owner had already said the window was "for various situations where items are
+  available for the party to take, store, or destroy"; I applied that to two situations and did not list
+  the others.
+- **Rule**: when the owner states a facility's scope in general words, list every path in the engine that
+  falls under those words (here: every producer of items for the party: piles, containers, object effects,
+  fight spoils, services) and say for each whether it goes through the facility or why not, in the plan.
+- **Rule**: a thing the party gains is shown at the moment it is gained, by a window the player must answer
+  or a thing that stays in view; a log line alone is not enough.
+- **Rule** (process): before asserting what a menu shows in a test, read it (`screen_text`); the stone's
+  entry is "Use", not its verb's name.

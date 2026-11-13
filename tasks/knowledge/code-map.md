@@ -73,7 +73,7 @@ old saves only).
   with the view; `offered`, `choices` for Use's `ChooseVerb`, `reachable`, `reach`), `objects/outcome.rs`
   (`resolve`: checks on the `object` stream, items used up, effects; `gate`, `check_of`),
   `objects/container.rs` (`contents`, `TakeOut`, `PutIn`), `objects/notice.rs` (`look` after each look,
-  `search`, `tell` for lore); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot); `combat/loot.rs` (`of`, `draw`);
+  `search`, `tell` for lore); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot, `found` and `found_at` for what an object gives, 2026-11-13); `combat/loot.rs` (`of`, `draw`);
   `items.rs` (`from_kit`, `from_list`, `out_of_kit`, `actor`); `objects_view.rs` (`objects_view` for
   `objects.get`, `in_sight` for `ViewportModel.objects`/`.piles`); `beings.rs` (M8.5 2c: `BeingView`,
   `in_sight` for `ViewportModel.beings`, `on_level`, `reached` for `ObjectsView.beings`, `approach` for
@@ -203,7 +203,8 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `screen/loot.rs` (`Loot`, `LootAct`, `gone`, `receiver`; `Forms.loot`, `ControlId::Loot`, `Effect::Commands`),
   `aim.rs` (`Eye`, `project`, `rect`, `on_heap`, `floor`, `inside`, `pile_under`: the heap or its cell's floor,
   2026-11-13; Bevy-free), `render::ViewAim` + `lines::aim_mark` (the aimed floor's outline), `shell/aim.rs`
-  (`PickUp`, the "Pick up..." button while the ground in reach holds anything; `tests/pile_reach.rs`),
+  (`PickUp`, the "Pick up..." button while the ground in reach holds anything; `tests/pile_reach.rs`; `found`,
+  the loot window opened on a find when `Session.found` is set by `session::finds`; `tests/found.rs`),
   `shell/aim.rs` (`Aimed`, the aimed pile's cell, the cursor, the click,
   registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`. Store and destroy (step 4):
   `items::lift` over `ground::take` and `objects::container::take` (`ItemCommand::{Stash, Destroy}`,

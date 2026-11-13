@@ -558,7 +558,7 @@ read.
 Object lines (M8.5 step 2b): an object's skill or ability check as the roll log words it ("Pip Sleight of
 Hand: 14 against 10, success"); a failed use ("Chest: Open failed", then the kind's failure text); a new
 state ("Torch is now out"); a removal ("Loose stone is gone"); an object's own text; found coin and items
-("Found 1 gp 0 sp 0 cp", "Found Gem; into the stores"); an item used up ("Pip uses up Thieves' tools", or
+("Found 1 gp 0 sp 0 cp", "Found Gem; on the ground": what an object gives is laid as a pile and the loot window opens on it at once, `Session.found` read by `shell/aim.rs`, owner 2026-11-13); an item used up ("Pip uses up Thieves' tools", or
 "… from the stores is used up"); a search ("Pip searches: Investigation 12"); and a hidden thing noticed
 ("Spotted: Rune" by a sharp eye, "Found: Rune" by a search, "Sensed by magic: Rune"). A search's lore is
 its text (`Event::Lore`). After a search's own lines (`text::searched`, owner 2026-10-16): what is within reach

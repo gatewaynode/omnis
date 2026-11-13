@@ -1,5 +1,20 @@
 # Continuity notes
 
+Written 2026-11-13, later still. **Found items are built, not yet tried by the owner**
+(`tasks/plans/found-items.md`, approved 2026-11-13; `tasks/acceptance/found-items.md`). The owner tried the
+pile reach ("Better.") and reported that the stone hiding a gem opened no loot picker; chose "Drop it, open
+the loot window". Engine: the object effect `GiveItem` lays the item as a pile (`ground::found`,
+`found_at`: the object's cell where the party reaches it, else the party's) and emits `ItemMoved` from the
+object to `Ground`; **`Event::ItemFound` is no longer produced but stays in the enum** (no pin moves,
+`PROTOCOL` 2). Client: `Session.found` (`session::finds`), `shell/aim.rs::found` opens the loot window;
+log "Found gem; on the ground". Tests: sim `object_act` (two new), vector `tests/found.rs` (three). Not
+tested: the window over the verbs screen (no fixture object with several verbs gives an item); a full
+pile. Open to ask: the object's message on the loot window; gold as a pile; fight spoils and services
+were not reviewed against "everything gained goes through the window" (lesson 2026-11-13).
+**Next: the owner's try, then their decision on size 2 parts 3 to 6.**
+
+The notes below were written earlier on 2026-11-13 and still hold, except "not yet tried" and "next".
+
 Written 2026-11-13, later. **A ground pile that is easy to get to is built, not yet tried by the owner**
 (`tasks/plans/pile-reach.md`, approved 2026-11-13; the owner's script `tasks/acceptance/pile-reach.md`), from
 the owner's hand test ("Click target too small", "Underfoot pile unseen"): the floor of a pile's cell is its

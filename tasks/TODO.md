@@ -677,7 +677,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     fight starts. Facing a pile, the button lies over part of the floor target; both do the same thing.
     Would a staff engineer approve: the tests were written after the code in steps 1 to 3 and proved by
     mutation (seventeen caught, none survived), not red first as the plan said.
-- [ ] **Found items land on the ground and the loot window opens** (`tasks/plans/found-items.md`, approved
+- [x] **Found items land on the ground and the loot window opens** (built 2026-11-13, awaiting the owner's try) (`tasks/plans/found-items.md`, approved
   2026-11-13). From the owner's try of the pile reach: the stone that hides a gem opened no loot picker; the
   owner chose "Drop it, open the loot window".
   - [x] Step 0: the plan filed.
@@ -687,8 +687,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     older tests moved to the new rule (`objects_view`, vector `object_lines`); the log says "Found gem; on
     the ground". Not tested: a found item on a pile at `MAX_PILE_STACKS` (the packs have 24 items, a full
     pile needs 32 kinds); the code has no limit check to mutate.
-  - [ ] Step 2: the loot window opens on what was found.
-  - [ ] Step 3: documents, the acceptance sheet, the lesson, continuity.
+  - [x] Step 2: the loot window opens on what was found (`Session.found`, `session::finds`, `shell/aim.rs`
+    `found`; `tests/found.rs`, three tests red first, five mutations caught).
+  - [x] Step 3: documents, `tasks/acceptance/found-items.md`, the lesson, continuity.
+  - Review (2026-11-13). Built as planned, with these to say. The yard's stone has one verb, so the Actions
+    menu's "Use" takes it directly and the loot window opens in the menu's place; **the window opening over
+    the verbs screen is not tested**, since no fixture object with several verbs gives an item (`Nav` stacks
+    overlays, so it should). A full pile is not tested (above). The object's own message ("Under the stone
+    lies a gem.") is not carried into the loot window: `Forms::shown` clears a screen's message when the
+    top screen changes, so it is read in the log and as the notice once the window closes. Not seen in a
+    window by me. `ARCHITECTURE.md` and `docs/api.md` changed under the approved plan.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
