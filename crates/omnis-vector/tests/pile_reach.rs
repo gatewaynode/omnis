@@ -8,17 +8,23 @@ use crate::loot::{cursor, hover, yard, yard_app};
 
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
+use common::app::press_ui;
 use common::app::{click, config, shell, top};
 use common::objects_data;
 use omnis_sim::omnis_core::Facing;
 use omnis_vector::aim::{self, Eye};
 use omnis_vector::ground::{Ground, eye};
+use omnis_vector::screen::ControlId;
 use omnis_vector::screen::ScreenId;
+use omnis_vector::screen::loot::LootAct;
 use omnis_vector::shapes::{Body, PILE_LOOK};
-use omnis_vector::shell::aim::Aimed;
+use omnis_vector::shell::aim::{Aimed, PickUp};
+use omnis_vector::shell::controls::Control;
 use omnis_vector::shell::lines::{ATTRIBUTE_COLOUR, ATTRIBUTE_STYLE};
 use omnis_vector::shell::movement::Intent;
 use omnis_vector::shell::render::{RenderPlugin, ViewAim};
+use omnis_vector::shell::screen::{Pressable, Screens};
+use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::{Config, Session};
 use omnis_vector::strokes::{PILE, PLAIN};
 
@@ -281,4 +287,82 @@ fn the_floor_s_outline_is_drawn_under_the_pointer_and_gone_when_it_leaves_or_a_s
     assert_eq!(top(&app), Some(ScreenId::Loot));
     app.update();
     assert_eq!(outline(&mut app), None, "a screen is up: nothing is aimed");
+}
+
+/// Whether the "Pick up..." button is shown, and whether it takes a press.
+fn button(app: &mut App) -> (bool, bool) {
+    let world = app.world_mut();
+    let mut q = world.query_filtered::<(&Visibility, Has<Control>), With<PickUp>>();
+    let (visibility, live) = q.single(world).expect("one Pick up button");
+    (*visibility != Visibility::Hidden, live)
+}
+
+/// Stand the party somewhere on the yard and let the view follow.
+fn stand(app: &mut App, x: u16, y: u16, facing: Facing) {
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let session = &mut *session;
+        let map = common::map(&session.data, "objects:map:yard");
+        session.pose = common::place(&mut session.world, map, x, y, facing);
+        session.refresh();
+    }
+    app.update();
+    app.update();
+}
+
+#[test]
+fn pick_up_stands_on_the_view_while_a_pile_is_in_reach_and_opens_the_window() {
+    // On the pile's own cell, where the heap is below the view.
+    let mut app = yard_app(2, 2, Facing::West);
+    app.update();
+    assert_eq!(button(&mut app), (true, true), "underfoot");
+    assert!(screen_text(app.world()).contains("Pick up..."));
+    press_ui(&mut app, PickUp);
+    assert_eq!(top(&app), Some(ScreenId::Loot));
+    assert_eq!(
+        app.world().resource::<Screens>().forms.loot,
+        omnis_vector::screen::loot::Loot::default()
+    );
+    app.update();
+    assert_eq!(button(&mut app), (false, false), "a screen is up");
+    common::app::tap(&mut app, KeyCode::Escape);
+    app.update();
+    assert_eq!(top(&app), None);
+    assert_eq!(button(&mut app), (true, true), "back on the view");
+
+    // Facing it from the next cell; then turned away, and a hidden button takes no press.
+    stand(&mut app, 1, 2, Facing::East);
+    assert_eq!(button(&mut app), (true, true), "ahead");
+    stand(&mut app, 1, 2, Facing::West);
+    assert_eq!(button(&mut app), (false, false), "nothing in reach");
+    // Even a press forced onto it opens nothing: it is no control.
+    let hidden = {
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<Entity, With<PickUp>>();
+        q.single(world).unwrap()
+    };
+    app.world_mut().entity_mut(hidden).insert(bevy::ui::Pressed);
+    app.update();
+    assert_eq!(top(&app), None);
+    app.world_mut()
+        .entity_mut(hidden)
+        .remove::<bevy::ui::Pressed>();
+
+    // Not while the party is doing anything but exploring (here the view's mode alone is
+    // moved: no fixture has a pile where a fight starts).
+    stand(&mut app, 1, 2, Facing::East);
+    app.world_mut().resource_mut::<Session>().views.here.mode = omnis_sim::api::ModeKind::Combat;
+    app.update();
+    assert_eq!(button(&mut app), (false, false), "not exploring");
+    stand(&mut app, 1, 2, Facing::East);
+    assert_eq!(button(&mut app), (true, true));
+
+    // Everything taken: nothing to offer.
+    press_ui(&mut app, PickUp);
+    assert_eq!(top(&app), Some(ScreenId::Loot));
+    press_ui(&mut app, Pressable(ControlId::Loot(LootAct::Everything)));
+    app.update();
+    app.update();
+    assert_eq!(top(&app), None, "the window closed itself");
+    assert_eq!(button(&mut app), (false, false), "the pile is gone");
 }
