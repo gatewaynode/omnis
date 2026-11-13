@@ -1,5 +1,20 @@
 # Continuity notes
 
+Written 2026-11-13, evening. **The loot window opens on fight spoils and on an opened container: built, not
+yet tried by the owner** (`tasks/plans/loot-everywhere.md`, approved 2026-11-13;
+`tasks/acceptance/loot-everywhere.md`). The owner tried found items ("Much better.") and asked for this
+pass. Client only. `shell/loot.rs` holds every opener (`open(.., from)`, `found`, the "Pick up..." button,
+`action_keys` moved from `shell/screen.rs`, now 959 lines); `Session.offer: Option<ItemPlace>` is set in
+`take_in` by `session::finds` (an object's gift; a victory that left items) and `session::opens` (a
+container opened with something in it); the opener waits while `ViewState::Fight`. Actions: "Take from
+<name>..." (`Does::Loot(ItemPlace)`, `Effect::Loot`). Tests `tests/found.rs` (nine). Gate 1312.
+**Open with the owner**: gold never goes through the window; a dead member's kit goes to the stores unseen;
+the object's message on the loot window; whether the window after a fight should wait for a key.
+**Next: the owner's try, then their choice** among size 2 parts 3 to 6, the ECS tasks, housekeeping
+(`editor/mod.rs` 1037 lines; Bevy 0.20.1 on 2026-11-27).
+
+The notes below were written earlier on 2026-11-13 and still hold, except "not yet tried" and "next".
+
 Written 2026-11-13, later still. **Found items are built, not yet tried by the owner**
 (`tasks/plans/found-items.md`, approved 2026-11-13; `tasks/acceptance/found-items.md`). The owner tried the
 pile reach ("Better.") and reported that the stone hiding a gem opened no loot picker; chose "Drop it, open

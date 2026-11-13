@@ -203,8 +203,11 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `screen/loot.rs` (`Loot`, `LootAct`, `gone`, `receiver`; `Forms.loot`, `ControlId::Loot`, `Effect::Commands`),
   `aim.rs` (`Eye`, `project`, `rect`, `on_heap`, `floor`, `inside`, `pile_under`: the heap or its cell's floor,
   2026-11-13; Bevy-free), `render::ViewAim` + `lines::aim_mark` (the aimed floor's outline), `shell/aim.rs`
-  (`PickUp`, the "Pick up..." button while the ground in reach holds anything; `tests/pile_reach.rs`; `found`,
-  the loot window opened on a find when `Session.found` is set by `session::finds`; `tests/found.rs`),
+  and `shell/loot.rs` (every opener of the loot window: `open(.., from)`; `PickUp`, the "Pick up..." button
+  while the ground in reach holds anything; `found`, which opens it on `Session.offer`, set by
+  `session::finds` (an object's gift, a won fight's spoils) and `session::opens` (a container opened with
+  something in it); `action_keys`; Actions' "Take from <name>..." through `Does::Loot(ItemPlace)` and
+  `Effect::Loot`; `tests/pile_reach.rs`, `tests/found.rs`),
   `shell/aim.rs` (`Aimed`, the aimed pile's cell, the cursor, the click,
   registered by `MovementPlugin`), `actions::Does::Loot`; tests `tests/loot.rs`, sim `tests/ground.rs`. Store and destroy (step 4):
   `items::lift` over `ground::take` and `objects::container::take` (`ItemCommand::{Stash, Destroy}`,

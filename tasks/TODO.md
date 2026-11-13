@@ -697,7 +697,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     lies a gem.") is not carried into the loot window: `Forms::shown` clears a screen's message when the
     top screen changes, so it is read in the log and as the notice once the window closes. Not seen in a
     window by me. `ARCHITECTURE.md` and `docs/api.md` changed under the approved plan.
-- [ ] **The loot window opens on fight spoils and on an opened container** (`tasks/plans/loot-everywhere.md`,
+- [x] **The loot window opens on fight spoils and on an opened container** (built 2026-11-13, awaiting the owner's try) (`tasks/plans/loot-everywhere.md`,
   approved 2026-11-13; client only). The plan lists every way the party gains items or gold.
   - [x] Step 0: the plan filed.
   - [x] Step 1: the move. `shell/loot.rs` (`open(.., from)`, the find's opener, the "Pick up..." button,
@@ -707,8 +707,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     the fight screen's last frame. Tests red first in `tests/found.rs` (the yard's pack rats fought and won
     with the fight's own commands; a won fight that left nothing; `finds` over built events); five
     mutations caught. A flight is covered by the `finds` test only, not by a fought one.
-  - [ ] Step 3: containers, and "Take from ..." in Actions.
-  - [ ] Step 4: documents, the acceptance sheet, continuity.
+  - [x] Step 3: containers. `session::opens` (an `ObjectState` whose object now shows contents),
+    `Does::Loot(ItemPlace)`, `Effect::Loot`, Actions' "Take from <name>...". Tests red first (three in
+    `tests/found.rs`). Nine mutations: seven caught at once; two survived (any new state, or an empty
+    chest, making the offer) because the window closes itself on a place with nothing to show, so a direct
+    test of `opens` was added and both are caught.
+  - [x] Step 4: documents, `tasks/acceptance/loot-everywhere.md`, continuity.
+  - Review (2026-11-13). Built as planned, client only; gate 1306 to 1312. Not tested: a command that both
+    opens a container and gives an item (the find should win; no fixture does both); a flight, beyond the
+    `finds` unit test. Not changed and named for the owner: gold goes straight to the party; a dead
+    member's kit goes to the stores unseen at a fight's end. Not seen in a window by me.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

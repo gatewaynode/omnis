@@ -516,6 +516,14 @@ only the simulation's forward cone; the automap still records the cone (§10.2).
   on the ground is in reach and the party explores with no screen up, a "Pick up..." button (`shell/aim.rs`,
   `PickUp`) stands over the bottom rows and opens the same window; hidden, it is no control and takes no press.
   It is the way in to a pile underfoot, which is below the view.
+- **What opens the loot window (2026-11-13, owner: one window wherever items are there to take).**
+  `shell/loot.rs::open(screens, views, from)` is the one way in. By itself: `Session.offer` is set in
+  `take_in` for a find (`session::finds`: what an object gave, or a won fight that left items; the ground)
+  and for a container a command opened with something in it (`session::opens`, read from the refreshed
+  views; that object), and the `found` system opens the window on it once the view is the map's (a won
+  fight's screen is up one frame more). By the player: a click on a pile's cell, the "Pick up..." button,
+  Shift+Space, and the Actions menu's "Pick up..." and "Take from <name>..." (one an open container in
+  reach that holds something; `Does::Loot(ItemPlace)`, `Effect::Loot`). Gold never goes through it.
 
 ## 9. The fight screen (as built, Phase B and V2; corrected)
 
