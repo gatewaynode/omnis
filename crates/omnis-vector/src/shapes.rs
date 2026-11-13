@@ -23,9 +23,6 @@ pub const PILE_LOOK: Look = Look {
     height: 1,
 };
 
-/// The colour carried on an object's segments; the renderer colours them by kind.
-const RGB: (u8, u8, u8) = (255, 255, 255);
-
 /// An arch's legs, as a share of its half width from each side.
 const LEG: f32 = 0.5;
 
@@ -241,7 +238,7 @@ impl Out {
             a,
             b,
             kind: self.kind,
-            rgb: RGB,
+            role: None,
         });
     }
 }

@@ -27,7 +27,8 @@ use omnis_vector::shell::render::{RenderPlugin, ViewAim};
 use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::{Config, Session};
-use omnis_vector::strokes::{PILE, PLAIN};
+use omnis_vector::strokes::AIM;
+use omnis_vector::style::Palette;
 
 const SIZE: (f32, f32) = (1600.0, 900.0);
 
@@ -243,16 +244,20 @@ fn outline(app: &mut App) -> Option<Vec<[f32; 3]>> {
     else {
         panic!("styles");
     };
-    assert!(styles.iter().all(|s| *s == PLAIN), "a plain solid line");
+    assert!(
+        styles.iter().all(|s| *s == AIM.style()),
+        "a plain solid line in a thing's role"
+    );
+    assert_eq!(AIM.style(), [1.0, 0.0, 3.0, 0.0]);
     let Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) =
         mesh.attribute(ATTRIBUTE_COLOUR)
     else {
         panic!("colours");
     };
-    let (r, g, b) = PILE;
+    let [r, g, b] = Palette::default().ink(omnis_sim::omnis_data::ColourRole::Thing);
     assert!(
         colours.iter().all(|c| *c == [r, g, b, 1.0]),
-        "the pile's colour"
+        "a thing's colour"
     );
     Some(a.chunks(4).map(|quad| quad[0]).collect())
 }

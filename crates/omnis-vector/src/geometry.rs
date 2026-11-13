@@ -9,7 +9,7 @@ use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
-use omnis_sim::omnis_data::{Data, Join, MapData};
+use omnis_sim::omnis_data::{ColourRole, Data, Join, MapData};
 use std::collections::BTreeMap;
 
 /// What a segment belongs to; the renderer picks the colour from it.
@@ -61,6 +61,9 @@ impl SegKind {
     }
 }
 
+/// The colour role a terrain names for its lines, where it names one (owner, 2026-11-13).
+pub type Named = Option<ColourRole>;
+
 /// One line in world space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Segment {
@@ -70,15 +73,15 @@ pub struct Segment {
     pub b: [f32; 3],
     /// What it belongs to.
     pub kind: SegKind,
-    /// The terrain colour of the cell it came from.
-    pub rgb: (u8, u8, u8),
+    /// The role the terrain of the cell it came from names, if it names one.
+    pub role: Named,
 }
 
 /// A canonical edge: `(horizontal, column, row)` of its lower-left corner.
 pub(crate) type EdgeKey = (bool, u16, u16);
 
-/// What stands on an edge: its kind, whether a door is open, the terrain colour, the height.
-pub(crate) type EdgeLook = (SegKind, bool, (u8, u8, u8), f32);
+/// What stands on an edge: its kind, whether a door is open, the terrain's role, the height.
+pub(crate) type EdgeLook = (SegKind, bool, Named, f32);
 
 /// Quarter cells: where a cliff is hatched along its edge.
 const HATCH: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
@@ -109,7 +112,7 @@ pub fn extract(
                 &mut out,
                 (x, y),
                 patch,
-                terrain.color,
+                terrain.role,
                 (
                     terrain.passable,
                     terrain.block.is_some(),
@@ -117,9 +120,9 @@ pub fn extract(
                 ),
                 ground.roof(patch.centre, h),
             );
-            rims(&mut out, ground, (x, y), patch, terrain.color);
+            rims(&mut out, ground, (x, y), patch, terrain.role);
             if map.portal_at(level, x, y).is_some() {
-                portal(&mut out, (x, y), patch, terrain.color);
+                portal(&mut out, (x, y), patch, terrain.role);
             }
             if let Some(join) = terrain.join {
                 let beyond = |up: bool| {
@@ -128,11 +131,11 @@ pub fn extract(
                         .map(|c| cells_high(c.height))
                 };
                 let rise = map.rise(level, x, y).unwrap_or(Facing::South);
-                joins(&mut out, (x, y), patch, (join, rise), beyond, terrain.color);
+                joins(&mut out, (x, y), patch, (join, rise), beyond, terrain.role);
             }
         }
     }
-    for (&(horizontal, col, row), &(kind, open, rgb, h)) in &edges(map, map_id, level, world) {
+    for (&(horizontal, col, row), &(kind, open, role, h)) in &edges(map, map_id, level, world) {
         let (x0, z0) = (f32::from(col), f32::from(row));
         let (x1, z1) = if horizontal {
             (x0 + 1.0, z0)
@@ -140,12 +143,12 @@ pub fn extract(
             (x0, z0 + 1.0)
         };
         let (feet, top) = span(ground, (horizontal, col, row), h);
-        edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, feet, top);
+        edge(&mut out, [x0, z0], [x1, z1], kind, open, role, feet, top);
     }
-    for (edge, split, rgb) in splits(map, level) {
+    for (edge, split, role) in splits(map, level) {
         match split {
-            Split::Cliff => cliff(&mut out, ground, edge, rgb),
-            Split::Ramp => treads(&mut out, ground, edge, rgb),
+            Split::Cliff => cliff(&mut out, ground, edge, role),
+            Split::Ramp => treads(&mut out, ground, edge, role),
         }
     }
     out
@@ -176,13 +179,12 @@ pub(crate) fn edges(
                     continue;
                 };
                 let open = world.door_open(map_id, level, x, y, facing);
-                let entry =
-                    edges
-                        .entry(key(x, y, facing))
-                        .or_insert((kind, open, terrain.color, h));
+                let entry = edges
+                    .entry(key(x, y, facing))
+                    .or_insert((kind, open, terrain.role, h));
                 // A door on either side wins over a wall on the other.
                 if kind == SegKind::Door {
-                    *entry = (kind, open, terrain.color, h);
+                    *entry = (kind, open, terrain.role, h);
                 }
             }
         }
@@ -230,7 +232,7 @@ fn joins(
     p: Patch,
     (join, rise): (Join, Facing),
     beyond: impl Fn(bool) -> Option<f32>,
-    rgb: (u8, u8, u8),
+    role: Named,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let (x1, z1) = (x0 + 1.0, z0 + 1.0);
@@ -253,7 +255,7 @@ fn joins(
                     at(t - 0.125, l, h),
                     at(t - 0.125, r, h),
                     SegKind::Stair,
-                    rgb,
+                    role,
                 );
             }
             for side in [l, r] {
@@ -262,7 +264,7 @@ fn joins(
                     at(0.0, side, lo),
                     at(1.0, side, hi),
                     SegKind::Stair,
-                    rgb,
+                    role,
                 );
             }
         }
@@ -274,11 +276,11 @@ fn joins(
                 ((cx - 0.15, cz), (cx + 0.15, cz)),
                 ((cx, cz - 0.15), (cx, cz + 0.15)),
             ] {
-                line(out, [ax, floor, az], [ax, top, az], SegKind::Ladder, rgb);
-                line(out, [bx, floor, bz], [bx, top, bz], SegKind::Ladder, rgb);
+                line(out, [ax, floor, az], [ax, top, az], SegKind::Ladder, role);
+                line(out, [bx, floor, bz], [bx, top, bz], SegKind::Ladder, role);
                 let mut h = floor + 0.25;
                 while h < top - 1e-3 {
-                    line(out, [ax, h, az], [bx, h, bz], SegKind::Ladder, rgb);
+                    line(out, [ax, h, az], [bx, h, bz], SegKind::Ladder, role);
                     h += 0.25;
                 }
             }
@@ -302,7 +304,7 @@ fn joins(
                     [a[0], floor, a[1]],
                     [b[0], floor, b[1]],
                     SegKind::Hole,
-                    rgb,
+                    role,
                 );
                 let o = outer[i];
                 line(
@@ -310,7 +312,7 @@ fn joins(
                     [o[0], floor, o[1]],
                     [a[0], floor, a[1]],
                     SegKind::Hole,
-                    rgb,
+                    role,
                 );
             }
         }
@@ -375,8 +377,8 @@ pub(crate) fn span(ground: &Ground, edge: EdgeKey, h: f32) -> ([f32; 2], f32) {
     (feet, ground.roof(top, h))
 }
 
-fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, rgb: (u8, u8, u8)) {
-    out.push(Segment { a, b, kind, rgb });
+fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, role: Named) {
+    out.push(Segment { a, b, kind, role });
 }
 
 /// The per-cell lines: the floor grid's north and west sides (the far sides come from the
@@ -386,25 +388,44 @@ fn cells(
     out: &mut Vec<Segment>,
     (x, y): (u16, u16),
     p: Patch,
-    rgb: (u8, u8, u8),
+    role: Named,
     (passable, block, ceiling): (bool, bool, bool),
     roof: f32,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let (x1, z1) = (x0 + 1.0, z0 + 1.0);
     let c = p.corners;
-    line(out, [x0, c[NW], z0], [x1, c[NE], z0], SegKind::Floor, rgb);
-    line(out, [x0, c[NW], z0], [x0, c[SW], z1], SegKind::Floor, rgb);
+    line(out, [x0, c[NW], z0], [x1, c[NE], z0], SegKind::Floor, role);
+    line(out, [x0, c[NW], z0], [x0, c[SW], z1], SegKind::Floor, role);
     if ceiling && !block {
-        line(out, [x0, roof, z0], [x1, roof, z0], SegKind::Ceiling, rgb);
-        line(out, [x0, roof, z0], [x0, roof, z1], SegKind::Ceiling, rgb);
+        line(out, [x0, roof, z0], [x1, roof, z0], SegKind::Ceiling, role);
+        line(out, [x0, roof, z0], [x0, roof, z1], SegKind::Ceiling, role);
     }
     if block {
         let i = 0.1;
-        boxed(out, [x0 + i, z0 + i], [x1 - i, z1 - i], p.centre, roof, rgb);
+        boxed(
+            out,
+            [x0 + i, z0 + i],
+            [x1 - i, z1 - i],
+            p.centre,
+            roof,
+            role,
+        );
     } else if !passable {
-        line(out, [x0, c[NW], z0], [x1, c[SE], z1], SegKind::Barrier, rgb);
-        line(out, [x1, c[NE], z0], [x0, c[SW], z1], SegKind::Barrier, rgb);
+        line(
+            out,
+            [x0, c[NW], z0],
+            [x1, c[SE], z1],
+            SegKind::Barrier,
+            role,
+        );
+        line(
+            out,
+            [x1, c[NE], z0],
+            [x0, c[SW], z1],
+            SegKind::Barrier,
+            role,
+        );
     }
 }
 
@@ -423,13 +444,13 @@ fn ring(
     p: Patch,
     points: &[(f32, f32)],
     kind: SegKind,
-    rgb: (u8, u8, u8),
+    role: Named,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let at = |(u, v): (f32, f32)| [x0 + u, floor_at(p, u, v), z0 + v];
     for (i, from) in points.iter().enumerate() {
         let to = points[(i + 1) % points.len()];
-        line(out, at(*from), at(to), kind, rgb);
+        line(out, at(*from), at(to), kind, role);
     }
 }
 
@@ -446,7 +467,7 @@ fn circle((cu, cv): (f32, f32), radius: f32, sides: usize) -> Vec<(f32, f32)> {
 
 /// A portal's mark on the floor of `(x, y)`: a rectangle a fifth in from each side with a
 /// circle in the middle, at the floor's heights.
-fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, role: Named) {
     let i = 0.2;
     ring(
         out,
@@ -454,7 +475,7 @@ fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8))
         p,
         &[(i, i), (1.0 - i, i), (1.0 - i, 1.0 - i), (i, 1.0 - i)],
         SegKind::Portal,
-        rgb,
+        role,
     );
     ring(
         out,
@@ -462,7 +483,7 @@ fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8))
         p,
         &circle((0.5, 0.5), 0.25, 16),
         SegKind::Portal,
-        rgb,
+        role,
     );
 }
 
@@ -474,7 +495,7 @@ fn icon_on_floor(
     p: Patch,
     icon: &omnis_icon::Icon,
     kind: SegKind,
-    rgb: (u8, u8, u8),
+    role: Named,
 ) {
     let (x0, z0) = (f32::from(cell.0), f32::from(cell.1));
     let inner = 1.0 - 2.0 * ICON_MARGIN;
@@ -483,7 +504,7 @@ fn icon_on_floor(
         [x0 + u, floor_at(p, u, v), z0 + v]
     };
     for [a, b] in icon.segments(inner) {
-        line(out, at(a), at(b), kind, rgb);
+        line(out, at(a), at(b), kind, role);
     }
 }
 
@@ -508,7 +529,7 @@ pub fn activities(data: &Data, map: &MapData, level: Level, ground: &Ground) -> 
             patch,
             crate::icons::activity_of(kind),
             SegKind::Activity,
-            map.terrain(cell).color,
+            map.terrain(cell).role,
         );
     }
     out
@@ -516,7 +537,7 @@ pub fn activities(data: &Data, map: &MapData, level: Level, ground: &Ground) -> 
 
 /// The south and east sides of a cell whose neighbour there meets it at other heights: the
 /// neighbour draws its own north or west side, so both rims of a split show.
-fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, role: Named) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let (x1, z1) = (x0 + 1.0, z0 + 1.0);
     let c = p.corners;
@@ -524,13 +545,13 @@ fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, r
         .patch(x, y + 1)
         .is_some_and(|n| n.side(Facing::North) != p.side(Facing::South))
     {
-        line(out, [x0, c[SW], z1], [x1, c[SE], z1], SegKind::Floor, rgb);
+        line(out, [x0, c[SW], z1], [x1, c[SE], z1], SegKind::Floor, role);
     }
     if ground
         .patch(x + 1, y)
         .is_some_and(|n| n.side(Facing::West) != p.side(Facing::East))
     {
-        line(out, [x1, c[NE], z0], [x1, c[SE], z1], SegKind::Floor, rgb);
+        line(out, [x1, c[NE], z0], [x1, c[SE], z1], SegKind::Floor, role);
     }
 }
 
@@ -544,8 +565,8 @@ pub(crate) enum Split {
 }
 
 /// The cliffs and ramps of a level, once per edge (each cell's east and south sides), with the
-/// colour of the higher cell's terrain.
-pub(crate) fn splits(map: &MapData, level: Level) -> Vec<(EdgeKey, Split, (u8, u8, u8))> {
+/// role of the higher cell's terrain.
+pub(crate) fn splits(map: &MapData, level: Level) -> Vec<(EdgeKey, Split, Named)> {
     let mut out = Vec::new();
     for y in 0..map.def.height {
         for x in 0..map.def.width {
@@ -567,15 +588,15 @@ pub(crate) fn splits(map: &MapData, level: Level) -> Vec<(EdgeKey, Split, (u8, u
                     || cell.doors.has(facing)
                     || next.doors.has(back);
                 let edge = key(x, y, facing);
-                let rgb = if next.height > cell.height {
-                    map.terrain(next).color
+                let role = if next.height > cell.height {
+                    map.terrain(next).role
                 } else {
-                    map.terrain(cell).color
+                    map.terrain(cell).role
                 };
                 if !closed && !joined(map, level, x, y, facing) {
-                    out.push((edge, Split::Cliff, rgb));
+                    out.push((edge, Split::Cliff, role));
                 } else if cell.ramps.has(facing) || next.ramps.has(back) {
-                    out.push((edge, Split::Ramp, rgb));
+                    out.push((edge, Split::Ramp, role));
                 }
             }
         }
@@ -595,7 +616,7 @@ pub(crate) fn ends((horizontal, col, row): EdgeKey) -> ([f32; 2], [f32; 2]) {
 }
 
 /// A rock face: verticals every quarter cell between the two rims.
-fn cliff(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, u8)) {
+fn cliff(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, role: Named) {
     let [Some(near), Some(far)] = sides(ground, edge) else {
         return;
     };
@@ -607,12 +628,12 @@ fn cliff(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, u
             continue;
         }
         let (px, pz) = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
-        line(out, [px, lo, pz], [px, hi, pz], SegKind::Cliff, rgb);
+        line(out, [px, lo, pz], [px, hi, pz], SegKind::Cliff, role);
     }
 }
 
 /// A ramp's treads: lines along the edge, a quarter cell apart, lying on the ground.
-fn treads(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, u8)) {
+fn treads(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, role: Named) {
     let (a, b) = ends(edge);
     let normal = if edge.0 { [0.0, 1.0] } else { [1.0, 0.0] };
     for d in TREADS {
@@ -622,20 +643,13 @@ fn treads(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, 
             [x, ground.height(x, z), z]
         };
         for t in [0.0, 0.25, 0.5, 0.75] {
-            line(out, at(t), at(t + 0.25), SegKind::Ramp, rgb);
+            line(out, at(t), at(t + 0.25), SegKind::Ramp, role);
         }
     }
 }
 
 /// The twelve edges of a box over the ground rectangle `lo..hi`, from `base` to `top`.
-fn boxed(
-    out: &mut Vec<Segment>,
-    lo: [f32; 2],
-    hi: [f32; 2],
-    base: f32,
-    top: f32,
-    rgb: (u8, u8, u8),
-) {
+fn boxed(out: &mut Vec<Segment>, lo: [f32; 2], hi: [f32; 2], base: f32, top: f32, role: Named) {
     let corners = [
         [lo[0], lo[1]],
         [hi[0], lo[1]],
@@ -649,21 +663,21 @@ fn boxed(
             [p[0], base, p[1]],
             [q[0], base, q[1]],
             SegKind::Block,
-            rgb,
+            role,
         );
         line(
             out,
             [p[0], top, p[1]],
             [q[0], top, q[1]],
             SegKind::Block,
-            rgb,
+            role,
         );
         line(
             out,
             [p[0], base, p[1]],
             [p[0], top, p[1]],
             SegKind::Block,
-            rgb,
+            role,
         );
     }
 }
@@ -686,7 +700,7 @@ fn edge(
     b: [f32; 2],
     kind: SegKind,
     open: bool,
-    rgb: (u8, u8, u8),
+    role: Named,
     feet: [f32; 2],
     top: f32,
 ) {
@@ -695,22 +709,22 @@ fn edge(
     match kind {
         SegKind::Door => {
             let ([l, r], head) = (DOOR, door_head(feet, top));
-            line(out, at(0.0, top), at(1.0, top), SegKind::Wall, rgb);
-            line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, rgb);
-            line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, rgb);
-            line(out, at(l, foot(l)), at(l, head), kind, rgb);
-            line(out, at(r, foot(r)), at(r, head), kind, rgb);
-            line(out, at(l, head), at(r, head), kind, rgb);
+            line(out, at(0.0, top), at(1.0, top), SegKind::Wall, role);
+            line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, role);
+            line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, role);
+            line(out, at(l, foot(l)), at(l, head), kind, role);
+            line(out, at(r, foot(r)), at(r, head), kind, role);
+            line(out, at(l, head), at(r, head), kind, role);
             if !open {
-                line(out, at(l, foot(l)), at(r, head), kind, rgb);
-                line(out, at(r, foot(r)), at(l, head), kind, rgb);
+                line(out, at(l, foot(l)), at(r, head), kind, role);
+                line(out, at(r, foot(r)), at(l, head), kind, role);
             }
         }
         _ => {
-            line(out, at(0.0, feet[0]), at(1.0, feet[1]), kind, rgb);
-            line(out, at(0.0, top), at(1.0, top), kind, rgb);
-            line(out, at(0.0, feet[0]), at(0.0, top), kind, rgb);
-            line(out, at(1.0, feet[1]), at(1.0, top), kind, rgb);
+            line(out, at(0.0, feet[0]), at(1.0, feet[1]), kind, role);
+            line(out, at(0.0, top), at(1.0, top), kind, role);
+            line(out, at(0.0, feet[0]), at(0.0, top), kind, role);
+            line(out, at(1.0, feet[1]), at(1.0, top), kind, role);
         }
     }
 }
@@ -735,7 +749,7 @@ mod tests {
             [1.0, 0.0],
             SegKind::Door,
             false,
-            (0, 0, 0),
+            None,
             [0.0; 2],
             1.0,
         );
@@ -746,7 +760,7 @@ mod tests {
             [1.0, 0.0],
             SegKind::Door,
             true,
-            (0, 0, 0),
+            None,
             [0.0; 2],
             1.0,
         );
@@ -756,7 +770,7 @@ mod tests {
     #[test]
     fn a_box_has_twelve_edges() {
         let mut out = Vec::new();
-        boxed(&mut out, [0.0, 0.0], [1.0, 1.0], 0.0, 1.0, (0, 0, 0));
+        boxed(&mut out, [0.0, 0.0], [1.0, 1.0], 0.0, 1.0, None);
         assert_eq!(out.len(), 12);
     }
 }

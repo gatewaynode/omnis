@@ -91,7 +91,8 @@ fn the_scene_s_lines_hang_on_one_entity_as_quads_under_the_line_material() {
         Strokes::of(Scene::build(&s.data, pos.map, pos.level, &s.world).strokes(true)).style
     };
     assert_eq!(styles, &held);
-    assert!(styles.contains(&[1.0, 0.0, 0.0, 0.0]) && styles.contains(&[0.5, 0.0, 0.0, 0.0]));
+    // Structure is role 0 and the ground role 1.
+    assert!(styles.contains(&[1.0, 0.0, 0.0, 0.0]) && styles.contains(&[0.5, 0.0, 1.0, 0.0]));
     assert_eq!(
         mesh.indices().map(bevy::mesh::Indices::len),
         Some(lines * 6)
@@ -204,7 +205,11 @@ fn crest_styles(app: &mut App) -> usize {
     else {
         panic!("the style is four floats a vertex");
     };
-    assert!(styles.iter().all(|s| *s == omnis_vector::strokes::PLAIN));
+    assert!(
+        styles
+            .iter()
+            .all(|s| *s == omnis_vector::strokes::CREST.style())
+    );
     assert_eq!(styles.len(), count);
     count
 }
@@ -266,7 +271,7 @@ fn the_crests_are_found_from_the_eye_and_again_only_when_it_moves() {
             a: [0.0; 3],
             b: [1.0; 3],
             kind: omnis_vector::geometry::SegKind::Wall,
-            rgb: (0, 0, 0),
+            role: None,
         },
         1.0,
     )]);

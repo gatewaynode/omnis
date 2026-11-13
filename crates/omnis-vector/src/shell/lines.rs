@@ -5,7 +5,7 @@
 //! mesh is built when the scene changes; nothing walks the segments each frame.
 
 use crate::ground::Ground;
-use crate::strokes::{CREST, PILE, PLAIN, Strokes};
+use crate::strokes::{AIM, CREST, Strokes};
 use bevy::asset::{AssetPath, RenderAssetUsages, embedded_asset, embedded_path};
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::mesh::{Indices, MeshVertexAttribute, MeshVertexBufferLayoutRef, PrimitiveTopology};
@@ -148,7 +148,7 @@ pub fn bundle(material: Handle<LineMaterial>) -> impl Bundle {
 pub fn crests(ground: &Ground, eye: [f32; 3], reach: f32) -> Strokes {
     let mut strokes = Strokes::default();
     for (a, b) in ground.crests(eye, reach) {
-        strokes.push(a, b, CREST, 1.0, PLAIN);
+        strokes.push(a, b, CREST, 1.0);
     }
     strokes
 }
@@ -191,7 +191,7 @@ pub fn hang_crests(
 pub const AIM_INSET: f32 = 0.125;
 
 /// The outline of the floor of cell `(x, y)`, lit while the pointer is on the pile there
-/// (owner, 2026-11-13): a square a little inside the cell, lying on the ground, in the pile's
+/// (owner, 2026-11-13): a square a little inside the cell, lying on the ground, in a thing's
 /// colour. It shows where a click is the pile's.
 #[must_use]
 pub fn aim_mark(ground: &Ground, (x, y): (u16, u16)) -> Strokes {
@@ -201,7 +201,7 @@ pub fn aim_mark(ground: &Ground, (x, y): (u16, u16)) -> Strokes {
         .map(|(x, z)| [x, ground.height(x, z), z]);
     let mut strokes = Strokes::default();
     for i in 0..4 {
-        strokes.push(corners[i], corners[(i + 1) % 4], PILE, 1.0, PLAIN);
+        strokes.push(corners[i], corners[(i + 1) % 4], AIM, 1.0);
     }
     strokes
 }

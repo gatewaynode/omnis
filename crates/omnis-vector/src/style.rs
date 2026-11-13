@@ -1,9 +1,78 @@
-//! The style system's seam (presentation-ARCHITECTURE §7): the interface's roles and type scale.
-//! Every screen asks a role and a size here and never names a colour or a pixel size itself.
-//! The style step adds the world's roles (structure, hostile, magic, ...), biosphere palettes
-//! from pack data and the non-colour channels; the 3D view, the arena, the minimap and the
-//! picture window keep their own colours until then. Bevy-free: colours are sRGB triples the
-//! shell turns into `Color`.
+//! The style system's seam (presentation-ARCHITECTURE §7): the palette of the world's lines by
+//! colour role, the interface's roles and type scale, and the channels that carry meaning
+//! without colour. Every screen asks a role and a size here and never names a colour or a pixel
+//! size itself. The arena, the minimap and the picture window keep their own colours until they
+//! are brought to the palette. Bevy-free: the shell turns these into `Color` and uniforms.
+
+use omnis_sim::omnis_data::{BiosphereDef, ColourRole};
+
+/// How many roles a palette has room for. More than there are roles, so a role added later
+/// changes no shader layout.
+pub const SLOTS: usize = 16;
+
+/// The colour of each role of the world's lines in one place (presentation-PRD X18, X23): a
+/// linear colour a role, its glow multiplied in, so a value above 1.0 blooms. The line material
+/// holds one; changing biosphere changes it and no mesh.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Palette {
+    /// A role's ink at its number ([`ColourRole::index`]); black where there is no role.
+    pub inks: [[f32; 3]; SLOTS],
+}
+
+/// The palette where no biosphere is named: the hues the view had before the roles, one a role.
+const DEFAULT: [(ColourRole, [f32; 3]); 9] = [
+    (ColourRole::Structure, [0.15, 3.0, 0.5]),
+    (ColourRole::Ground, [0.12, 0.45, 0.2]),
+    (ColourRole::Passage, [3.2, 1.6, 0.2]),
+    (ColourRole::Thing, [1.9, 0.9, 2.8]),
+    (ColourRole::Party, [0.52, 2.0, 0.76]),
+    (ColourRole::Hostile, [3.0, 0.9, 0.15]),
+    (ColourRole::Magic, [0.9, 1.8, 2.2]),
+    (ColourRole::Danger, [2.6, 0.5, 0.4]),
+    (ColourRole::Interface, [0.26, 1.0, 0.38]),
+];
+
+impl Default for Palette {
+    fn default() -> Palette {
+        let mut inks = [[0.0; 3]; SLOTS];
+        for (role, ink) in DEFAULT {
+            inks[role.index()] = ink;
+        }
+        Palette { inks }
+    }
+}
+
+impl Palette {
+    /// The palette of `biosphere`: each role it writes, from sRGB to linear and times its glow;
+    /// each it leaves out, and every role where there is no biosphere, the default's.
+    #[must_use]
+    pub fn of(biosphere: Option<&BiosphereDef>) -> Palette {
+        let mut palette = Palette::default();
+        for (role, ink) in biosphere.iter().flat_map(|b| &b.palette) {
+            let glow = f32::from(ink.glow) / 1000.0;
+            let (r, g, b) = ink.rgb;
+            palette.inks[role.index()] = [r, g, b].map(|c| linear(c) * glow);
+        }
+        palette
+    }
+
+    /// The ink of `role`.
+    #[must_use]
+    pub fn ink(&self, role: ColourRole) -> [f32; 3] {
+        self.inks[role.index()]
+    }
+}
+
+/// An sRGB channel as written in a pack, as linear light.
+#[must_use]
+pub fn linear(channel: u8) -> f32 {
+    let c = f32::from(channel) / 255.0;
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
 
 /// What a piece of interface text or a control means, and so how it is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

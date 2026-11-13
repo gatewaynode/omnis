@@ -730,7 +730,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     `levels` 0.1.1 (frost on the region, deep on the tower; the hole's role). Gate 1312 to 1319; nine
     mutations caught. Brought forward from step 5: the terrain form's role field, because a form without
     it would have erased a terrain's role on every edit.
-  - [ ] Step 2: roles on the CPU. `style::{Ink, Palette}`, `strokes::role`, `Segment.role`, `style.z`.
+  - [x] Step 2: roles on the CPU. `style::Palette` (sixteen slots, a built-in default, `Palette::of` a
+    biosphere), `strokes::{Look, look, role, strength}`, `Segment.role` (the terrain's named role, where
+    `rgb` was), the role's number in `style.z`. **The look changed here**: the view is drawn in the default
+    palette, so floors no longer take their terrain's colour, cliffs are the walls' green, piles the
+    objects' violet. Until step 3 the default's ink is laid into the vertex. Gate 1319 to 1321; nine
+    mutations caught.
   - [ ] Step 3: the palette on the line material; swapped with the map, no mesh rebuilt; captures.
   - [ ] Step 4: the contrast and colour-deficiency checks; the default palette tuned.
   - [ ] Step 5: the terrain form's role; documents, the acceptance sheet, continuity.

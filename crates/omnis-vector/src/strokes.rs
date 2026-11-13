@@ -3,14 +3,15 @@
 //! constant width in pixels, so the view's lines are a retained mesh and not a loop over
 //! segments each frame. No Bevy here: `shell/lines.rs` wraps the buffers in a mesh.
 //!
-//! A vertex carries both of its segment's ends, which corner of the quad it is, the line's
-//! colour (linear, above 1.0 where it glows) with its level's brightness in the alpha, and a
-//! `style` the shader reads: `[weight, pattern, role, level]`. The weight and the pattern are
-//! the kind's ([`channels`]; rendering size 2, part 2); the role and the level are kept for the
-//! colour roles and the depth levels, so the mesh's layout does not change again.
+//! A vertex carries both of its segment's ends, which corner of the quad it is, a colour with
+//! its level's brightness in the alpha, and a `style` the shader reads:
+//! `[weight, pattern, role, level]`. The weight and the pattern are the kind's ([`channels`];
+//! rendering size 2, part 2); the role is whose colour the line is drawn in ([`role`]; part 3);
+//! the level is kept for the depth levels, so the mesh's layout does not change again.
 
 use crate::geometry::{SegKind, Segment};
-use crate::style::{Pattern, Weight};
+use crate::style::{Palette, Pattern, Weight};
+use omnis_sim::omnis_data::ColourRole;
 
 /// The corners of a segment's quad, in the order its vertices are written: how far along the
 /// segment (0 at `a`, 1 at `b`) and which side of it (-1 or +1).
@@ -19,16 +20,47 @@ pub const CORNERS: [[f32; 2]; 4] = [[0.0, -1.0], [0.0, 1.0], [1.0, 1.0], [1.0, -
 /// The two triangles of a quad over [`CORNERS`].
 pub const QUAD: [u32; 6] = [0, 1, 2, 0, 2, 3];
 
-/// A plain line's style: the normal weight, solid, no role, the party's depth level. A crest's.
-pub const PLAIN: [f32; 4] = [1.0, 0.0, 0.0, 0.0];
+/// How a line is drawn: the role its colour comes from, how strongly that colour is laid on,
+/// and the channels that carry its meaning without colour.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Look {
+    /// Whose colour, from the palette.
+    pub role: ColourRole,
+    /// A factor on the role's ink: a ceiling grid is fainter than the floor's.
+    pub strength: f32,
+    /// How heavy.
+    pub weight: Weight,
+    /// Solid, dashed, dotted or double.
+    pub pattern: Pattern,
+}
 
-/// A crest's line, where the ground turns away from the eye. Provisional until the colour roles
-/// (M8.5 step 5): brighter than the floor grid, so a rise's top shows against the sky.
-pub const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
+impl Look {
+    /// What the shader reads of it: `[weight, pattern, role, level]`, the level the party's.
+    #[must_use]
+    pub fn style(&self) -> [f32; 4] {
+        // A role's number is far below f32's exact range.
+        #[allow(clippy::cast_precision_loss)]
+        let role = self.role.index() as f32;
+        [self.weight.factor(), self.pattern.code(), role, 0.0]
+    }
+}
 
-/// A pile's line, and the outline of its cell's floor under the pointer. Provisional until the
-/// colour roles (M8.5 step 5): rose.
-pub const PILE: (f32, f32, f32) = (2.8, 1.1, 1.7);
+/// A crest's line, where the ground turns away from the eye: the ground's, brighter than the
+/// floor grid, so a rise's top shows against the sky.
+pub const CREST: Look = Look {
+    role: ColourRole::Ground,
+    strength: 2.5,
+    weight: Weight::Normal,
+    pattern: Pattern::Solid,
+};
+
+/// The outline of a pile's cell's floor under the pointer: a thing's, plain.
+pub const AIM: Look = Look {
+    role: ColourRole::Thing,
+    strength: 1.0,
+    weight: Weight::Normal,
+    pattern: Pattern::Solid,
+};
 
 /// Lines as the line shader takes them: one entry a vertex in every list but `indices`.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -52,31 +84,24 @@ impl Strokes {
     pub fn of<'s>(lines: impl IntoIterator<Item = (&'s Segment, f32)>) -> Strokes {
         let mut strokes = Strokes::default();
         for (segment, dim) in lines {
-            let (weight, pattern) = channels(segment.kind);
-            let style = [weight.factor(), pattern.code(), 0.0, 0.0];
-            strokes.push(segment.a, segment.b, colour(segment), dim, style);
+            strokes.push(segment.a, segment.b, look(segment), dim);
         }
         strokes
     }
 
-    /// One more line from `a` to `b` in `rgb` at brightness `dim`, drawn in `style`.
-    pub fn push(
-        &mut self,
-        a: [f32; 3],
-        b: [f32; 3],
-        (r, g, b_): (f32, f32, f32),
-        dim: f32,
-        style: [f32; 4],
-    ) {
+    /// One more line from `a` to `b`, drawn as `look` says at brightness `dim`.
+    pub fn push(&mut self, a: [f32; 3], b: [f32; 3], look: Look, dim: f32) {
         // A scene's vertex count is far below u32's range.
         #[allow(clippy::cast_possible_truncation)]
         let first = self.a.len() as u32;
+        // Until the palette is the material's (step 3), the default's ink is laid in here.
+        let [r, g, b_] = Palette::default().ink(look.role).map(|c| c * look.strength);
         for corner in CORNERS {
             self.a.push(a);
             self.b.push(b);
             self.corner.push(corner);
             self.colour.push([r, g, b_, dim]);
-            self.style.push(style);
+            self.style.push(look.style());
         }
         self.indices.extend(QUAD.iter().map(|i| first + i));
     }
@@ -119,40 +144,45 @@ pub fn channels(kind: SegKind) -> (Weight, Pattern) {
     }
 }
 
-/// Line colour by kind: walls bright green, doors amber, solid and impassable terrain in the
-/// terrain's colour, the floor and ceiling grids dim. Values above 1.0 bloom.
+/// A segment's look: its role, its strength and its kind's channels.
 #[must_use]
-pub fn colour(segment: &Segment) -> (f32, f32, f32) {
-    let (r, g, b) = segment.rgb;
-    let t = |k: f32| {
-        (
-            f32::from(r) / 255.0 * k,
-            f32::from(g) / 255.0 * k,
-            f32::from(b) / 255.0 * k,
-        )
-    };
+pub fn look(segment: &Segment) -> Look {
+    let (weight, pattern) = channels(segment.kind);
+    Look {
+        role: role(segment),
+        strength: strength(segment.kind),
+        weight,
+        pattern,
+    }
+}
+
+/// The role a segment's colour comes from (presentation-PRD 5.2; the set and the table the
+/// owner's, 2026-11-13): what stands is structure, what is walked on ground, a way through a
+/// passage, what can be used a thing, a being hostile, a hole a danger. A terrain that names a
+/// role gives it to its own grids and solid forms.
+#[must_use]
+pub fn role(segment: &Segment) -> ColourRole {
+    let named = |own: ColourRole| segment.role.unwrap_or(own);
     match segment.kind {
-        SegKind::Wall => (0.15, 3.0, 0.5),
-        SegKind::Door => (3.2, 1.6, 0.2),
-        // A portal's floor mark in the doors' amber (owner, 2026-10-24); an activity's
-        // placeholder smiley in a plain gold until it has a look of its own.
-        SegKind::Portal => (3.2, 1.6, 0.2),
-        SegKind::Activity => (2.6, 2.3, 0.5),
-        SegKind::Block => t(3.0),
-        SegKind::Barrier => t(2.5),
-        SegKind::Floor => t(0.6),
-        SegKind::Ceiling => t(0.3),
-        // Provisional until the colour roles (M8.5 step 5): rock warm, ramps pale.
-        SegKind::Cliff => (2.2, 1.4, 0.6),
-        SegKind::Ramp => (0.9, 1.8, 2.2),
-        // Joins (M8.5 step 1b), provisional as cliffs and ramps: stairs and ladders pale gold,
-        // a hole a warning red.
-        SegKind::Stair | SegKind::Ladder => (2.4, 2.1, 0.8),
-        SegKind::Hole => (2.6, 0.5, 0.4),
-        // Objects and piles (M8.5 step 2b), provisional: objects violet, piles rose.
-        SegKind::Object => (1.9, 0.9, 2.8),
-        SegKind::Pile => PILE,
-        // Beings (M8.5 step 2c), provisional: an alarm orange, apart from objects and holes.
-        SegKind::Being => (3.0, 0.9, 0.15),
+        SegKind::Wall | SegKind::Cliff => ColourRole::Structure,
+        SegKind::Block | SegKind::Barrier => named(ColourRole::Structure),
+        SegKind::Floor | SegKind::Ceiling | SegKind::Ramp => named(ColourRole::Ground),
+        SegKind::Door | SegKind::Portal | SegKind::Stair | SegKind::Ladder => ColourRole::Passage,
+        SegKind::Object | SegKind::Pile | SegKind::Activity => ColourRole::Thing,
+        SegKind::Being => ColourRole::Hostile,
+        SegKind::Hole => ColourRole::Danger,
+    }
+}
+
+/// How strongly a kind lays on its role's ink.
+#[must_use]
+pub fn strength(kind: SegKind) -> f32 {
+    match kind {
+        // The ceiling grid is fainter than the floor's.
+        SegKind::Ceiling => 0.5,
+        // A ramp's treads are the ground's, and must show on its dim grid.
+        SegKind::Ramp => 3.0,
+        SegKind::Barrier => 0.85,
+        _ => 1.0,
     }
 }
