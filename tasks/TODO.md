@@ -753,8 +753,20 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     and the interface's roles are held off the dark only, since they draw no line in the world yet.
     Gate 1323 to 1326; seven mutations caught. The checks run in tests on the default and the fixtures;
     nothing yet tells an author about a pack's own palette (asked at the end).
-  - [ ] Step 5: the terrain form's role; documents, the acceptance sheet, continuity.
-- [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
+  - [x] Step 5: documents (presentation-ARCHITECTURE 7 and 8.2, `rendering-size-2.md`, code-map),
+    `tasks/acceptance/rendering-size-2-palette.md`, continuity. The terrain form's role was built in step 1.
+  - Review (2026-11-13). Built as planned in five commits, gate 1312 to 1326, 32 mutations caught and one
+    that could not compile. Departures, all said in their steps: the terrain form's role moved from step 5
+    to step 1; biospheres are held by id, not interned (no save shape moves); the override fixture is in
+    `levels`, as the plan allowed; `Data::biosphere_for` was added for the editor's unsaved map; the default
+    palette's hues moved because the old ones failed the checks. Not built, and open: the fight screen,
+    minimap, picture window and interface on the palette (the next plan); a report of a pack's own
+    palette to its author; a preset in Settings; the channel check of 7.3. Consequences the owner should
+    judge by eye: floors no longer differ by terrain; cliffs are the walls' colour; piles are the objects'
+    colour; the walls' green differs from the HUD's. Not seen in a window by me.
+- [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
+  editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
+  palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour
   channels (line pattern, weight, glyph markers, motion), applied to the 3D view, the fight screen and the HUD,

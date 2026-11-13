@@ -1,5 +1,33 @@
 # Continuity notes
 
+Written 2026-11-13, after rendering size 2 part 3. **Part 3 (colour roles as a palette, with biospheres in
+pack data) is built, not yet tried by the owner** (`tasks/plans/rendering-size-2-palette.md`, approved
+2026-11-13; the owner's script `tasks/acceptance/rendering-size-2-palette.md`, which ends with five decisions
+asked). The owner's order stands: parts 3, 4, 5, 6, each its own plan; X23 is applied to `presentation-PRD.md`.
+- **What exists**: `omnis-data/src/biosphere.rs` (`ColourRole` nine roles, `Ink`, `BiosphereDef`, the sixteenth
+  kind, held by id); `Terrain.role`, `RegionDef.biosphere`, `MapDef.biosphere`; `Data::biosphere_of` /
+  `biosphere_for`; `style::Palette` (sixteen slots, a built-in default); `strokes::{Look, role, strength}`;
+  `LineMaterial.palette` (binding 1) read by `lines.wesl`; `contrast.rs` (`clashes`, `APART` 0.1, `FROM_DARK`
+  0.45, three simulated deficiencies). Fixtures: `objects` 0.1.5 (ember), `levels` 0.1.2 (frost, failing the
+  checks on purpose; deep). Gate 1326. Commits `7fd9a30f`, `921231c4`, `1e8dea03`, `f6684eb7`, `a637c28e` and
+  the documents' commit after them.
+- **The look changed on every map**: floors do not take their terrain's colour; cliffs are the walls' colour;
+  piles the objects'; the default's walls lean to teal and its doors to yellow, because the old hues failed
+  the colour-deficiency check (measured: 0.048 against 0.1). These are in the acceptance sheet as decisions.
+- **Next, in the owner's order**: (a) their try and the five decisions; (b) the plan the owner chose to follow
+  part 3: the fight screen (`shell/combat.rs` `colour(Tone)`), the minimap (`minimap.rs` constants), the
+  picture window (`cinema.rs`) and the interface (`style::Role`, `shell/controls.rs`) on the palette, VA11;
+  (c) part 4, depth levels (`style.w`; the neighbour dim 0.2 rides in the vertex colour's alpha; X17 has no
+  numbers, so they are asked); (d) part 5; (e) part 6.
+- **How a palette is tuned**: the scratchpad's `contrast.py` (the arithmetic of `contrast.rs` in Python) with
+  `c3.py` (a hill-climb from a starting palette to the nearest that passes). Not in the tree.
+- **Process notes**: the uniform array binds as `[Vec4; 16]` on `AsBindGroup` with no trouble; the editor
+  writes the last pack loaded, so an editor test on `test:map:town` must not add a fixture pack after it; a
+  struct literal fixed by a script got `role: None` in the terrain form, which would have erased roles: read
+  what a mechanical fix did to each site. Captures: `target/shots/p3/` (four maps, Low and High).
+
+The notes below were written earlier on 2026-11-13 and still hold, except "next" and "not applied".
+
 Written 2026-11-13, night, before a compact. **The owner's order: after the catchup, rendering size 2 parts
 3 to 6** ("let's prepare for a compact and jump into rendering size 2 parts 3 to 6 after the catchup").
 

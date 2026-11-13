@@ -508,6 +508,17 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
   `strokes::channels(SegKind)` (the provisional table), `Strokes::push(.., style)`; `lines.wesl` `broken()`
   (dashes fitted to the segment, the far filter), the lighter line between dashes (`GAP_WEIGHT`, `GAP_DIM`),
   the double's open middle. `Config.entry` (`--entry`), applied in `Packs::load`; `just qa [map]`.
+- Colour roles and biospheres (rendering size 2 part 3, 2026-11-13, `tasks/plans/rendering-size-2-palette.md`):
+  `omnis-data/src/biosphere.rs` (`ColourRole`, `Ink`, `BiosphereDef`; `Data.biospheres` by id,
+  `Data::biosphere_of(MapId)`, `biosphere_for(&MapDef)`; `Terrain.role`, `RegionDef.biosphere`,
+  `MapDef.biosphere`); `style.rs` (`Palette`, `SLOTS`, `linear`, the built-in `DEFAULT`); `strokes.rs`
+  (`Look`, `look`, `role`, `strength`, `CREST`, `AIM`; `PLAIN`, `PILE` and `colour` are gone);
+  `geometry::Segment.role` (`Named`); `shell/lines.rs` (`LineMaterial.palette`, `palette()`, `paint`);
+  `shell/render.rs::tune` and `shell/preview.rs::paint` set it; `contrast.rs` (`clashes`, `distance`,
+  `Vision`, `DRAWN`, `APART`, `FROM_DARK`). Fixtures: `objects` ember (the yard's region), `levels` frost
+  (the region; fails the checks on purpose) and deep (the tower). Tests `omnis-data/tests/biospheres.rs`,
+  `tests/strokes.rs`, `tests/lines.rs`, `tests/editor_preview.rs`, `tests/contrast.rs`. The palette search
+  used to tune a palette is a scratch script, not in the tree.
 - The lines as meshes (rendering size 1, 2026-11-12, `tasks/plans/rendering-size-1.md`): `strokes.rs` (Bevy-free:
   `Strokes`, `CORNERS`, `QUAD`, `PLAIN`, `colour`, `CREST`), `shell/lines.rs` (`LineMaterial`, `LinesPlugin`,
   `mesh`, `bundle`, `crests`, `hang_crests`, `CrestsAt`, the four `ATTRIBUTE_*`), `shell/lines.wesl` (embedded);

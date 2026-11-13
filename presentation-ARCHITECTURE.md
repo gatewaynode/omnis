@@ -405,33 +405,43 @@ the parity checklist for each step's plan; `omnis-app` was retired at P9, so the
 | Loot (built, 2026-11-12) | W2 | `Views.objects` (`ground`, an open container's `contents`), `PartyView.members`, a trial of each command | The loot window (`screen/loot.rs`, `ScreenId::Loot`), a modal the game waits under, opened on an `ItemPlace` (`Forms.loot`: the place and who receives): the ground within reach (`PickUp`) or an open container (`TakeOut`). Rows: "Taken by" (a choice over the party: the window's own pick, else the column's selected member, else the first on their feet) and Close; each item with Take (one) and, where there are several, Take all, then Store (all of it into the party's stores, `Stash`) and Destroy (all of it, `Destroy`; the window first asks "Destroy N? This cannot be undone." in place of its rows, `Forms.loot.asking`, and only that Destroy sends; Cancel or Esc sends nothing); Take everything (`Effect::Commands`, one command an item, stopped at the first refusal). It closes itself when the place is empty, shut or out of reach (`loot::gone`, asked by the router each frame). Ways in: a left click on a pile in reach in the 3D view (§8.7), "Pick up..." in the Actions when something lies within reach (the default action when nothing else is there to use), and the Inventory's own rows as before. Store and Destroy need no one on their feet, so they stay lit when the receiver cannot act |
 | Settings (built, P8) | P8 | the applied settings (§10.5), the window's fit | Reduced motion < off | on >, Floor grid < hidden | shown >, Quality < low | medium | high >, Font < built-in | Inter | Alegreya Sans >, Interface scale < 50% … 200% > with "N% fits this window" past the fit; Apply (dim "nothing changed") and Close; "Settings saved to …" / "Could not save settings: …". Changes wait for Apply; Close and Esc drop them (owner) |
 
-## 7. The style system (partly built: the type scale and fonts, P8; line weight and pattern in the 3D view on a provisional table by kind, 2026-11-13, §8.2; the roles, biosphere palettes and palette checks wait for M8.5 step 5, `tasks/TODO.md` W2; X18, X19, presentation-PRD §5, §7)
+## 7. The style system (partly built: the type scale and fonts, P8; line weight and pattern in the 3D view on a provisional table by kind, 2026-11-13, §8.2; **the colour roles, biosphere palettes and palette checks for the 3D view and the editor preview, 2026-11-13**, `tasks/plans/rendering-size-2-palette.md`; the fight screen, minimap, picture window and interface on the palette, glyphs and motion are not built; X18, X19, X23, presentation-PRD §5, §7)
 
 ### 7.1 Roles and channels
-A Bevy-free `style.rs`:
+As built, in three Bevy-free places:
 
 ```rust
-pub enum Role { Structure, Ground, Interactive, Party, Hostile, Magic, Danger, Interface, Dim, Alert }
-pub struct Ink { pub rgb: [f32; 3], pub glow: f32 }          // linear; glow > 1 blooms
-pub struct Channels { pub pattern: Pattern, pub weight: Weight, pub glyph: Option<Glyph>, pub motion: Motion }
-pub struct Palette { /* Role -> Ink, total */ }
-pub fn channels(role: Role) -> Channels                       // the same in every biosphere (§5.3)
+// omnis-data/src/biosphere.rs (pack data; integers)
+pub enum ColourRole { Structure, Ground, Passage, Thing, Party, Hostile, Magic, Danger, Interface }
+pub struct Ink { pub rgb: (u8, u8, u8), pub glow: u16 }      // sRGB; glow per mille, 1..=4000
+pub struct BiosphereDef { schema, id, name, palette: BTreeMap<ColourRole, Ink> }
+// omnis-vector/src/style.rs
+pub struct Palette { pub inks: [[f32; 3]; SLOTS] }           // linear, glow in; SLOTS = 16
+// omnis-vector/src/strokes.rs
+pub struct Look { role: ColourRole, strength: f32, weight: Weight, pattern: Pattern }
+pub fn role(&Segment) -> ColourRole   pub fn strength(SegKind) -> f32   pub fn channels(SegKind) -> (Weight, Pattern)
 ```
 
 - **The references** are Tron's glowing edges, colour coding and scale and the blueprint's drafting detail (X16); the roles and channels below are how the code carries them.
-- **Roles are fixed meanings** (X18). The first set is presentation-PRD §5.2's, plus `Dim` (a control that says why not) and `Alert` (refusals, low HP). The final set is open (presentation-PRD §12.3).
-- **Channels do not depend on the biosphere** (X19): pattern (solid, dashed, dotted, sawtooth), weight (hairline to heavy), a glyph from a fixed vocabulary, and motion (pulse, flicker, drift). The enums are open for more.
-- **Every drawn thing asks a role.** `geometry::Segment` carries a `Role` instead of an rgb; `arena::Tone` maps to roles; the minimap, the picture window and the UI tokens read the palette. Today's literals, to remove in the style step: `shell/controls.rs` (`GREEN`, `SHADES`, `DIM`), `shell/render.rs` `colour()`, `shell/combat.rs` `colour(Tone)`, `minimap.rs` and `cinema.rs` constants.
+- **Roles are fixed meanings** (X18). The set is the owner's of 2026-11-13: presentation-PRD §5.2's with "interactive" split in two. New roles are added at the end: a role's number is its place in a palette.
+- **The table from kind to role** (`strokes::role`): walls and cliffs are structure; solid terrain and barriers are structure unless their terrain names a role; the floor and ceiling grids and a ramp's treads are ground unless their terrain names a role; doors, portals, stairs and ladders are a passage; objects, piles and activities a thing; beings hostile; a hole a danger. Crests are the ground's, brighter; the aimed floor's outline a thing's. `geometry::Segment` carries the role its terrain names (`role: Option<ColourRole>`) where it once carried the terrain's colour. The minimap and the editor's plan keep terrain colours, to tell terrains apart from above.
+- **Strength** is a factor a kind lays on its role's ink (the ceiling grid half the floor's, a ramp's treads three times, a crest two and a half): one role, several brightnesses, no extra roles.
+- **Channels do not depend on the biosphere** (X19): pattern and weight are built (§8.2); a glyph vocabulary and motion are not. The enums are open for more.
+- **Not yet on the palette**: `style::Role` (the interface's text roles: interface, title, dim, caution, alert) stands beside `ColourRole` until the interface is brought over; `shell/controls.rs` (`GREEN`, `SHADES`, `DIM`), `shell/combat.rs` `colour(Tone)`, `minimap.rs` and `cinema.rs` keep their literals (VA11 is open for them).
 
 ### 7.2 Palettes and biospheres
-- **A biosphere is a palette** (role → ink) and later a style set, defined in pack data. The data shape is an `omnis-data` schema addition, designed in the style step; until it lands, a built-in default palette (the neon green of the HUD) is used everywhere.
-- **Assignment is open** (per region, map or terrain; presentation-PRD §12.2). The client asks for the palette through one function of the views, so changing the rule touches one place.
+- **A biosphere is a palette** (role to ink), a pack data kind (`data/biospheres/<name>.ron`, the sixteenth kind of the `data.*` ops). A role it leaves out takes the built-in default's ink, so a role added later breaks no pack. Whether a biosphere also picks relief noise and shape generators is open (presentation-PRD §12.2).
+- **Assignment** (owner, 2026-11-13): a region names its biosphere and a map may name its own. The client asks through one function, `Data::biosphere_of(MapId)` (the map's, else its region's, else none), and `Data::biosphere_for(&MapDef)` for a map being written in the editor.
+- **The palette is material data** (X23): `LineMaterial.palette` holds sixteen inks; the shader lays the role's ink on the strength in the vertex. `render::tune` sets the view's from the party's map and `preview::paint` the preview's from the edited map. A palette change rebuilds no mesh.
+- **The built-in default** (`Palette::default`) is the hues the view had before the roles, moved the least that passes §7.3: walls a green leaning to teal, doors a yellow-amber, things violet, beings orange, a hole red, the ground a dim green.
 - A palette is presentation data: it never reaches a rule, and the engine only validates and passes it.
 
-### 7.3 Checks (tests, on every palette in every pack)
-- **Contrast:** each role against the ground and against every other role, above a threshold set in the style step (a WCAG-style luminance ratio on the linear values).
-- **Colour deficiency:** the same distances under simulated protanopia, deuteranopia and tritanopia (fixed matrices), so no palette collapses two roles for those players (XR8).
-- **Channels:** every role has at least one channel besides colour that differs from every other role's.
+### 7.3 Checks (`contrast.rs`; in tests on the default and the fixtures' biospheres)
+- **What is compared**: an ink brighter than the screen is brought within it with its hue kept (what a line's core shows), then seen in full colour and through the matrices of Machado, Oliveira and Fernandes (2009) for protanopia, deuteranopia and tritanopia; the distance is Euclidean in Oklab.
+- **Apart**: each pair of the seven roles the world's lines carry (`DRAWN`: all but the party's and the interface's) at least `APART` = 0.1.
+- **Off the dark**: every role at least `FROM_DARK` = 0.45 from black (a pure red, darkest for the red-blind, is 0.49).
+- **Measured 2026-11-13**: the hues before the roles failed (walls against doors 0.048 for the green-blind; beings against holes 0.052 for the blue-blind), which is why the default moved.
+- **Not built**: a check that every role has a channel besides colour that differs from every other's (roles within "passage" and within "thing" share theirs today); a report to an author of a pack's own palette (the function is there; nothing calls it outside tests); a colour-deficiency preset in Settings.
 
 ### 7.4 Type
 - A **type scale** of a few named sizes (title, body, small, figure) as fractions of the window's height, so 5120×1440 and 16:9 read alike (presentation-PRD §7). Built for the screen kit (`style::Size`); the HUD's, the buttons', the message line's and the fight's inline sizes (22, 18, 16, 15, 14) remain, all multiplied by the interface scale since P8 (§10.5).
@@ -468,6 +478,7 @@ only the simulation's forward cone; the automap still records the cone (§10.2).
 - **What stayed.** The fight screen's 2D lines are still Bevy gizmos (`shell/combat.rs`): a different picture, a few dozen lines.
 - **Checked by capture, not by the gate** (the gate has no GPU): with the eye's easing off (`reduced_motion`), the old renderer and the new differ in 0.02% to 0.10% of pixels at 1600×900 on the town, the hills, the tower and the yard (the frame-rate text and lines fading along their length), and the editor's preview is identical. How: `tasks/knowledge/verification.md`.
 - **Weight and pattern** (rendering size 2, part 2, 2026-11-13; X19). `strokes::channels(SegKind)` gives each kind a `style::Weight` (hairline 0.5, normal 1, heavy 1.5: a factor on the width) and a `style::Pattern` (solid, dashed, dotted, double), written into the vertex's `style`. The table is provisional until the roles (§7): structure and terrain plain, the floor and ceiling grids hairline, objects and piles heavy and dashed, beings heavy and double, a portal's mark dotted; crests plain. The shader draws them in the fragment stage. Dashes and dots are measured **along the line in the world** (a dash and its gap 1/8 cell, 1/2 drawn; a dot 1/8 cell, 0.3 drawn; owner, 2026-11-12), so they stay on the thing as the party moves; the period is fitted to each segment so both ends lie mid-dash and a shape's corners are always drawn, and a segment under half a period is solid. **Between its dashes a line is not open but lighter** (owner, 2026-11-12: voids broke the shapes): a third of its width and 0.4 of its brightness, so an outline stays whole and reads at every quality. Where a period covers under about 4 pixels the pattern blends to its average. Double leaves the middle third open (discarded, so it does not hide what is behind) on a line at least 3 pixels wide, which today is High quality only; thinner, it is solid. Sawtooth, glyphs and motion are not built.
+- **Colour by role** (rendering size 2, part 3, 2026-11-13; X18, X23; §7). A vertex's `style.z` is its colour role's number and its `colour` a strength (rgb) with the level's brightness (alpha); the material's `palette` uniform (binding 1, sixteen `vec4`) holds the inks, and the vertex stage multiplies the role's ink by the strength. No mesh holds a colour, so a biosphere changes the look with one uniform write. `lines.wesl` still imports only `bevy_pbr::render::mesh_view_bindings::view`.
 - **Size 2's other parts** (colour roles as a palette, depth levels, instancing, relief as displacement) are designed in `tasks/plans/rendering-size-2.md`; the palette and the relief need the owner's amendment to the presentation PRD.
 
 ### 8.3 Depth levels (to build, X17)
