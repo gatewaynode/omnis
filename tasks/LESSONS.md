@@ -725,3 +725,18 @@
 - **Rule**: name an option by the facility it adopts and whose it is ("onto Bevy's meshes and materials"),
   then what it replaces. Where the owner has a stated direction (lean on Bevy; SRD by default; forward
   flexibility), say in the option's first line which way it moves against that direction.
+
+## 2026-11-13: a pattern that opens a shape, and a mutant left in the build
+- **What happened (look)**: dashed lines were planned with open gaps. On objects and piles the outline fell
+  apart; three dash lengths were offered and the owner refused all ("Stop: none of these"), then named the
+  fix: "The dashes are separated by voids, is it possible instead to separate them by lower weight lines?"
+  I had offered only variations of the one parameter I had already chosen.
+- **Rule**: a non-colour channel on a shape must leave the shape whole: modulate the line (weight,
+  brightness), do not remove it. When a capture shows the named risk, offer alternatives that differ in
+  kind, not three values of one number, and say what each does to the shape.
+- **Rule**: a look that must read at every quality is judged at Low first; brightness above 1.0 hides a
+  halved cover, so contrast between two states of a glowing line needs dimming, not only width.
+- **What happened (process)**: a mutation script restored a file by `mv` from a copy, keeping the old
+  timestamp, so cargo kept the mutant compiled; the gate went red on correct code.
+- **Rule**: a mutation script touches the file after restoring it (`mv orig file; touch file`), and the
+  tests are run once more, green, before the gate.

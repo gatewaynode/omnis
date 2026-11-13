@@ -636,13 +636,28 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   no crests hung an empty mesh, which Bevy warns about each time it is uploaded; now the crest entity has no
   mesh while there are none (`hang_crests`; the two tests say so; two mutations caught). Gate 1293.
   Parts 2 to 6 of `tasks/plans/rendering-size-2.md` are not started and not approved.
-- [ ] Rendering size 2, part 2: line patterns and weight (plan `tasks/plans/rendering-size-2-patterns.md`,
+- [x] Rendering size 2, part 2: line patterns and weight (plan `tasks/plans/rendering-size-2-patterns.md`,
   approved 2026-11-12; the owner chose dashes measured in the world, and a provisional table from
-  presentation-PRD section 5.3).
-  - [ ] Step 0: the plan filed; baseline captures.
-  - [ ] Step 1: `style::Pattern` and `Weight`, `strokes::channels` by `SegKind`, written into the mesh's style.
-  - [ ] Step 2: dashed, dotted and double in `lines.wesl`, with the far filter; captures and timing.
-  - [ ] Step 3: documents, the acceptance sheet, continuity.
+  presentation-PRD section 5.3). Built 2026-11-13; not yet tried by the owner.
+  - [x] Step 0: the plan filed; baseline captures.
+  - [x] Step 1: `style::Pattern` and `Weight`, `strokes::channels` by `SegKind`, written into the mesh's style
+    (`f8401a19`; six mutations caught).
+  - [x] Step 2: dashed, dotted and double in `lines.wesl`, with the far filter; captures and timing.
+  - [x] Step 3: documents, the acceptance sheet, continuity.
+  - Review. The planned dash (1/4 cell, open gaps) broke small shapes, the risk the plan named; I stopped and
+    asked. The owner refused three dash lengths, then asked for a lighter line between the dashes in place
+    of a void, chose 1/8 cell and asked that it read at Low. Built so: between dashes a third of the width
+    and 0.4 of the brightness (the dimming is what reads at Low and on glowing colours). The period is
+    fitted to each segment so corners are drawn. Checked by zoomed captures at Low and High: yard (objects,
+    piles dashed; the rat's two rails at High), a portal's dotted mark (a scratch copy of the fixture turned
+    to face it). Double shows only on lines 3 pixels wide, so at High only; at Low and Medium a being is told
+    by weight and colour. Not checked: dashes while walking (stills only), the editor's preview, the far
+    filter by eye beyond the yard's depth. Timing 2.35 to 2.39 ms (dev profile, yard), not comparable with
+    size 1's 2.0 ms (release, town and hills); no like-for-like before and after was measured. Would a staff
+    engineer approve: the shader's constants have no test (the gate has no GPU), and the first gate run was
+    red from my own mutation script leaving a mutant compiled (lesson written).
+    Also built, at the owner's request: `--entry <map-id>` and `just qa [map]` (the fixtures' maps in a
+    window; a test starts a game on the meadow and refuses an unknown map).
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
   §11 step 3): the fixed colour roles, a biosphere's palette and style set in pack data, the relief noise per
   terrain kind (presentation only; as displacement on the GPU if size 2 is designed in), the first non-colour

@@ -1,5 +1,19 @@
 # Continuity notes
 
+Written 2026-11-13. **Rendering size 2, part 2 (line weight and pattern) is built, not yet tried by the owner**
+(`tasks/plans/rendering-size-2-patterns.md` with an "As built" section; the owner's script
+`tasks/acceptance/rendering-size-2-patterns.md`). `style::{Pattern, Weight}`, `strokes::channels(SegKind)` (a
+provisional table until M8.5 step 5: grids hairline; objects and piles heavy dashed; beings heavy double; portals
+dotted), drawn in `lines.wesl`: dashes 1/8 cell measured in the world and fitted to each segment, **a lighter
+line between dashes, never a void** (the owner's correction; a third of the width, 0.4 of the brightness),
+double's middle third open on lines of 3 pixels (High only). The owner reviewed part 1 (feathering): "looks good
+so far". **`just qa [map]`** starts a windowed game on the fixtures (`--entry <map-id>`, default the yard): the
+owner's way to see what the captures show; captures now load the fixture packs as they are (a scratch copy only
+to turn a `start`). **Next: the owner's try, then their decision on parts 3 to 6** (3 and 6 need the proposed
+PRD amendment X23). A mutation script must `touch` the file it restores (lesson 2026-11-13).
+
+The notes below were written 2026-11-12 and still hold, except "next".
+
 Written 2026-11-12. **Rendering size 1 is built in full and tried by the owner** ("seems to hold up, might even be significantly smoother", 2026-11-12)
 (`tasks/plans/rendering-size-1.md`, approved 2026-11-12; the owner's script `tasks/acceptance/rendering-size-1.md`):
 the 3D view's and the editor preview's lines are retained Bevy meshes under `LineMaterial` (Bevy's `Material`,

@@ -497,6 +497,10 @@ the top's words); `steps()` (done then undone, oldest first), `at()`, `goto(at)`
 EditorHistory` (nav's editor-only lists), `EditingCtx.history`, `shell::editor::answer`. Tests:
 `tests/editor_history.rs` (1), `edit_document.rs::steps_are_named_and_goto_walks_the_history`, `words.rs` unit
 test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `name_step` a no-op, rows reversed.
+- Weight and pattern (rendering size 2, part 2, 2026-11-13): `style::{Pattern, Weight}` (`code()`, `factor()`),
+  `strokes::channels(SegKind)` (the provisional table), `Strokes::push(.., style)`; `lines.wesl` `broken()`
+  (dashes fitted to the segment, the far filter), the lighter line between dashes (`GAP_WEIGHT`, `GAP_DIM`),
+  the double's open middle. `Config.entry` (`--entry`), applied in `Packs::load`; `just qa [map]`.
 - The lines as meshes (rendering size 1, 2026-11-12, `tasks/plans/rendering-size-1.md`): `strokes.rs` (Bevy-free:
   `Strokes`, `CORNERS`, `QUAD`, `PLAIN`, `colour`, `CREST`), `shell/lines.rs` (`LineMaterial`, `LinesPlugin`,
   `mesh`, `bundle`, `crests`, `hang_crests`, `CrestsAt`, the four `ATTRIBUTE_*`), `shell/lines.wesl` (embedded);

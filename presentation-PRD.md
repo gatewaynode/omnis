@@ -307,6 +307,10 @@ Three depth levels (X17):
   retained Bevy meshes drawn by a material and shader of the client's own, in place of Bevy's debug
   gizmos; the look is unchanged (compared by capture). The owner's choice from the GPU-first direction, with
   size 2 designed beside it (`tasks/plans/rendering-size-2.md`).
+- **Line weight and pattern in the 3D view (2026-11-13, rendering size 2, part 2; X19):** three weights and
+  four patterns (solid, dashed, dotted, double) drawn by the line shader, on a provisional table by kind
+  after 5.3's examples, until the roles of step 3 below are designed. Dashes are measured in the world, and
+  between its dashes a line is lighter rather than open (the owner's choices).
 
 ### Next (proposed; each planned in plan mode when the owner asks)
 

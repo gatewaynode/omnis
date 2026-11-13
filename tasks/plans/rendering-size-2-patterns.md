@@ -106,3 +106,20 @@ Reported as "built, please try".
 Sawtooth; glyph markers and motion (the other two channels); colour roles and palettes (part 3, needs the PRD
 amendment); depth levels (part 4); the fight screen and HUD taking the same channels (M8.5 step 5); the
 owner's uncommitted edits to `packs/the_lower_kingdoms` stay out of every commit.
+
+## As built (2026-11-13), where it differs from the above
+
+Decided by the owner on the captures, after the planned dash (1/4 cell with open gaps) made small shapes read
+as broken, the risk named above: "The dashes are separated by voids, is it possible instead to separate them
+by lower weight lines?", then "Build on B, and make it read at Low too."
+- A dash and its gap are **1/8 cell** (not 1/4), half drawn; a dot's period stays 1/8 cell, 0.3 drawn.
+- **Between its dashes a line is lighter, not open**: a third of its width and 0.4 of its brightness. The
+  dimming is what reads at Low quality and on colours bright enough to glow, where half a cover still draws
+  at full.
+- The period is fitted to each segment so both ends lie mid-dash; a segment under half a period is solid.
+- The far filter starts at 4 pixels a period (planned: about 3).
+- Added at the owner's request: `--entry <map-id>` and `just qa [map]`, so the owner sees the fixtures' maps
+  the captures are made on.
+- Timing: 2.35 to 2.39 ms a frame on the yard (the dev profile, 1920x1080, a 300-frame walk, three runs). The
+  2.0 ms of size 1 was the release profile on the town and the hills, so the two are not comparable; no
+  before-and-after on the same build and map was measured.

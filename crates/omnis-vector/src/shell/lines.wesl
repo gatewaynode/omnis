@@ -5,7 +5,9 @@
 // not hidden by the fill it lies on. The fragment stage fades it with its distance from the eye
 // over the ground: full to half the fog's end, nothing at the end; and it feathers the line's
 // two long edges over one pixel (rendering size 2, part 1), for which the quad is drawn half a
-// pixel wider on each side than the line.
+// pixel wider on each side than the line. A line's pattern (part 2) is cut from its cover:
+// dashes and dots measured along the line in the world, so they stay on the thing they are
+// drawn on, and two rails across its width.
 
 import bevy_pbr::render::mesh_view_bindings::view;
 
@@ -21,7 +23,8 @@ struct Vertex {
     @location(2) corner: vec2<f32>,
     // rgb: linear colour. a: the level's brightness.
     @location(3) colour: vec4<f32>,
-    // x: weight, a factor on the width. y, z, w: pattern, role and level, kept for size 2.
+    // x: weight, a factor on the width. y: pattern (0 solid, 1 dashed, 2 dotted, 3 double).
+    // z, w: role and level, kept for size 2.
     @location(4) style: vec4<f32>,
 };
 
@@ -32,12 +35,49 @@ struct Varying {
     // x: how far this corner lies from the line's middle, in pixels, signed by its side.
     // y: half the line's width in pixels.
     @location(2) edge: vec2<f32>,
+    // How far along its segment this point lies from the first end, in cells.
+    @location(3) run: f32,
+    // x: the pattern. y: the segment's length in cells.
+    @location(4) @interpolate(flat) mark: vec2<f32>,
 };
 
 // The pixels beyond the line's own edge on each side that the quad covers, so the edge can fade.
 const FEATHER: f32 = 0.5;
 
 const EPSILON: f32 = 4.88e-04;
+
+// A dash and the gap after it, in cells, and the part of that which is drawn.
+const DASH_PERIOD: f32 = 0.125;
+const DASH_DRAWN: f32 = 0.5;
+const DOT_PERIOD: f32 = 0.125;
+const DOT_DRAWN: f32 = 0.3;
+// A pattern is drawn sharp where its period covers this many pixels, and as an even dimmer
+// line (its average) where it covers half as many: far dashes do not shimmer.
+const PATTERN_SHARP: f32 = 4.0;
+// The line's weight between its dashes, as a part of its own.
+const GAP_WEIGHT: f32 = 0.3333;
+// And its brightness there, as a part of its own.
+const GAP_DIM: f32 = 0.4;
+// Two rails need this many pixels of width; a thinner double line is drawn solid.
+const DOUBLE_WIDTH: f32 = 3.0;
+
+// How much of this point a pattern of `period` cells draws, `drawn` of each period inked.
+// The period is fitted to the segment so that both of its ends lie in the middle of a dash:
+// the corners of a shape are always drawn. A segment shorter than half a period is solid.
+fn broken(run: f32, grain: f32, span: f32, period: f32, drawn: f32) -> f32 {
+    if span < period * 0.5 {
+        return 1.0;
+    }
+    let fitted = span / max(round(span / period), 1.0);
+    // The distance to the nearest dash's middle, as a part of the period: 0 to 0.5.
+    let off = abs(fract(run / fitted + 0.5) - 0.5);
+    // Cells inside the dash (negative outside), softened over a pixel.
+    let inside = (drawn * 0.5 - off) * fitted;
+    let sharp = clamp(inside / grain + 0.5, 0.0, 1.0);
+    let pixels = fitted / grain;
+    let keep = clamp((pixels - PATTERN_SHARP * 0.5) / (PATTERN_SHARP * 0.5), 0.0, 1.0);
+    return mix(drawn, sharp, keep);
+}
 
 // How far from `a` toward `b` the near plane is crossed when `a` is behind it and `b` is not;
 // 0 when `a` needs no move.
@@ -98,6 +138,8 @@ fn vertex(in: Vertex) -> Varying {
     out.colour = vec4(colour.rgb * thin, colour.a);
     out.world = mix(world_a, world_b, along);
     out.edge = vec2(reach * in.corner.y, half);
+    out.run = distance(out.world, in.a);
+    out.mark = vec2(in.style.y, distance(in.a, in.b));
     return out;
 }
 
@@ -109,7 +151,34 @@ fn fragment(in: Varying) -> @location(0) vec4<f32> {
     let fade = clamp(1.0 - (distance - start) / (end - start), 0.0, 1.0);
     // How much of this pixel the line covers across its width: all of it inside, none half a
     // pixel beyond its edge.
-    let cover = clamp(in.edge.y + FEATHER - abs(in.edge.x), 0.0, 1.0);
+    var cover = clamp(in.edge.y + FEATHER - abs(in.edge.x), 0.0, 1.0);
+    // The cells one pixel covers along the line here.
+    let grain = max(fwidth(in.run), 1.0e-6);
+    let pattern = in.mark.x;
+    if pattern > 2.5 {
+        if in.edge.y * 2.0 >= DOUBLE_WIDTH {
+            // The middle third is open, feathered as the outer edges are.
+            cover *= clamp(abs(in.edge.x) - in.edge.y / 3.0 + FEATHER, 0.0, 1.0);
+        }
+    } else if pattern > 0.5 {
+        // Between its dashes the line is not open but lighter (owner, 2026-11-12): a third of
+        // its width and dimmer, so the shape's outline stays whole. The dimming is what reads
+        // where the width cannot: a line a pixel or two wide, and a colour bright enough to
+        // glow, which half a cover would still draw at full.
+        let light = in.edge.y * 2.0 * GAP_WEIGHT;
+        let between = clamp(max(light, 1.0) * 0.5 + FEATHER - abs(in.edge.x), 0.0, 1.0)
+            * min(light, 1.0) * GAP_DIM;
+        var drawn = broken(in.run, grain, in.mark.y, DASH_PERIOD, DASH_DRAWN);
+        if pattern > 1.5 {
+            drawn = broken(in.run, grain, in.mark.y, DOT_PERIOD, DOT_DRAWN);
+        }
+        cover = mix(between, cover, drawn);
+    }
+    // A gap draws nothing and hides nothing: the line writes its depth, so a point left open
+    // must not be kept, or it would cut the lines behind it.
+    if cover <= 0.0 {
+        discard;
+    }
     // Blended by alpha, as the gizmo lines were: the colour is scaled by the fade and the
     // level's brightness, and the fade is the alpha, here thinned by the cover.
     return vec4(in.colour.rgb * fade * in.colour.a, fade * cover);
