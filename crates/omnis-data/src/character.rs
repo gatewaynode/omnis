@@ -4,6 +4,7 @@
 
 use crate::action::{Cost, FeatureEffect, Uses};
 use crate::error::DataError;
+use crate::targeting::Targeting;
 use crate::terms::{Ability, ArmorKind, DamageType, SaveAgainst, Size, Skill, WeaponKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -130,11 +131,33 @@ pub struct ClassFeature {
     /// Uses between rests; `None` is at will.
     #[serde(default)]
     pub uses: Option<Uses>,
+    /// Who it may be aimed at; absent, the member themself ([`ClassFeature::targeting`]).
+    #[serde(default)]
+    pub targeting: Option<Targeting>,
 }
 
 impl ClassFeature {
+    /// Who the feature may be aimed at. Every effect built so far acts on the member who
+    /// uses it (an exchange's partner is chosen by the exchange), so only `Own` is accepted.
+    #[must_use]
+    pub fn targeting(&self) -> Targeting {
+        self.targeting.unwrap_or(Targeting::OWN)
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        if let Some(targeting) = self.targeting {
+            targeting.validate(file, errors);
+            if self.effect.is_none() || targeting != Targeting::OWN {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "{}: a feature's effect is the member's own: its targeting is Own",
+                        self.name
+                    ),
+                ));
+            }
+        }
         match &self.effect {
             Some(effect) => effect.validate(file, self.cost, errors),
             None if self.cost != Cost::Action || self.uses.is_some() => {
@@ -266,5 +289,47 @@ impl Background {
         if self.equipment.iter().any(|(_, n)| *n == 0) {
             errors.push(DataError::new(file, "equipment counts must be at least 1"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::targeting::Range;
+    use omnis_core::Dice;
+
+    /// A feature acts on the member who uses it (owner, 2026-11-14): its targeting is the
+    /// member's own, written or not, and a label carries none.
+    #[test]
+    fn a_feature_s_targeting_is_the_member_s_own() {
+        let problems = |feature: &ClassFeature| {
+            let mut errors = Vec::new();
+            feature.validate(Path::new("x.ron"), &mut errors);
+            errors.len()
+        };
+        let mut wind = ClassFeature {
+            level: 1,
+            name: "t:text:feature.wind".into(),
+            effect: Some(FeatureEffect::Heal {
+                dice: Dice::new(1, 10),
+                per_level: true,
+            }),
+            cost: Cost::BonusAction,
+            uses: None,
+            targeting: None,
+        };
+        assert_eq!(wind.targeting(), Targeting::OWN);
+        assert_eq!(problems(&wind), 0);
+        wind.targeting = Some(Targeting::OWN);
+        assert_eq!(problems(&wind), 0);
+        wind.targeting = Some(Targeting::of(Range::Touch));
+        assert_eq!(problems(&wind), 1, "no feature reaches another yet");
+        let label = ClassFeature {
+            effect: None,
+            cost: Cost::Action,
+            targeting: Some(Targeting::OWN),
+            ..wind
+        };
+        assert_eq!(problems(&label), 1, "a label is aimed at no one");
     }
 }

@@ -4,6 +4,7 @@
 use crate::action::Cost;
 use crate::error::DataError;
 use crate::limits::MAX_VISIBILITY_DEPTH;
+use crate::targeting::{Range, Targeting};
 use crate::terms::{Ability, DamageType, School};
 use omnis_core::Dice;
 use serde::{Deserialize, Serialize};
@@ -252,6 +253,9 @@ pub struct Spell {
     /// How far it reaches in a fight.
     #[serde(default)]
     pub reach: Reach,
+    /// What it may be aimed at; absent, it follows from the effect ([`Spell::targeting`]).
+    #[serde(default)]
+    pub targeting: Option<Targeting>,
     /// What casting it spends from the turn's budget; a `Reaction` spell is cast only by a
     /// declared reaction (D22).
     #[serde(default)]
@@ -271,8 +275,54 @@ impl Spell {
         self.points.unwrap_or(u32::from(self.level))
     }
 
+    /// What the spell may be aimed at: what the file writes, else what its effect implies,
+    /// which is how spells behaved before targeting was data (a heal or a buff any member, an
+    /// attack any stack, the rest the caster).
+    #[must_use]
+    pub fn targeting(&self) -> Targeting {
+        self.targeting.unwrap_or(match &self.effect {
+            Some(SpellEffect::Heal { .. } | SpellEffect::Buff { .. }) => Targeting::TOUCH,
+            Some(
+                SpellEffect::Attack { .. } | SpellEffect::AutoHit { .. } | SpellEffect::Save { .. },
+            ) => Targeting::SIGHT,
+            Some(SpellEffect::Utility(Utility::OpenDoor { range_tiles })) => Targeting {
+                range: Range::Tiles(*range_tiles),
+                sees: true,
+            },
+            Some(
+                SpellEffect::Reaction { .. }
+                | SpellEffect::Light { .. }
+                | SpellEffect::Utility(Utility::Reveal { .. }),
+            )
+            | None => Targeting::OWN,
+        })
+    }
+
+    /// The written targeting against the effect.
+    fn validate_targeting(&self, file: &Path, errors: &mut Vec<DataError>) {
+        let Some(targeting) = self.targeting else {
+            return;
+        };
+        targeting.validate(file, errors);
+        let on_the_party = matches!(
+            self.effect,
+            Some(
+                SpellEffect::Reaction { .. }
+                    | SpellEffect::Light { .. }
+                    | SpellEffect::Utility(Utility::Reveal { .. })
+            )
+        );
+        if on_the_party && targeting != Targeting::OWN {
+            errors.push(DataError::new(
+                file,
+                "a reaction, light or reveal effect is the caster's own: its targeting is Own",
+            ));
+        }
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        self.validate_targeting(file, errors);
         if self.level > 9 {
             errors.push(DataError::new(file, "level must be 0..=9"));
         }
@@ -334,6 +384,7 @@ mod tests {
             description: "t:text:spell.x.description".into(),
             effect,
             reach,
+            targeting: None,
             cost: Cost::Action,
             bonus_action_available: false,
             preparation_available: false,
@@ -509,5 +560,105 @@ mod tests {
             half_on_save: true,
         };
         assert!(problems(&spell(Some(area), Reach::Stack)).is_empty());
+    }
+
+    fn heal() -> SpellEffect {
+        SpellEffect::Heal {
+            dice: Dice::new(1, 8),
+            add_mod: true,
+        }
+    }
+
+    /// A spell written before targeting was data behaves as it did: a heal or a buff reaches
+    /// any member, an attack any stack, mage hand its range ahead, the rest the caster.
+    #[test]
+    fn a_spell_that_writes_no_targeting_takes_what_its_effect_implies() {
+        let dice = Dice::new(1, 8);
+        let damage_type = DamageType::Fire;
+        for (effect, implied) in [
+            (Some(heal()), Targeting::TOUCH),
+            (
+                Some(SpellEffect::Attack { dice, damage_type }),
+                Targeting::SIGHT,
+            ),
+            (
+                Some(SpellEffect::AutoHit { dice, damage_type }),
+                Targeting::SIGHT,
+            ),
+            (
+                Some(SpellEffect::Reaction { armor_bonus: 5 }),
+                Targeting::OWN,
+            ),
+            (
+                Some(SpellEffect::Light {
+                    depth: 8,
+                    minutes: 60,
+                }),
+                Targeting::OWN,
+            ),
+            (
+                Some(SpellEffect::Utility(Utility::OpenDoor { range_tiles: 6 })),
+                Targeting {
+                    range: Range::Tiles(6),
+                    sees: true,
+                },
+            ),
+            (
+                Some(SpellEffect::Utility(Utility::Reveal {
+                    range_tiles: 6,
+                    minutes: 10,
+                })),
+                Targeting::OWN,
+            ),
+            (None, Targeting::OWN),
+        ] {
+            let spell = spell(effect.clone(), Reach::One);
+            assert_eq!(spell.targeting, None);
+            assert_eq!(spell.targeting(), implied, "{effect:?}");
+        }
+    }
+
+    #[test]
+    fn a_written_targeting_wins_is_checked_and_reads_back() {
+        let mut word = spell(Some(heal()), Reach::One);
+        word.targeting = Some(Targeting {
+            range: Range::Tiles(12),
+            sees: true,
+        });
+        assert_eq!(
+            word.targeting(),
+            Targeting {
+                range: Range::Tiles(12),
+                sees: true
+            }
+        );
+        assert!(problems(&word).is_empty());
+        let back: Spell =
+            from_str(&to_string(&word).expect("written"), Path::new("x.ron")).expect("read");
+        assert_eq!(back, word);
+
+        word.targeting = Some(Targeting::of(Range::Tiles(0)));
+        assert_eq!(problems(&word).len(), 1);
+        // What lands on the caster or the whole party is the caster's own.
+        for effect in [
+            SpellEffect::Light {
+                depth: 8,
+                minutes: 60,
+            },
+            SpellEffect::Reaction { armor_bonus: 5 },
+            SpellEffect::Utility(Utility::Reveal {
+                range_tiles: 6,
+                minutes: 10,
+            }),
+        ] {
+            let mut own = spell(Some(effect), Reach::One);
+            if matches!(own.effect, Some(SpellEffect::Reaction { .. })) {
+                own.cost = Cost::Reaction;
+            }
+            own.targeting = Some(Targeting::OWN);
+            assert!(problems(&own).is_empty(), "{:?}", own.effect);
+            own.targeting = Some(Targeting::TOUCH);
+            assert_eq!(problems(&own).len(), 1, "{:?}", own.effect);
+        }
     }
 }

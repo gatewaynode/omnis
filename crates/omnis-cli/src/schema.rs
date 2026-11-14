@@ -186,6 +186,9 @@ const SPELL: &str = r#"(
     description: "example:text:spell.magic_missile.description",
     effect: Some(AutoHit(dice: (count: 3, sides: 4, modifier: 3), damage_type: Force)),
     reach: One,
+    // What it may be aimed at: range Own, Touch, Tiles(n), Sight or Link; `sees` asks a clear
+    // line as well. Left out, it follows from the effect (a heal any member, an attack any stack).
+    targeting: Some((range: Tiles(24), sees: true)),
     // What casting spends from the turn's budget: Action, BonusAction or Reaction (a reaction
     // spell is cast only by a declared reaction).
     cost: Action,

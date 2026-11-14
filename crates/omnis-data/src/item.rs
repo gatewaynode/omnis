@@ -3,6 +3,7 @@
 
 use crate::error::DataError;
 use crate::sense::SenseSource;
+use crate::targeting::Targeting;
 use crate::terms::{ArmorKind, DamageType, WeaponKind};
 use omnis_core::Dice;
 use serde::{Deserialize, Serialize};
@@ -105,6 +106,9 @@ pub struct Item {
     /// What Use does; `None` for items with no use.
     #[serde(default)]
     pub use_effect: Option<UseEffect>,
+    /// Who Use may be aimed at; absent, it follows from the use ([`Item::targeting`]).
+    #[serde(default)]
+    pub targeting: Option<Targeting>,
     /// One count is spent per use.
     #[serde(default)]
     pub consumable: bool,
@@ -152,8 +156,35 @@ impl Item {
         }
     }
 
+    /// Who Use may be aimed at: what the file writes, else what the use implies (a heal any
+    /// member, a sense its user). `None` for an item with no use.
+    #[must_use]
+    pub fn targeting(&self) -> Option<Targeting> {
+        let implied = match self.use_effect.as_ref()? {
+            UseEffect::Heal { .. } => Targeting::TOUCH,
+            UseEffect::Sense(_) => Targeting::OWN,
+        };
+        Some(self.targeting.unwrap_or(implied))
+    }
+
+    /// The written targeting against the use.
+    fn validate_targeting(&self, file: &Path, errors: &mut Vec<DataError>) {
+        let Some(targeting) = self.targeting else {
+            return;
+        };
+        targeting.validate(file, errors);
+        match &self.use_effect {
+            None => errors.push(DataError::new(file, "targeting needs a use effect")),
+            Some(UseEffect::Sense(_)) if targeting != Targeting::OWN => errors.push(
+                DataError::new(file, "a sense is its user's own: its targeting is Own"),
+            ),
+            Some(_) => {}
+        }
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        self.validate_targeting(file, errors);
         match &self.kind {
             ItemKind::Weapon { damage, .. } if damage.count == 0 || damage.sides == 0 => {
                 errors.push(DataError::new(file, "weapon damage needs dice"));
@@ -190,6 +221,7 @@ mod tests {
             cost_cp: 0,
             weight_tenths: 0,
             use_effect: None,
+            targeting: None,
             consumable: false,
             description: None,
         }
@@ -269,5 +301,44 @@ mod tests {
         errors.clear();
         flask.validate(Path::new("x.ron"), &mut errors);
         assert_eq!(errors[0].message, "heal dice need dice");
+    }
+
+    /// Who a use may be aimed at (owner, 2026-11-14): what the file writes, else a heal any
+    /// member and a sense its user; an item with no use has none, and may write none.
+    #[test]
+    fn a_use_s_targeting_is_written_or_follows_from_the_use() {
+        use crate::targeting::Range;
+        let problems = |item: &Item| {
+            let mut errors = Vec::new();
+            item.validate(Path::new("x.ron"), &mut errors);
+            errors.len()
+        };
+        let mut potion = item(ItemKind::Gear);
+        assert_eq!(potion.targeting(), None);
+        potion.targeting = Some(Targeting::TOUCH);
+        assert_eq!(problems(&potion), 1, "targeting with no use");
+        potion.use_effect = Some(UseEffect::Heal {
+            dice: Dice::new(2, 4),
+        });
+        potion.consumable = true;
+        assert_eq!(problems(&potion), 0);
+        potion.targeting = None;
+        assert_eq!(potion.targeting(), Some(Targeting::TOUCH));
+        potion.targeting = Some(Targeting::of(Range::Tiles(4)));
+        assert_eq!(potion.targeting(), Some(Targeting::of(Range::Tiles(4))));
+        assert_eq!(problems(&potion), 0);
+        potion.targeting = Some(Targeting::of(Range::Tiles(0)));
+        assert_eq!(problems(&potion), 1, "no reach at all");
+
+        let text = "(schema: 1, id: \"t:item:x\", name: \"n\", kind: Gear, use_effect: Some(Heal(dice: (count: 1, sides: 4, modifier: 0))), targeting: Some((range: Own)), consumable: true)";
+        let read: Item = from_str(text, Path::new("x.ron")).expect("an item with targeting");
+        assert_eq!(read.targeting(), Some(Targeting::OWN));
+        let plain: Item = from_str(
+            &text.replace(" targeting: Some((range: Own)),", ""),
+            Path::new("x.ron"),
+        )
+        .expect("an item written before targeting");
+        assert_eq!(plain.targeting, None);
+        assert_eq!(plain.targeting(), Some(Targeting::TOUCH));
     }
 }

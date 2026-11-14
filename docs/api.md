@@ -1240,6 +1240,13 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (data only; targeting, step 2 of `tasks/plans/targeting.md`): a spell, an item with a use and a
+  class feature may write `targeting: Some((range: Own | Touch | Tiles(n) | Sight | Link, sees: bool))`
+  (`omnis_data::Targeting`). Absent, it follows from the effect as the engine behaved before (a heal or a buff
+  any member, an attack any stack, mage hand its range, the rest the actor), so a pack that does not write it
+  is unchanged. `data.get` shows it in a definition's `def`. Nothing reads it yet: no command, event, rejection
+  or op changes. `base` writes it on every spell and usable item in SRD terms at five feet a tile and is
+  resealed at 0.1.3 (hash 8477582243095538951), so the goldens moved: walk `a38c7896ab66093d`, fight `65fcbdf67c94ea44`.
 - 2026-11-12 (Tier 1 only): `piles_in_reach(&World, &Data)`, the piles within reach each where it lies,
   for a client that lets a drawn pile be clicked. No op and no wire change.
 - 2026-11-12 (a pile in reach): no shape changes. `PickUp` and `ObjectsView.ground` reach as `Act`

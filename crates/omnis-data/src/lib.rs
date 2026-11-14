@@ -43,6 +43,7 @@ pub mod service;
 pub mod spell;
 pub mod stairs;
 pub mod strings;
+pub mod targeting;
 pub mod terms;
 pub mod text;
 pub mod tileset;
@@ -81,6 +82,7 @@ pub use rules::{RulesFile, SlotDef, TableDef, ValueDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
 pub use service::{ResolvedSite, RumorDef, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
+pub use targeting::{Range, Targeting};
 pub use terms::{
     Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,
 };

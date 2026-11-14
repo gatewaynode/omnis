@@ -142,6 +142,7 @@ fn equipping_swaps_slots_and_refuses_the_impossible() {
             cost_cp: 5000,
             weight_tenths: 60,
             use_effect: None,
+            targeting: None,
             consumable: false,
             description: None,
         },

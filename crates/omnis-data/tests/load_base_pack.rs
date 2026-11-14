@@ -660,3 +660,67 @@ fn the_time_rules_drift_within_their_stability() {
         );
     }
 }
+
+/// The base pack says what every spell and every usable item may be aimed at, in the SRD's
+/// terms at five feet a tile (owner, 2026-11-14): none is left to what its effect implies.
+#[test]
+fn the_base_pack_writes_every_targeting_in_srd_terms() {
+    use omnis_data::{Range, Targeting};
+    let data = base_data();
+    let base = |id: &&String| id.starts_with("base:");
+    let mut spells = 0;
+    for spell in data.spells.values().filter(|s| base(&&s.id)) {
+        assert!(
+            spell.targeting.is_some(),
+            "{} writes its targeting",
+            spell.id
+        );
+        spells += 1;
+    }
+    assert_eq!(spells, 19);
+    let seen = |tiles: u8| Targeting {
+        range: Range::Tiles(tiles),
+        sees: true,
+    };
+    for (name, targeting) in [
+        ("cure_wounds", Targeting::TOUCH),
+        ("healing_word", seen(12)),
+        ("bless", seen(6)),
+        ("magic_missile", seen(24)),
+        ("sacred_flame", seen(12)),
+        ("shatter", Targeting::of(Range::Tiles(12))),
+        ("thunderwave", Targeting::TOUCH),
+        ("burning_hands", Targeting::TOUCH),
+        ("mage_hand", seen(6)),
+        ("light", Targeting::OWN),
+        ("detect_magic", Targeting::OWN),
+        ("shield", Targeting::OWN),
+    ] {
+        let id = data
+            .registry
+            .spells
+            .get(&format!("base:spell:{name}"))
+            .unwrap();
+        assert_eq!(data.spells[&id].targeting(), targeting, "{name}");
+    }
+    let mut usable = Vec::new();
+    for item in data.items.values().filter(|i| base(&&i.id)) {
+        assert_eq!(
+            item.targeting.is_some(),
+            item.use_effect.is_some(),
+            "{}: targeting goes with a use",
+            item.id
+        );
+        if let Some(targeting) = item.targeting() {
+            usable.push((item.id.as_str(), targeting));
+        }
+    }
+    usable.sort_unstable();
+    assert_eq!(
+        usable,
+        [
+            ("base:item:potion_of_healing", Targeting::TOUCH),
+            ("base:item:spyglass", Targeting::OWN),
+        ]
+    );
+}
