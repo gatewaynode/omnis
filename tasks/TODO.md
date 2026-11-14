@@ -817,7 +817,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   yard (biosphere ember, an encounter at 5,1); no fixture changes.
   - [x] Step 0: the plan and this item.
   - [x] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette). Gate 1345. Four mutations caught. Found: the default party ink is the interface's hue, twice as bright, so party figures and bars differ by brightness and shape, not hue; the two sides are apart for every vision.
-  - [ ] Step 2: the picture window in the hostile ink, repainted when the inks change.
+  - [x] Step 2: the picture window in the hostile ink, repainted when the inks change (`cinema::Inks`, `style::srgb`). Gate 1348. Four mutations caught. A stroke lightens, so a line's channel darker than the ground's keeps the ground's (at most 8 in 255).
   - [ ] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it.
   - [ ] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the

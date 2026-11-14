@@ -1,8 +1,8 @@
 //! The style system's seam (presentation-ARCHITECTURE §7): the palette of the world's lines by
 //! colour role, the interface's roles and type scale, and the channels that carry meaning
 //! without colour. Every screen asks a role and a size here and never names a colour or a pixel
-//! size itself. The arena, the minimap and the picture window keep their own colours until they
-//! are brought to the palette. Bevy-free: the shell turns these into `Color` and uniforms.
+//! size itself. The arena and the picture window take the palette (`tones`, `cinema::Inks`); the
+//! minimap keeps its own colours until it is brought to it. Bevy-free: the shell turns these into `Color` and uniforms.
 
 use omnis_sim::omnis_data::{BiosphereDef, ColourRole};
 
@@ -75,6 +75,21 @@ pub fn linear(channel: u8) -> f32 {
     } else {
         ((c + 0.055) / 1.055).powf(2.4)
     }
+}
+
+/// Linear light as an sRGB channel, the other way from [`linear`]; light past the screen's range
+/// is the brightest it shows.
+#[must_use]
+pub fn srgb(light: f32) -> u8 {
+    let l = light.clamp(0.0, 1.0);
+    let c = if l <= 0.003_130_8 {
+        l * 12.92
+    } else {
+        1.055 * l.powf(1.0 / 2.4) - 0.055
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let byte = (c * 255.0).round() as u8;
+    byte
 }
 
 /// What a piece of interface text or a control means, and so how it is drawn.
@@ -204,6 +219,15 @@ mod tests {
         assert!((Size::Body.px(1440.0) - 25.6).abs() < 1e-4);
         // Never below three quarters of the reference, so a small window still reads.
         assert!((Size::Title.px(300.0) - 16.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn an_srgb_channel_comes_back_from_linear_light() {
+        for c in [0, 1, 8, 40, 128, 200, 254, 255] {
+            assert_eq!(srgb(linear(c)), c);
+        }
+        assert_eq!(srgb(3.0), 255, "past the range is the brightest");
+        assert_eq!(srgb(-1.0), 0);
     }
 
     #[test]

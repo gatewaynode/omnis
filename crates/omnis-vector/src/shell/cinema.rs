@@ -3,8 +3,10 @@
 //! capture; headless, the node keeps its space and stays blank.
 
 use super::VectorSet;
+use super::combat::palette;
 use super::minimap::image;
-use crate::cinema::{SIZE, Scene, paint};
+use super::session::Session;
+use crate::cinema::{Inks, SIZE, Scene, paint};
 use bevy::prelude::*;
 
 /// The picture window, with the scene it shows. The node only holds the space; `show` paints
@@ -21,20 +23,27 @@ impl Plugin for CinemaPlugin {
     }
 }
 
-/// Give each new picture window its scene's image. The fight screen rebuilds its nodes whenever
-/// it changes, so the last scene's image is kept and reused rather than painted again.
+/// The last image painted, with the scene and inks it shows.
+type Painted = ((Scene, Inks), Handle<Image>);
+
+/// Give each new picture window its scene's image, in the inks of the palette the fight is
+/// drawn in. The fight screen rebuilds its nodes whenever it changes, so the last image is kept
+/// and reused while its scene and inks are the same, and painted again when either changes.
 fn show(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
+    session: Option<Res<Session>>,
     screens: Query<(Entity, &Screen), Added<Screen>>,
-    mut last: Local<Option<(Scene, Handle<Image>)>>,
+    mut last: Local<Option<Painted>>,
 ) {
     for (entity, screen) in &screens {
+        let palette = session.as_deref().map(palette).unwrap_or_default();
+        let key = (screen.0, Inks::of(&palette));
         let handle = match &*last {
-            Some((scene, handle)) if *scene == screen.0 => handle.clone(),
+            Some((painted, handle)) if *painted == key => handle.clone(),
             _ => {
-                let handle = images.add(image(&paint(screen.0, SIZE.0, SIZE.1)));
-                *last = Some((screen.0, handle.clone()));
+                let handle = images.add(image(&paint(key.0, SIZE.0, SIZE.1, key.1)));
+                *last = Some((key, handle.clone()));
                 handle
             }
         };

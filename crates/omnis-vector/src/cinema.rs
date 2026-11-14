@@ -5,20 +5,50 @@
 //! rat. Later, scenes for the fight's events (a swing, a hit landing, a spell, a death) are
 //! queued from the events as they come, and drawings per monster replace the rat.
 
+use crate::contrast::shown;
 use crate::raster::Raster;
+use crate::style::{Palette, srgb};
 use omnis_sim::CombatView;
 use omnis_sim::omnis_core::MonsterId;
-use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::{ColourRole, Data};
 
 /// The window's size in logical pixels, to fit the fight panel's width.
 pub const SIZE: (u32, u32) = (492, 200);
 
 /// The window's ground: opaque, so the 3D view never shows through it.
 pub const BACKGROUND: [u8; 4] = [0, 8, 3, 255];
-/// The lines' core.
-pub const LINE: [u8; 4] = [140, 255, 170, 255];
-/// The glow around the lines.
-pub const GLOW: [u8; 4] = [20, 90, 40, 255];
+
+/// The halo's share of the line's light.
+pub const HALO: f32 = 0.25;
+
+/// What a scene is painted in (owner, 2026-11-13): the enemy in the palette's hostile ink.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Inks {
+    /// The lines' core.
+    pub line: [u8; 4],
+    /// The glow around the lines.
+    pub glow: [u8; 4],
+    /// The ground.
+    pub ground: [u8; 4],
+}
+
+impl Inks {
+    /// The inks of `palette`: the hostile ink as the screen shows it, its glow taken out since
+    /// the picture is an image and does not bloom, and a quarter of that light for the halo.
+    #[must_use]
+    pub fn of(palette: &Palette) -> Inks {
+        let light = shown(palette.ink(ColourRole::Hostile));
+        let bytes = |k: f32| {
+            let [r, g, b] = light.map(|c| srgb(c * k));
+            [r, g, b, 255]
+        };
+        Inks {
+            line: bytes(1.0),
+            glow: bytes(HALO),
+            ground: BACKGROUND,
+        }
+    }
+}
 
 /// What the window shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,15 +158,15 @@ pub fn place(
     move |(px, py)| (origin.0 + (px - x0) * scale, origin.1 + (py - y0) * scale)
 }
 
-/// The scene drawn at `width × height` pixels, fitted and centred, each line a glow under a
-/// bright core.
+/// The scene drawn at `width × height` pixels in `inks`, fitted and centred, each line a glow
+/// under a bright core.
 #[must_use]
-pub fn paint(scene: Scene, width: u32, height: u32) -> Raster {
-    let mut out = Raster::filled(width, height, 1, BACKGROUND);
+pub fn paint(scene: Scene, width: u32, height: u32, inks: Inks) -> Raster {
+    let mut out = Raster::filled(width, height, 1, inks.ground);
     let lines = drawing(scene);
     #[allow(clippy::cast_precision_loss)]
     let at = place(&lines, (0.0, 0.0, width as f32, height as f32), MARGIN);
-    for (radius, colour) in [(3.0, GLOW), (1.0, LINE)] {
+    for (radius, colour) in [(3.0, inks.glow), (1.0, inks.line)] {
         for line in &lines {
             for pair in line.windows(2) {
                 out.stroke(at(pair[0]), at(pair[1]), radius, colour);
@@ -150,8 +180,43 @@ pub fn paint(scene: Scene, width: u32, height: u32) -> Raster {
 mod tests {
     use super::*;
 
+    fn inks() -> Inks {
+        Inks::of(&Palette::default())
+    }
+
     fn lit(raster: &Raster, x: u32, y: u32) -> bool {
-        raster.pixel(x, y).is_some_and(|p| p == LINE)
+        raster.pixel(x, y).is_some_and(|p| p == inks().line)
+    }
+
+    #[test]
+    fn the_enemy_is_painted_in_the_palette_s_hostile_ink() {
+        let mut palette = Palette::default();
+        // Linear 1.0, 0.5 and 0.1 at twice the screen's range: the hue is kept, the glow not.
+        // (Every channel is over the ground's: strokes lighten, so a darker one would keep it.)
+        palette.inks[ColourRole::Hostile.index()] = [2.0, 1.0, 0.2];
+        let inks = Inks::of(&palette);
+        assert_eq!(inks.line, [255, srgb(0.5), srgb(0.1), 255]);
+        assert_eq!(inks.glow, [srgb(0.25), srgb(0.125), srgb(0.025), 255]);
+        assert_eq!(inks.ground, BACKGROUND);
+        let (w, h) = SIZE;
+        let raster = paint(Scene::Enemy(MonsterId(0)), w, h, inks);
+        let count = |c: [u8; 4]| {
+            raster
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| **p == c)
+                .count()
+        };
+        assert!(count(inks.line) > 100, "the core");
+        assert!(count(inks.glow) > 100, "the halo");
+        assert_eq!(
+            count(super::Inks::of(&Palette::default()).line),
+            0,
+            "none of the default's"
+        );
+        assert_ne!(Inks::of(&Palette::default()), inks);
     }
 
     #[test]
@@ -167,7 +232,7 @@ mod tests {
     #[test]
     fn the_scene_fills_the_window_centred_on_an_opaque_ground() {
         let (w, h) = SIZE;
-        let raster = paint(Scene::Enemy(MonsterId(0)), w, h);
+        let raster = paint(Scene::Enemy(MonsterId(0)), w, h, inks());
         assert_eq!((raster.width, raster.height), SIZE);
         assert!(
             raster.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255),
@@ -193,7 +258,7 @@ mod tests {
     #[test]
     fn the_rat_faces_left() {
         let (w, h) = SIZE;
-        let raster = paint(Scene::Enemy(MonsterId(0)), w, h);
+        let raster = paint(Scene::Enemy(MonsterId(0)), w, h, inks());
         #[allow(clippy::cast_precision_loss)]
         let at = place(&rat(), (0.0, 0.0, w as f32, h as f32), MARGIN);
         // The middle whisker's tip, and the point mirrored across the drawing's middle.
