@@ -68,6 +68,7 @@ fn against_bob(
             initial: count,
             hp: vec![hp; usize::from(count)],
             spent: Vec::new(),
+            distance: 5,
         }],
         disposition: Disposition::Hostile,
         retreat: world.position,

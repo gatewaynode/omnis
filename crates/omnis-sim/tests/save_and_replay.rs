@@ -588,7 +588,7 @@ fn rebaseline_walk_replay() {
     write_ron(&replay_path("walk"), &replay).unwrap();
 }
 
-fn save_path(name: &str) -> PathBuf {
+pub(crate) fn save_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/saves")
         .join(format!("{name}.ron"))

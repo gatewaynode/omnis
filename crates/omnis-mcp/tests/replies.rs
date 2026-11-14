@@ -208,6 +208,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
             initial: 2,
             hp: vec![7, 7],
             spent: Vec::new(),
+            distance: 5,
         }],
         disposition: Disposition::Hostile,
         retreat: game.world.position,

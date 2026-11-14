@@ -16,6 +16,7 @@ mod disk;
 mod effects;
 mod elevation;
 mod encounter;
+mod feet;
 mod fold;
 mod ground;
 mod history;

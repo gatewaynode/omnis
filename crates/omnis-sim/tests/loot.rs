@@ -47,6 +47,7 @@ fn rats(data: &Data, world: &World, count: u8, disposition: Disposition) -> Enco
             initial: count,
             hp: vec![1; usize::from(count)],
             spent: Vec::new(),
+            distance: 5,
         }],
         disposition,
         retreat,

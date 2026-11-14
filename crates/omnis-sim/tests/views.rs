@@ -286,6 +286,7 @@ fn a_caster_s_points_and_raised_shields_show_per_individual() {
         initial: count,
         hp: vec![30; usize::from(count)],
         spent: Vec::new(),
+        distance: 5,
     };
     let monsters = EncounterState {
         source: EncounterSource::Random,

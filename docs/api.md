@@ -524,7 +524,7 @@ answer).
 
 `StackView`: `stack` (the stack's position in the encounter, the `stack` that `Attack` and
 `Target::Stack` take), `monster` (id), `name` (text key), `initial` (count at the start), `hps`
-(`[hp]` of the living), `ac`, `in_front`, `alive`, `reachable` (the acting member can reach
+(`[hp]` of the living), `ac`, `in_front`, `distance` (feet from the party's front line; 5 is engaged), `alive`, `reachable` (the acting member can reach
 it), `points_left` (spell points per living caster; empty for non-casters), `shielded` (the
 living whose Shield is up, by their place among the living), `refusal` (`Rejection` the acting
 member would get attacking it, or null).
@@ -1306,6 +1306,13 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (addition; combat in feet, step 2): `StackView.distance`, feet from the party's front line, 5
+  being engaged. A fight starts at the tiles between the party and the group in the map's `tile_feet` (five
+  where it states none): a group walked onto or approached a tile away, one approached on its own cell or
+  come upon the party at rest at 5, an opening strike at the distance it was cast from. Each later stack
+  stands `stack_spacing_feet` (a rules value, 10 unless written) behind the one before. A fight saved before
+  this loads with every stack at 5 (`SAVE_SCHEMA` stays 9). Nothing acts on the distance yet: reach is still
+  the front row and the front stacks.
 - 2026-11-14 (data only; combat in feet, step 1 of `tasks/plans/combat-in-feet.md`): data gains, each with a
   default so a pack that writes none is unchanged: `reach` (feet, 5) and `range: Some((normal, long))` (feet,
   80 and 320 when a ranged one writes none) on a weapon and on a monster's attack; `per_square` on a monster

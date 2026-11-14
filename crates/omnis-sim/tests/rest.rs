@@ -327,7 +327,11 @@ fn a_rest_in_the_field_counts_against_the_inn_and_the_inn_against_the_field() {
 }
 
 /// The first seed from 1 under which the rest is ambushed in the dungeon, and its events.
-fn ambushed(data: &Data, command: &RestCommand, limit: u64) -> (World, World, Vec<Event>) {
+pub(crate) fn ambushed(
+    data: &Data,
+    command: &RestCommand,
+    limit: u64,
+) -> (World, World, Vec<Event>) {
     for seed in 1..limit {
         let mut world = at(data, seed, 2, "dungeon", 1, 0);
         world.party.food = 10;

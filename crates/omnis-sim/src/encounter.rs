@@ -59,6 +59,37 @@ pub struct Stack {
     /// Spell points each caster has spent, aligned with `hp` (M7c); missing entries spent none.
     #[serde(default)]
     pub spent: Vec<u8>,
+    /// Feet from the party's front line (owner, 2026-11-14); [`ENGAGED_FEET`] is engaged, and
+    /// what a fight saved before distances were kept loads at.
+    #[serde(default = "engaged")]
+    pub distance: u16,
+}
+
+/// The distance of a stack that is engaged: one five-foot square.
+pub const ENGAGED_FEET: u16 = omnis_data::SQUARE_FEET;
+/// How far each later stack stands behind the one before, unless the rules say
+/// (`stack_spacing_feet`).
+pub const DEFAULT_STACK_SPACING: u16 = 10;
+
+const fn engaged() -> u16 {
+    ENGAGED_FEET
+}
+
+/// Feet between the party and a group `tiles` tiles off on the party's map: the map's own
+/// scale, a tile being one square where it states none, and never nearer than engaged.
+fn feet_off(world: &World, data: &Data, tiles: u16) -> u16 {
+    let tile = data
+        .maps
+        .get(&world.position.map)
+        .map_or(u32::from(ENGAGED_FEET), |m| m.def.tile_feet());
+    let feet = u32::from(tiles).saturating_mul(tile);
+    u16::try_from(feet).unwrap_or(u16::MAX).max(ENGAGED_FEET)
+}
+
+/// Tiles from the party to a cell of its map, as a king moves.
+fn tiles_to(world: &World, x: u16, y: u16) -> u16 {
+    let pos = world.position;
+    pos.x.abs_diff(x).max(pos.y.abs_diff(y))
 }
 
 impl Stack {
@@ -140,6 +171,8 @@ pub(crate) fn trigger(
     } else {
         return Ok(());
     };
+    // The group was a tile away when the step began.
+    let start = feet_off(world, data, 1);
     begin(
         world,
         data,
@@ -147,7 +180,7 @@ pub(crate) fn trigger(
         stacks,
         disposition,
         counts,
-        retreat,
+        (retreat, start),
         events,
     )
 }
@@ -258,6 +291,7 @@ pub(crate) fn ambush(
         facing: pos.facing.opposite(),
         ..pos
     };
+    // It comes upon the party where it lies.
     begin(
         world,
         data,
@@ -265,7 +299,7 @@ pub(crate) fn ambush(
         stacks,
         disposition,
         counts,
-        retreat,
+        (retreat, ENGAGED_FEET),
         events,
     )
 }
@@ -286,6 +320,7 @@ pub(crate) fn meet(
     else {
         return Ok(());
     };
+    let start = feet_off(world, data, tiles_to(world, e.x, e.y));
     begin(
         world,
         data,
@@ -293,17 +328,25 @@ pub(crate) fn meet(
         e.stacks.clone(),
         e.disposition,
         Vec::new(),
-        retreat,
+        (retreat, start),
         events,
     )
 }
 
-/// The stacks of a group as a fight holds them, each individual's hit points rolled.
+/// The stacks of a group as a fight holds them, each individual's hit points rolled, the first
+/// `start` feet from the party and each later one behind the one before.
 fn build(
     data: &Data,
     stacks: &[(MonsterId, u8)],
+    start: u16,
     roller: &mut Roller,
 ) -> Result<Vec<Stack>, RuleError> {
+    let spacing = data
+        .rules
+        .value("stack_spacing_feet")
+        .and_then(|v| u16::try_from(v).ok())
+        .unwrap_or(DEFAULT_STACK_SPACING);
+    let mut distance = start;
     let mut built = Vec::with_capacity(stacks.len());
     for (monster, count) in stacks {
         let m = data
@@ -324,7 +367,9 @@ fn build(
             initial: *count,
             hp,
             spent: Vec::new(),
+            distance,
         });
+        distance = distance.saturating_add(spacing);
     }
     Ok(built)
 }
@@ -357,7 +402,8 @@ pub(crate) fn struck(
         return Ok(None);
     };
     let mut roller = Roller::take(world);
-    let built = build(data, &e.stacks, &mut roller)?;
+    let start = feet_off(world, data, tiles_to(world, e.x, e.y));
+    let built = build(data, &e.stacks, start, &mut roller)?;
     let stacks = e.stacks.iter();
     events.push(Event::EncounterStarted {
         source: EncounterSource::Fixed(e.id.clone()),
@@ -380,8 +426,8 @@ pub(crate) fn struck(
     }))
 }
 
-/// Build the stacks, settle surprise, and either offer the choice or start the fight with the
-/// party surprised.
+/// Build the stacks `start` feet off, settle surprise, and either offer the choice or start the
+/// fight with the party surprised.
 #[allow(clippy::too_many_arguments)]
 fn begin(
     world: &mut World,
@@ -390,11 +436,11 @@ fn begin(
     stacks: Vec<(MonsterId, u8)>,
     disposition: Disposition,
     counts: Vec<RollTrace>,
-    retreat: Position,
+    (retreat, start): (Position, u16),
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let mut roller = Roller::take(world);
-    let built = build(data, &stacks, &mut roller)?;
+    let built = build(data, &stacks, start, &mut roller)?;
     let perception = best_perception(world, data)?;
     // The surprise check is a rules value (`surprise`, off by default since 2026-09-13): with
     // it off every group is noticed and the party always gets its choice.

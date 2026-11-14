@@ -838,7 +838,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 0. Documents: the plan, PRD and ARCHITECTURE lines, the lesson (combat scale follows the SRD).
   - [x] 1. Data, both parts: reach, range, per_square, tile_feet, areas, objects flag, fragile, craft,
         durability, door_make, mending, tools and supplies; base resealed, goldens rebaselined.
-  - [ ] 2. Distance in the state: `Stack.distance`, starting distances, the view; engaged replaces front.
+  - [x] 2. Distance in the state: `Stack.distance`, starting distances, the view; engaged replaces front.
   - [ ] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.
   - [ ] 4. Members in feet: reach, range, the line's advance, `Advance`, spell range, real distances.
   - [ ] 5. Area by squares.

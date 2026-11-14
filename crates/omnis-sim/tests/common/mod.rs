@@ -151,6 +151,7 @@ pub fn encounter(
                 initial: *count,
                 hp: vec![hp; usize::from(*count)],
                 spent: Vec::new(),
+                distance: 5,
             }
         })
         .collect();

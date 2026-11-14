@@ -37,6 +37,8 @@ pub struct StackView {
     pub ac: u8,
     /// Whether it stands in front.
     pub in_front: bool,
+    /// Feet from the party's front line; 5 is engaged.
+    pub distance: u16,
     /// Whether anyone in it still stands.
     pub alive: bool,
     /// Whether the member whose turn it is can reach it.
@@ -385,6 +387,7 @@ fn stack_view(data: &Data, stack: &Stack, index: u8, in_front: bool, reachable: 
         hps: stack.hp.clone(),
         ac: monster.map_or(0, |m| m.ac),
         in_front,
+        distance: stack.distance,
         alive: stack.alive(),
         reachable,
         points_left: points_of(data, stack),
