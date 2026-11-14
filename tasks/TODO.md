@@ -818,7 +818,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] Step 0: the plan and this item.
   - [x] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette). Gate 1345. Four mutations caught. Found: the default party ink is the interface's hue, twice as bright, so party figures and bars differ by brightness and shape, not hue; the two sides are apart for every vision.
   - [x] Step 2: the picture window in the hostile ink, repainted when the inks change (`cinema::Inks`, `style::srgb`). Gate 1348. Four mutations caught. A stroke lightens, so a line's channel darker than the ground's keeps the ground's (at most 8 in 255).
-  - [ ] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it.
+  - [x] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it. Gate 1352. Seven mutations caught. Departure from the plan's wording, same outcome: the theme is not passed into the builders; a node names its roles (`Ink`, `Edge`, `Fill`) and one system paints them from the theme, so every screen's nodes are on it already and the HUD's plan only lifts the fight-only rule. `controls::GREEN` and `SHADES` are gone. The picture window's ground is the theme's panel shade. Left on fixed colours: icons and the text cursor (none on the fight screen; a test holds the icons).
   - [ ] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the

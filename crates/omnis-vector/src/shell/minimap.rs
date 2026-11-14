@@ -3,7 +3,9 @@
 
 use super::VectorSet;
 use super::session::Session;
+use super::theme::{edge, ink};
 use crate::minimap::{Raster, paint};
+use crate::style::Role;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
@@ -54,7 +56,7 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             border: UiRect::all(Val::Px(1.0)),
             ..default()
         },
-        BorderColor::all(super::controls::GREEN),
+        edge(Role::Interface),
     ));
     commands.spawn((
         MinimapCaption,
@@ -63,7 +65,7 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             font_size: FontSize::Px(16.0),
             ..default()
         },
-        TextColor(super::controls::GREEN),
+        ink(Role::Interface),
         Node {
             position_type: PositionType::Absolute,
             right: Val::Px(16.0),

@@ -6,6 +6,7 @@
 //! both axes, so the numbers and the lines move together with no system between them.
 
 use super::screen_draw::Scrolls;
+use super::theme::{fill, ink, solid};
 use crate::style::{Role, Size, scaled};
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
@@ -169,7 +170,7 @@ pub(super) fn spawn(
                                     font_size: FontSize::Px(Size::Body.px(height)),
                                     ..default()
                                 },
-                                TextColor(super::screen_draw::colour(Role::Interface)),
+                                ink(Role::Interface),
                                 super::screen_draw::cursor_style(),
                                 TextLayout {
                                     linebreak: LineBreak::NoWrap,
@@ -211,14 +212,11 @@ fn bar(parent: &mut ChildSpawnerCommands, target: Entity, along: ControlOrientat
         .spawn((
             Scrollbar::new(target, along, scaled(24.0, height)),
             node,
-            BackgroundColor(super::screen_draw::shade(1)),
+            fill(1),
             Visibility::Hidden,
         ))
         .with_children(|b| {
-            b.spawn((
-                ScrollbarThumb::default(),
-                BackgroundColor(super::screen_draw::colour(Role::Interface)),
-            ));
+            b.spawn((ScrollbarThumb::default(), solid(Role::Interface)));
         });
 }
 

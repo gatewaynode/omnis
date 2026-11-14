@@ -4,7 +4,8 @@
 //! which keeps it inside the window; it is ordinary text, so `screen.text` reads it while it
 //! shows. Headless-safe.
 
-use super::screen_draw::{colour, shade, words};
+use super::screen_draw::words;
+use super::theme::{edge, fill};
 use crate::style::{REFERENCE_HEIGHT, Role, Size, scaled};
 use bevy::input_focus::InputFocus;
 use bevy::picking::Pickable;
@@ -131,8 +132,8 @@ fn show(
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            BorderColor::all(colour(Role::Title)),
-            BackgroundColor(shade(0)),
+            edge(Role::Title),
+            fill(0),
             children![(
                 words(&tip.text, Role::Title, Size::Small, REFERENCE_HEIGHT),
                 Pickable::IGNORE,

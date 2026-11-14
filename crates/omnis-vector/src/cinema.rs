@@ -7,7 +7,7 @@
 
 use crate::contrast::shown;
 use crate::raster::Raster;
-use crate::style::{Palette, srgb};
+use crate::style::{Palette, Theme, srgb};
 use omnis_sim::CombatView;
 use omnis_sim::omnis_core::MonsterId;
 use omnis_sim::omnis_data::{ColourRole, Data};
@@ -15,8 +15,16 @@ use omnis_sim::omnis_data::{ColourRole, Data};
 /// The window's size in logical pixels, to fit the fight panel's width.
 pub const SIZE: (u32, u32) = (492, 200);
 
-/// The window's ground: opaque, so the 3D view never shows through it.
-pub const BACKGROUND: [u8; 4] = [0, 8, 3, 255];
+/// The window's ground: the interface's darkest panel shade in `palette`'s theme, opaque, so
+/// the 3D view never shows through it.
+#[must_use]
+pub fn ground(palette: &Palette) -> [u8; 4] {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let [r, g, b] = Theme::of(palette)
+        .shade(0)
+        .map(|c| (c * 255.0).round() as u8);
+    [r, g, b, 255]
+}
 
 /// The halo's share of the line's light.
 pub const HALO: f32 = 0.25;
@@ -45,7 +53,7 @@ impl Inks {
         Inks {
             line: bytes(1.0),
             glow: bytes(HALO),
-            ground: BACKGROUND,
+            ground: ground(palette),
         }
     }
 }
@@ -197,7 +205,12 @@ mod tests {
         let inks = Inks::of(&palette);
         assert_eq!(inks.line, [255, srgb(0.5), srgb(0.1), 255]);
         assert_eq!(inks.glow, [srgb(0.25), srgb(0.125), srgb(0.025), 255]);
-        assert_eq!(inks.ground, BACKGROUND);
+        assert_eq!(inks.ground, ground(&palette));
+        assert_eq!(
+            ground(&Palette::default()),
+            [0, 20, 8, 255],
+            "the panels' shade"
+        );
         let (w, h) = SIZE;
         let raster = paint(Scene::Enemy(MonsterId(0)), w, h, inks);
         let count = |c: [u8; 4]| {

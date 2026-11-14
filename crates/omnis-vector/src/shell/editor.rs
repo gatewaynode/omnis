@@ -14,10 +14,9 @@
 
 use super::controls::{Over, Pressing, over_control};
 use super::screen::{Arrow, Screens, Slid};
-use super::screen_draw::{
-    EditorPress, Mark, Placed, Scrolls, WHEEL_LINE, build, colour, shade, sync,
-};
+use super::screen_draw::{EditorPress, Mark, Placed, Scrolls, WHEEL_LINE, build, colour, sync};
 use super::session::{Packs, Session};
+use super::theme::{edge, fill};
 use super::{VectorSet, ViewState};
 use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
@@ -174,7 +173,7 @@ fn enter(
                 flex_direction: FlexDirection::Row,
                 ..default()
             },
-            BackgroundColor(shade(0)),
+            fill(0),
         ))
         .with_children(|root| {
             root.spawn((
@@ -189,7 +188,7 @@ fn enter(
                     overflow: Overflow::clip(),
                     ..default()
                 },
-                BorderColor::all(colour(Role::Dim)),
+                edge(Role::Dim),
             ));
             // The centre: the bar over the plan.
             root.spawn(Node {
@@ -210,7 +209,7 @@ fn enter(
                         overflow: Overflow::clip(),
                         ..default()
                     },
-                    BorderColor::all(colour(Role::Dim)),
+                    edge(Role::Dim),
                 ));
                 centre
                     .spawn((
@@ -252,7 +251,7 @@ fn enter(
                     border: UiRect::left(Val::Px(1.0)),
                     ..default()
                 },
-                BorderColor::all(colour(Role::Dim)),
+                edge(Role::Dim),
             ))
             .with_children(|right| {
                 if let Some(image) = picture {
@@ -273,7 +272,7 @@ fn enter(
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
                         },
-                        BorderColor::all(colour(Role::Dim)),
+                        edge(Role::Dim),
                     ));
                 }
                 right.spawn((
@@ -322,7 +321,7 @@ fn plan_nodes(pane: &mut ChildSpawnerCommands) {
             display: Display::None,
             ..default()
         },
-        BorderColor::all(colour(Role::Interface)),
+        edge(Role::Interface),
         Pickable::IGNORE,
     ));
     pane.spawn((
@@ -332,7 +331,7 @@ fn plan_nodes(pane: &mut ChildSpawnerCommands) {
             display: Display::None,
             ..default()
         },
-        BorderColor::all(colour(Role::Caution)),
+        edge(Role::Caution),
         BackgroundColor(Color::NONE),
         Pickable::IGNORE,
     ));

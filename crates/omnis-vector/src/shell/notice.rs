@@ -5,8 +5,8 @@
 //! is dropped from the session once out of range. Only its close button, top right, takes a
 //! click: it drops the notice (owner, 2026-10-17); the log keeps the words. Headless-safe.
 
-use super::screen::{colour, shade};
 use super::session::Session;
+use super::theme::{Fill, Theme};
 use crate::notice::alpha;
 use bevy::prelude::*;
 
@@ -87,6 +87,8 @@ pub(super) fn spawn(mut commands: Commands) {
                             },
                             BorderColor::all(Color::NONE),
                             BackgroundColor(Color::NONE),
+                            // Its shade is the theme's, whatever the fade has made of its alpha.
+                            Fill::Shade(0),
                         ))
                         .with_children(|close| {
                             close.spawn((
@@ -144,6 +146,7 @@ type Close = (
 /// Fade the notice by the party's distance from where it was done, drop it once out of range,
 /// and show it while the party explores with no screen up.
 pub(super) fn paint(
+    theme: Res<Theme>,
     session: Option<ResMut<Session>>,
     screens: Res<super::screen::Screens>,
     mut panel: Query<(&mut BorderColor, &mut BackgroundColor, &mut Visibility), With<NoticePanel>>,
@@ -175,8 +178,8 @@ pub(super) fn paint(
             *visibility = want;
         }
         if let Some((_, role, a)) = &shown {
-            *border = BorderColor::all(colour(*role).with_alpha(*a));
-            back.0 = shade(0).with_alpha(shade(0).alpha() * a);
+            *border = BorderColor::all(theme.colour(*role).with_alpha(*a));
+            back.0 = theme.shade(0).with_alpha(*a);
         }
     }
     for (mut words, mut tint, mut visibility) in &mut text {
@@ -187,17 +190,17 @@ pub(super) fn paint(
             if words.0 != *line {
                 words.0.clone_from(line);
             }
-            tint.0 = colour(*role).with_alpha(*a);
+            tint.0 = theme.colour(*role).with_alpha(*a);
         }
     }
     if let Some((_, role, a)) = &shown {
         for (mut border, mut back, children) in &mut close {
-            *border = BorderColor::all(colour(*role).with_alpha(*a));
+            *border = BorderColor::all(theme.colour(*role).with_alpha(*a));
             // The hover shade (`controls::shade`) sets the colour; the fade sets its alpha.
             back.0 = back.0.with_alpha(*a);
             for &child in children {
                 if let Ok(mut tint) = letters.get_mut(child) {
-                    tint.0 = colour(*role).with_alpha(*a);
+                    tint.0 = theme.colour(*role).with_alpha(*a);
                 }
             }
         }

@@ -4,15 +4,17 @@
 //! reach, the party's own cell included, where a pile is below the view; and Shift+Space, the
 //! default action. All of them go through [`open`].
 
-use super::controls::{Control, GREEN, Unpressable, button, pressable};
+use super::controls::{Control, Unpressable, button, pressable};
 use super::editor::Editing;
 use super::screen::Screens;
 use super::session::Session;
+use super::theme::{Edge, Ink};
 use super::{VectorSet, ViewState};
 use crate::screen::ScreenId;
 use crate::screen::actions::{Does, default_action};
 use crate::screen::loot::Loot;
 use crate::sim::Views;
+use crate::style::Role;
 use bevy::prelude::*;
 use bevy::ui::Pressed;
 use omnis_sim::ItemPlace;
@@ -111,8 +113,8 @@ fn offer(
     mut commands: Commands,
     reach: Reach,
     mut buttons: Query<(Entity, Has<Control>, &mut Visibility, &Children), With<PickUp>>,
-    mut borders: Query<&mut BorderColor>,
-    mut texts: Query<&mut TextColor>,
+    mut borders: Query<&mut Edge>,
+    mut texts: Query<&mut Ink>,
 ) {
     let live = reach.offered();
     for (entity, lit, mut visibility, children) in &mut buttons {
@@ -123,11 +125,11 @@ fn offer(
             commands.entity(entity).insert(pressable());
             *visibility = Visibility::Inherited;
             if let Ok(mut border) = borders.get_mut(entity) {
-                *border = BorderColor::all(GREEN);
+                border.0 = Role::Interface;
             }
             for &child in children {
                 if let Ok(mut text) = texts.get_mut(child) {
-                    text.0 = GREEN;
+                    text.0 = Role::Interface;
                 }
             }
         } else {

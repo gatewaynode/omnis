@@ -120,6 +120,72 @@ impl Role {
     }
 }
 
+/// The interface's colours, sRGB: each role's and a control's three backgrounds. The default is
+/// the green the interface has always had; a palette whose interface ink is another colour
+/// gives a theme in that ink (owner, 2026-11-13).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Theme {
+    /// Ordinary text, live controls and headings.
+    pub interface: [f32; 3],
+    /// What cannot be done now.
+    pub dim: [f32; 3],
+    /// A control's background at rest, hovered and pressed.
+    pub shades: [[f32; 3]; 3],
+}
+
+impl Default for Theme {
+    fn default() -> Theme {
+        Theme {
+            interface: Role::Interface.rgb(),
+            dim: Role::Dim.rgb(),
+            shades: SHADES,
+        }
+    }
+}
+
+/// Dim text's share of the interface ink's light.
+pub const DIM_LIGHT: f32 = 0.15;
+/// The three backgrounds' shares of the interface ink's light: at rest, hovered, pressed.
+pub const SHADE_LIGHT: [f32; 3] = [0.007, 0.05, 0.21];
+
+impl Theme {
+    /// The theme of `palette`. Where its interface ink is the default's, the default theme,
+    /// exactly. Otherwise ordinary text is the ink as the screen shows it, its glow taken out
+    /// so text never clips, and dim text and the backgrounds are that ink darkened. Caution
+    /// and alert are warnings, not the interface's own colour, and stay as they are.
+    #[must_use]
+    pub fn of(palette: &Palette) -> Theme {
+        let ink = palette.ink(ColourRole::Interface);
+        if ink == Palette::default().ink(ColourRole::Interface) {
+            return Theme::default();
+        }
+        let peak = ink[0].max(ink[1]).max(ink[2]).max(1.0);
+        let light = ink.map(|c| c / peak);
+        let at = |k: f32| light.map(|c| f32::from(srgb(c * k)) / 255.0);
+        Theme {
+            interface: at(1.0),
+            dim: at(DIM_LIGHT),
+            shades: SHADE_LIGHT.map(at),
+        }
+    }
+
+    /// `role`'s colour.
+    #[must_use]
+    pub fn rgb(&self, role: Role) -> [f32; 3] {
+        match role {
+            Role::Interface | Role::Title => self.interface,
+            Role::Dim => self.dim,
+            Role::Caution | Role::Alert => role.rgb(),
+        }
+    }
+
+    /// A control's background: at rest, hovered or pressed.
+    #[must_use]
+    pub fn shade(&self, i: usize) -> [f32; 3] {
+        self.shades[i.min(2)]
+    }
+}
+
 /// A line's pattern, the channel that says what kind of thing it is without colour
 /// (presentation-PRD X19, 5.3). Open for more: sawtooth waits for a quad wider than its line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -228,6 +294,46 @@ mod tests {
         }
         assert_eq!(srgb(3.0), 255, "past the range is the brightest");
         assert_eq!(srgb(-1.0), 0);
+    }
+
+    #[test]
+    fn the_default_theme_is_the_interface_s_green_as_it_was() {
+        let theme = Theme::default();
+        assert_eq!(Theme::of(&Palette::default()), theme);
+        assert_eq!(theme.rgb(Role::Interface), [0.55, 1.0, 0.65]);
+        assert_eq!(theme.rgb(Role::Title), [0.55, 1.0, 0.65]);
+        assert_eq!(theme.rgb(Role::Dim), [0.25, 0.4, 0.3]);
+        assert_eq!(theme.rgb(Role::Caution), [1.0, 0.85, 0.3]);
+        assert_eq!(theme.rgb(Role::Alert), [1.0, 0.45, 0.35]);
+        assert_eq!(
+            [
+                theme.shade(0),
+                theme.shade(1),
+                theme.shade(2),
+                theme.shade(9)
+            ],
+            [SHADES[0], SHADES[1], SHADES[2], SHADES[2]]
+        );
+    }
+
+    #[test]
+    fn a_palette_s_interface_ink_gives_a_theme_in_that_ink() {
+        let mut palette = Palette::default();
+        // Twice the screen's range: the glow is taken out, the hue kept.
+        palette.inks[ColourRole::Interface.index()] = [2.0, 1.0, 0.2];
+        let theme = Theme::of(&palette);
+        let byte = |light: f32| f32::from(srgb(light)) / 255.0;
+        assert_eq!(theme.rgb(Role::Interface), [1.0, byte(0.5), byte(0.1)]);
+        assert_eq!(theme.rgb(Role::Title), theme.rgb(Role::Interface));
+        assert_eq!(theme.rgb(Role::Dim), [byte(0.15), byte(0.075), byte(0.015)]);
+        let sum = |c: [f32; 3]| c[0] + c[1] + c[2];
+        assert!(sum(theme.rgb(Role::Dim)) < sum(theme.rgb(Role::Interface)));
+        assert!(sum(theme.shade(0)) < sum(theme.shade(1)));
+        assert!(sum(theme.shade(1)) < sum(theme.shade(2)));
+        // Warnings are not the interface's own colour.
+        assert_eq!(theme.rgb(Role::Caution), Role::Caution.rgb());
+        assert_eq!(theme.rgb(Role::Alert), Role::Alert.rgb());
+        assert_ne!(theme, Theme::default());
     }
 
     #[test]

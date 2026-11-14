@@ -2,9 +2,8 @@
 //! number's slider and its thumb, a tick box. Headless-safe.
 
 use super::controls::pressable;
-use super::screen_draw::{
-    Arrow, SliderOf, Spawn, colour, labelled, pressed_by, shade, shown_label, words,
-};
+use super::screen_draw::{Arrow, SliderOf, Spawn, labelled, pressed_by, shown_label, words};
+use super::theme::{edge, fill, solid};
 use crate::screen::{Control, ControlId, Key};
 use crate::style::{Role, Size, scaled};
 use bevy::prelude::*;
@@ -32,8 +31,8 @@ pub(super) fn tick(
             align_items: AlignItems::Center,
             ..default()
         },
-        BorderColor::all(colour(role)),
-        BackgroundColor(shade(0)),
+        edge(role),
+        fill(0),
     ));
     pressed_by(&mut entity, spawn.mark, c.id);
     if c.why_not.is_none() {
@@ -63,8 +62,8 @@ pub(super) fn arrow(parent: &mut ChildSpawnerCommands, id: ControlId, right: boo
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BorderColor::all(colour(Role::Interface)),
-            BackgroundColor(shade(0)),
+            edge(Role::Interface),
+            fill(0),
         ))
         .with_children(|a| {
             let glyph = if right { ">" } else { "<" };
@@ -118,7 +117,7 @@ pub(super) fn slider(
                     height: Val::Px(scaled(2.0, h).max(1.0)),
                     ..default()
                 },
-                BackgroundColor(colour(Role::Dim)),
+                solid(Role::Dim),
             ));
             // The thumb travels the width less its own.
             s.spawn(Node {
@@ -139,8 +138,8 @@ pub(super) fn slider(
                         border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
-                    BorderColor::all(colour(Role::Interface)),
-                    BackgroundColor(colour(Role::Interface)),
+                    edge(Role::Interface),
+                    solid(Role::Interface),
                 ));
             });
         });

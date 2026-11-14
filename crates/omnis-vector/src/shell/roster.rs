@@ -6,9 +6,10 @@
 use super::capture::CaptureSize;
 use super::combat::size;
 use super::minimap::Minimap;
-use super::screen::{Beside, Screens, Showing, Side, colour, ctx, shade};
+use super::screen::{Beside, Screens, Showing, Side, ctx};
 use super::screen_draw::{Mark, Spawn, rows};
 use super::session::Session;
+use super::theme::{edge, fill};
 use crate::arena::{BUTTONS, MARGIN, layout, zoom};
 use crate::screen::roster::{self, RosterEffect};
 use crate::screen::{Panel, ScreenId};
@@ -48,8 +49,8 @@ pub(super) fn spawn(mut commands: Commands) {
             display: Display::None,
             ..default()
         },
-        BorderColor::all(colour(Role::Interface)),
-        BackgroundColor(shade(0)),
+        edge(Role::Interface),
+        fill(0),
     ));
 }
 

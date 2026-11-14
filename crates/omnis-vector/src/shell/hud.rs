@@ -3,11 +3,11 @@
 //! outcome notice, so a long line wraps rather than run under it, in the interface's dim role,
 //! each older line fainter, so the notice stands out.
 
-use super::controls::GREEN;
 use super::movement::Intent;
 use super::notice::NOTICE_WIDTH;
-use super::screen::{Screens, colour};
+use super::screen::Screens;
 use super::session::Session;
+use super::theme::{Theme, ink};
 use super::{VectorSet, ViewState};
 use crate::screen::ScreenId;
 use crate::style::Role;
@@ -83,7 +83,7 @@ fn spawn(mut commands: Commands) {
             Pickable::IGNORE,
         ))
         .with_children(|hud| {
-            hud.spawn((StatusText, Text::new(""), font(), TextColor(GREEN)));
+            hud.spawn((StatusText, Text::new(""), font(), ink(Role::Interface)));
             hud.spawn((
                 LogColumn,
                 Node {
@@ -222,6 +222,7 @@ fn arrange(
 /// The running log's lines: the session's newest, oldest first, each older one fainter; none in
 /// a fight, whose roll log has its lines.
 fn log(
+    theme: Res<Theme>,
     session: Res<Session>,
     screens: Res<Screens>,
     view: Option<Res<State<ViewState>>>,
@@ -240,7 +241,7 @@ fn log(
                 if words.0 != *line {
                     words.0.clone_from(line);
                 }
-                tint.0 = colour(Role::Dim).with_alpha(log_alpha(age));
+                tint.0 = theme.colour(Role::Dim).with_alpha(log_alpha(age));
                 Visibility::Inherited
             }
             None => Visibility::Hidden,

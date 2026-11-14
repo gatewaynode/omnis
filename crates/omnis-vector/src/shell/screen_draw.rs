@@ -9,6 +9,7 @@ use super::controls::pressable;
 use super::icons::{self, IconOf, NeedsIcon};
 pub(super) use super::screen_parts::thumbs;
 use super::screen_parts::{arrow, slider, tick};
+use super::theme::{Ink, edge, fill, ink, solid};
 use super::tips::Tip;
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
@@ -123,7 +124,7 @@ pub(super) struct OfScreen(pub(super) ScreenId);
 /// A screen's words on screen: the heading, a span, a control's label or the outcome, by marker.
 pub(super) type Placed = (
     &'static mut Text,
-    &'static mut TextColor,
+    &'static mut Ink,
     Option<&'static TitleText>,
     Option<&'static SpanAt>,
     Option<&'static LabelOf>,
@@ -138,14 +139,15 @@ pub struct Scrolls;
 /// How far one line of a mouse wheel scrolls a panel, in logical pixels.
 pub(super) const WHEEL_LINE: f32 = 40.0;
 
-/// `role`'s colour.
+/// `role`'s colour in the default theme. A node names its role (`theme::ink`, `edge`) and is
+/// painted from the theme of the moment; this is for what has no theme yet.
 #[must_use]
 pub fn colour(role: Role) -> Color {
     let [r, g, b] = role.rgb();
     Color::srgb(r, g, b)
 }
 
-/// A control's background: at rest, hovered or pressed.
+/// A control's background in the default theme: at rest, hovered or pressed.
 #[must_use]
 pub fn shade(i: usize) -> Color {
     let [r, g, b] = SHADES[i.min(2)];
@@ -202,14 +204,14 @@ pub(super) fn words(
     role: Role,
     size: Size,
     height: f32,
-) -> (Text, TextFont, TextColor) {
+) -> (Text, TextFont, (TextColor, Ink)) {
     (
         Text::new(text),
         TextFont {
             font_size: FontSize::Px(size.px(height)),
             ..default()
         },
-        TextColor(colour(role)),
+        ink(role),
     )
 }
 
@@ -254,11 +256,7 @@ fn boxed(role: Role, height: f32, mark: Mark, bare: bool) -> impl Bundle {
     } else {
         boxed_node(height, mark)
     };
-    (
-        node,
-        BorderColor::all(colour(role)),
-        BackgroundColor(shade(0)),
-    )
+    (node, edge(role), fill(0))
 }
 
 /// The width of the labels' column of a field's row, at the reference height: the longest of
@@ -295,8 +293,8 @@ fn square<'a>(
             align_items: AlignItems::Center,
             ..default()
         },
-        BorderColor::all(colour(role)),
-        BackgroundColor(shade(0)),
+        edge(role),
+        fill(0),
     ));
     pressed_by(&mut entity, spawn.mark, c.id);
     if c.why_not.is_none() {
@@ -331,9 +329,9 @@ fn swatch_node(
             },
             BackgroundColor(Color::srgb_u8(r, g, b)),
         ));
-        let mut words = words(&glyph.to_string(), Role::Interface, Size::Small, height);
-        words.2 = TextColor(ink);
-        box_.spawn(words);
+        let words = words(&glyph.to_string(), Role::Interface, Size::Small, height);
+        // The glyph is drawn in the swatch's own contrast colour, not a role's.
+        box_.spawn((words.0, words.1, TextColor(ink)));
     });
 }
 
@@ -484,7 +482,7 @@ fn control_node(
                         font_size: FontSize::Px(Size::Body.px(height)),
                         ..default()
                     },
-                    TextColor(colour(Role::Interface)),
+                    ink(Role::Interface),
                     // Without a style no cursor is drawn; Bevy's default is too dark to see here.
                     cursor_style(),
                     // Underlined, so an empty field still shows where to type; a field of
@@ -502,7 +500,7 @@ fn control_node(
                         border: UiRect::bottom(Val::Px(1.0)),
                         ..default()
                     },
-                    BorderColor::all(colour(Role::Dim)),
+                    edge(Role::Dim),
                 ));
                 // Typed text goes to the router the control does.
                 match mark {
@@ -687,7 +685,9 @@ pub(super) fn sync(screen: &Screen, placed: &mut Query<Placed>) {
             if text.0 != words {
                 text.0 = words;
             }
-            tint.0 = colour(role);
+            if tint.0 != role {
+                tint.0 = role;
+            }
         }
     }
 }
@@ -758,14 +758,11 @@ fn scrollbar(pane: &mut ChildSpawnerCommands, rows_at: Entity, height: f32) {
             flex_shrink: 0.0,
             ..default()
         },
-        BackgroundColor(shade(1)),
+        fill(1),
         Visibility::Hidden,
     ))
     .with_children(|bar| {
-        bar.spawn((
-            ScrollbarThumb::default(),
-            BackgroundColor(colour(Role::Interface)),
-        ));
+        bar.spawn((ScrollbarThumb::default(), solid(Role::Interface)));
     });
 }
 

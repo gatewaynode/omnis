@@ -6,8 +6,9 @@ use super::VectorSet;
 use super::movement::Intent;
 use super::screen::Screens;
 use super::session::Session;
+use super::theme::{Edge, Ink, Theme, edge, fill, ink};
 use crate::screen::ScreenId;
-use crate::style::{Role, SHADES as SHADE_RGB};
+use crate::style::Role;
 use bevy::picking::events::{PointerCancel, PointerDragEnd, PointerPress, PointerRelease};
 use bevy::picking::hover::Hovered;
 use bevy::picking::pointer::PointerButton;
@@ -96,15 +97,6 @@ pub fn widest_row(corner: Corner) -> usize {
         Corner::Right => &SIDE,
     };
     rows.iter().map(|r| r.len()).max().unwrap_or(0)
-}
-
-/// The interface role's colour (`style::Role::Interface`).
-pub const GREEN: Color = srgb(Role::Interface.rgb());
-/// A button at rest, hovered and pressed (`style::SHADES`).
-pub const SHADES: [Color; 3] = [srgb(SHADE_RGB[0]), srgb(SHADE_RGB[1]), srgb(SHADE_RGB[2])];
-
-const fn srgb([r, g, b]: [f32; 3]) -> Color {
-    Color::srgb(r, g, b)
 }
 
 /// A live control: a node the pointer can press. It carries the pointer's state as Bevy's own
@@ -231,13 +223,10 @@ impl Plugin for ControlsPlugin {
     }
 }
 
-/// The colour of a button that cannot be pressed now (`style::Role::Dim`).
-const DIM: Color = srgb(Role::Dim.rgb());
-
 /// A button: a bordered box with a label, carrying `marker`. A disabled one is drawn dim and
 /// takes no clicks (it is no `Control`), so what cannot be done is still shown.
 pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundle, enabled: bool) {
-    let colour = if enabled { GREEN } else { DIM };
+    let role = if enabled { Role::Interface } else { Role::Dim };
     let mut entity = parent.spawn((
         marker,
         Node {
@@ -249,8 +238,8 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
             align_items: AlignItems::Center,
             ..default()
         },
-        BorderColor::all(colour),
-        BackgroundColor(SHADES[0]),
+        edge(role),
+        fill(0),
     ));
     if enabled {
         entity.insert(pressable());
@@ -262,7 +251,7 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
                 font_size: FontSize::Px(16.0),
                 ..default()
             },
-            TextColor(colour),
+            ink(role),
         ));
     });
 }
@@ -359,8 +348,8 @@ fn light(
     session: Option<Res<Session>>,
     screens: Res<Screens>,
     buttons: Query<(Entity, &Action, Has<Control>, &Children)>,
-    mut borders: Query<&mut BorderColor>,
-    mut texts: Query<&mut TextColor>,
+    mut borders: Query<&mut Edge>,
+    mut texts: Query<&mut Ink>,
 ) {
     let views = session.as_deref().map(|s| &s.views);
     let live = views.is_some() && screens.nav.allowed(ScreenId::Camp, views);
@@ -368,7 +357,7 @@ fn light(
         if action != Action::Camp || lit == live {
             continue;
         }
-        let colour = if live { GREEN } else { DIM };
+        let role = if live { Role::Interface } else { Role::Dim };
         if live {
             commands.entity(entity).insert(pressable());
         } else {
@@ -376,11 +365,11 @@ fn light(
             commands.entity(entity).remove::<Unpressable>();
         }
         if let Ok(mut border) = borders.get_mut(entity) {
-            *border = BorderColor::all(colour);
+            border.0 = role;
         }
         for &child in children {
             if let Ok(mut text) = texts.get_mut(child) {
-                text.0 = colour;
+                text.0 = role;
             }
         }
     }
@@ -398,6 +387,7 @@ type Shaded<'a> = (
 /// changes (and as the button is made). Run while a game plays (this plugin) and while the
 /// editor is open (`shell/editor.rs`), which has no game.
 pub(super) fn shade(
+    theme: Res<Theme>,
     mut buttons: Query<Shaded, With<Control>>,
     mut released: RemovedComponents<Pressed>,
 ) {
@@ -410,9 +400,9 @@ pub(super) fn shade(
             continue;
         }
         colour.0 = match (pressed.is_some(), hovered.get()) {
-            (true, _) => SHADES[2],
-            (false, true) => SHADES[1],
-            (false, false) => SHADES[0],
+            (true, _) => theme.shade(2),
+            (false, true) => theme.shade(1),
+            (false, false) => theme.shade(0),
         };
     }
 }

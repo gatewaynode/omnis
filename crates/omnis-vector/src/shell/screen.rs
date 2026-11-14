@@ -20,6 +20,7 @@ use super::screen_draw::{
 };
 use super::session::{Packs, Session, StartScreen};
 use super::settings::{Current, Fitted};
+use super::theme::{edge, fill};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
@@ -103,6 +104,7 @@ impl Plugin for ScreenPlugin {
             .init_resource::<Slid>()
             .init_resource::<Beside>()
             .add_plugins(super::tips::TipsPlugin)
+            .add_plugins(super::theme::plugin)
             .add_observer(slid)
             .add_systems(Startup, (spawn, super::roster::spawn, open_start))
             .add_systems(
@@ -184,8 +186,8 @@ fn spawn(mut commands: Commands) {
                     display: Display::None,
                     ..default()
                 },
-                BorderColor::all(colour(Role::Interface)),
-                BackgroundColor(shade(0)),
+                edge(Role::Interface),
+                fill(0),
             ));
         });
 }

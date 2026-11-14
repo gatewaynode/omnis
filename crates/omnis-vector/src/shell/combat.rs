@@ -9,12 +9,13 @@
 
 use super::capture::{CaptureSize, Offscreen};
 use super::cinema::Screen;
-use super::controls::{Action, Corner, GREEN, Pressing, SHADES};
+use super::controls::{Action, Corner, Pressing};
 use super::minimap::Minimap;
 use super::render::ViewCamera;
 use super::screen::{Arrow, FightPress, Screens, ctx};
 use super::screen_draw::{Mark, build};
 use super::session::Session;
+use super::theme::{edge, fill, ink};
 use super::{VectorSet, ViewState};
 use crate::arena::{Arena, Rect, arena, pick, picker, zoom};
 use crate::cinema::opening;
@@ -22,7 +23,7 @@ use crate::combat_menu::{CombatMenu, Pick, Step};
 use crate::screen::fight::{self, Place};
 use crate::screen::{self, ControlId, Key, Payload, Screen as Controls, ScreenId, Span};
 use crate::style::Palette;
-use crate::tones::ink;
+use crate::style::Role;
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -317,7 +318,7 @@ fn refresh(
                 at(&l.title, r),
                 Text::new(title),
                 font(22.0 * r),
-                TextColor(GREEN),
+                ink(Role::Interface),
             ));
         }
         let (rect, border) = if over {
@@ -334,8 +335,8 @@ fn refresh(
                 overflow: Overflow::clip(),
                 ..at(rect, r)
             },
-            BorderColor::all(GREEN),
-            BackgroundColor(SHADES[0]),
+            edge(Role::Interface),
+            fill(0),
             ZIndex(1),
         ))
         .with_children(|column| build(column, &controls, (h * r, Mark::Fight), None));
@@ -350,15 +351,15 @@ fn refresh(
                 overflow: Overflow::clip(),
                 ..at(&l.log, r)
             },
-            BorderColor::all(GREEN),
-            BackgroundColor(SHADES[0]),
+            edge(Role::Interface),
+            fill(0),
         ))
         .with_children(|log| {
             for line in &session.fight_log {
                 log.spawn((
                     Text::new(line.as_str()),
                     font(15.0 * r),
-                    TextColor(GREEN),
+                    ink(Role::Interface),
                     // Kept whole: a wrapped line grows rather than being squeezed.
                     Node {
                         flex_shrink: 0.0,
@@ -380,7 +381,7 @@ fn refresh(
                 label.spawn((
                     Text::new(g.label.text.as_str()),
                     font(15.0 * r),
-                    TextColor(GREEN),
+                    ink(Role::Interface),
                 ));
             });
         }
@@ -506,7 +507,7 @@ fn draw(screen: Res<FightScreen>, session: Res<Session>, mut gizmos: Gizmos<Comb
     let z = screen.zoom;
     let to = |(x, y): (f32, f32)| Vec2::new(x - w / 2.0, h / 2.0 - y) * z;
     for s in crate::arena::segments(laid) {
-        let [r, g, b] = ink(s.tone, &palette);
+        let [r, g, b] = crate::tones::ink(s.tone, &palette);
         gizmos.line_2d(to(s.a), to(s.b), LinearRgba::rgb(r, g, b));
     }
 }
