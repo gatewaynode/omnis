@@ -134,7 +134,17 @@ fn second_wind_reads_its_uses_and_cost_and_dims_once_spent() {
         note(&features, "Second Wind").as_deref(),
         Some("1 use, bonus action")
     );
-    let wind = sent(&session, Step::Features, "Second Wind");
+    // The feature is Brenna's own: it asks, and offers her alone.
+    let Ok(Effect::None) = press(&session, Step::Features, "Second Wind") else {
+        panic!("Second Wind asks for its target");
+    };
+    let own = Step::Target(Action::Own(0));
+    let names: Vec<String> = controls(&shown(&session, own))
+        .iter()
+        .map(|c| c.label.clone())
+        .collect();
+    assert_eq!(names, ["Brenna", "Back"], "self only shows self");
+    let wind = sent(&session, own, "Brenna");
     assert!(matches!(
         &wind,
         Command::Combat(CombatCommand::Feature {
@@ -195,7 +205,10 @@ fn cunning_action_splits_into_swap_and_hide() {
     );
     assert_ne!(brenna, pip);
     accepted(&session, &swap);
-    let hide = sent(&session, Step::Features, "Cunning Action: hide");
+    let Ok(Effect::None) = press(&session, Step::Features, "Cunning Action: hide") else {
+        panic!("the hide asks for its target");
+    };
+    let hide = sent(&session, Step::Target(Action::Own(0)), "Pip");
     assert!(matches!(
         &hide,
         Command::Combat(CombatCommand::Feature {

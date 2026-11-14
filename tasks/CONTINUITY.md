@@ -15,13 +15,10 @@ line of sight, link. Lesson in `tasks/LESSONS.md` (2026-11-14).
   0.1.3 hash 8477582243095538951, replays rebaselined); step 3 `4b715dd6` (`omnis_sim::targets`,
   `targets.get`, 49 tools, `Rejection::BeyondRange`/`OutOfSight`, 74); step 4 `b02628b1`
   (`omnis-vector/src/targeting.rs`, `Forms.aim`, `ControlId::Target`; Cast and Use open the target step).
-  Gate 1369.
-- **Reported to the owner as "built, please try"**: step 1 (the fight's colours) and step 4 (the bug).
-- **Next: step 5**, the fight menu on the engine's list (`combat_menu.rs`): `targets()` from
-  `SimWorld::targets` with `Chosen` (Attack, Spell{pay}, Item, Exchange, Feature{exchange}); target
-  entries show refused rows dim; `untargeted` ("cast at once") goes; a plain or hide feature gets a one-row
-  target step (a new `Action` variant; `back()` to Features); tests in `tests/combat_menu.rs` change
-  (`a_spell_whose_target_does_not_matter_is_cast_at_once` and the feature rows). Then step 6 (doors and
+  Gate 1369, then 1370 after step 5.
+- **Reported to the owner as "built, please try"**: step 1 (the fight's colours), step 4 (the bug) and step 5 (the fight's targets). The session was paused there for a compact; steps 6 to 9 are not started.
+- **Step 5 done** (the fight menu on the engine's list: `combat_menu::listed`, `Action::Own`; gate 1370).
+  **Next: step 6.** Then step 6 (doors and
   objects: `Target::Door/Object/Being`, mage hand as a hand through `objects::act::admit`, `Sight`,
   distance, the 3D `Aimed` mark), 7 (opening strike, `Surprise::Monsters`, rules value
   `opening_strike_surprise`), 8 (`World.links`, a dev command), 9 (acceptance sheet walking the table arm

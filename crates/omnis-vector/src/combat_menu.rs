@@ -7,20 +7,23 @@
 //! the lists it shows.
 //!
 //! Every command the menu offers is tried on a copy of the world first (`trial`), so a choice
-//! the simulation would refuse is shown blocked with its reason and never sent. Targets are
-//! found the same way: a stack or member is offered for an action only when the simulation
-//! accepts that action on it. What a row costs and why it is refused come from the engine's
+//! the simulation would refuse is shown blocked with its reason and never sent. Whatever acts
+//! on someone asks for its target after it is chosen (owner, 2026-11-14), even when the only
+//! one is the member themself; Dodge, End turn and Flee have no one to choose and are one
+//! click. The targets are the engine's list (`omnis_sim::targets`): each possible target, with
+//! the reason one is refused. What a row costs and why it is refused come from the engine's
 //! views (`SpellView`, `FeatureView`, `FightItemView`), so the menu holds no rules of its own.
 
 use crate::labels;
 use crate::sim::{SimWorld, Views};
-use crate::trial::{accepted, why};
+use crate::trial::why;
+use omnis_sim::api::Chosen;
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::{Cost, Data};
 use omnis_sim::{
     ActorRef, ChoiceKind, CombatCommand, CombatView, Command, EncounterChoice, FeatureChoice,
-    FeatureView, ModeKind, PartyView, Pay, SpellView, Target,
+    FeatureView, ModeKind, PartyView, Pay, Rejection, SpellView, Target,
 };
 
 /// An action waiting for its target.
@@ -37,6 +40,9 @@ pub enum Action {
     /// Use the feature at this row of the acting member's features (`FighterView.features`) to
     /// swap places: Cunning Action's exchange.
     Feature(u8),
+    /// Use the feature at this row on the member themself: its plain use, or Cunning Action's
+    /// hide.
+    Own(u8),
 }
 
 /// Where the menu is.
@@ -92,10 +98,44 @@ pub enum Pick {
 /// An action with its row read out of the views: what a command needs besides the target.
 enum Resolved {
     Attack,
-    Cast { spell: String, pay: Pay },
-    Use { item: String },
+    Cast {
+        spell: String,
+        pay: Pay,
+    },
+    Use {
+        item: String,
+    },
     Swap,
-    Exchange { feature: String },
+    Exchange {
+        feature: String,
+    },
+    Own {
+        feature: String,
+        choice: FeatureChoice,
+    },
+}
+
+impl Resolved {
+    /// The option as the engine's list of targets names it.
+    fn chosen(&self) -> Chosen {
+        match self {
+            Resolved::Attack => Chosen::Attack,
+            Resolved::Cast { spell, pay } => Chosen::Spell {
+                spell: spell.clone(),
+                pay: *pay,
+            },
+            Resolved::Use { item } => Chosen::Item { item: item.clone() },
+            Resolved::Swap => Chosen::Exchange,
+            Resolved::Exchange { feature } => Chosen::Feature {
+                feature: feature.clone(),
+                exchange: true,
+            },
+            Resolved::Own { feature, .. } => Chosen::Feature {
+                feature: feature.clone(),
+                exchange: false,
+            },
+        }
+    }
 }
 
 /// What pays for a cast from the menu: the bonus action when it can, leaving the action.
@@ -136,6 +176,17 @@ fn resolve(view: &CombatView, action: Action) -> Option<Resolved> {
                 .feature
                 .clone(),
         },
+        Action::Own(row) => {
+            let f = features_of(view, acting(view)?).get(usize::from(row))?;
+            Resolved::Own {
+                feature: f.feature.clone(),
+                choice: if f.choices.contains(&ChoiceKind::Hide) {
+                    FeatureChoice::Hide
+                } else {
+                    FeatureChoice::None
+                },
+            }
+        }
     })
 }
 
@@ -162,6 +213,10 @@ fn build(action: &Resolved, pick: Pick) -> Option<Command> {
             feature: feature.clone(),
             choice: FeatureChoice::Exchange { with },
         },
+        (Resolved::Own { feature, choice }, Pick::Member(_)) => CombatCommand::Feature {
+            feature: feature.clone(),
+            choice: *choice,
+        },
         _ => return None,
     };
     Some(Command::Combat(combat))
@@ -174,28 +229,35 @@ pub fn command(world: &SimWorld, data: &Data, action: Action, pick: Pick) -> Opt
     build(&resolve(&view, action)?, pick)
 }
 
-/// Every stack still standing and every member, the candidates for any action.
-fn candidates(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Pick> {
-    let stacks = view.stacks.iter().filter(|s| s.alive).map(|s| s.stack);
-    let members = world.party(data).members.into_iter().map(|m| m.member);
-    stacks
-        .map(Pick::Stack)
-        .chain(members.map(Pick::Member))
-        .collect()
-}
-
-/// The targets the simulation accepts `action` on now, stacks first.
+/// The possible targets of `action` now, as the engine lists them: each with the reason the
+/// rules would refuse it, if they would. Stacks and members in the engine's order.
 #[must_use]
-pub fn targets(world: &SimWorld, data: &Data, action: Action) -> Vec<Pick> {
+pub fn listed(world: &SimWorld, data: &Data, action: Action) -> Vec<(Pick, Option<Rejection>)> {
     let Some(view) = world.combat(data) else {
         return Vec::new();
     };
-    let Some(resolved) = resolve(&view, action) else {
+    let (Some(own), Some(resolved)) = (acting(&view), resolve(&view, action)) else {
         return Vec::new();
     };
-    candidates(world, data, &view)
+    world
+        .targets(data, own, &resolved.chosen())
         .into_iter()
-        .filter(|&pick| build(&resolved, pick).is_some_and(|c| accepted(world, data, &c)))
+        .map(|row| {
+            let pick = match row.target {
+                Target::Stack(stack) => Pick::Stack(stack),
+                Target::Member(member) => Pick::Member(member),
+            };
+            (pick, row.refusal)
+        })
+        .collect()
+}
+
+/// The targets the simulation accepts `action` on now.
+#[must_use]
+pub fn targets(world: &SimWorld, data: &Data, action: Action) -> Vec<Pick> {
+    let rows = listed(world, data, action).into_iter();
+    rows.filter(|(_, refusal)| refusal.is_none())
+        .map(|(pick, _)| pick)
         .collect()
 }
 
@@ -253,13 +315,6 @@ fn name_of(world: &SimWorld, data: &Data, id: Option<CharacterId>) -> String {
     .map_or_else(|| "?".to_owned(), |m| m.name)
 }
 
-/// A spell whose target does not matter: the simulation takes it on a stack and on a member
-/// alike (light). It is cast on the caster without asking.
-fn untargeted(picks: &[Pick]) -> bool {
-    picks.iter().any(|p| matches!(p, Pick::Stack(_)))
-        && picks.iter().any(|p| matches!(p, Pick::Member(_)))
-}
-
 /// The fight's menu: which step it is on.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CombatMenu {
@@ -303,6 +358,12 @@ impl CombatMenu {
             Step::Target(Action::Feature(_)) => {
                 format!("{who} swaps places with whom (Cunning Action)?")
             }
+            Step::Target(Action::Own(row)) => {
+                let feature = features_of(&view, acting(&view).unwrap_or(CharacterId(0)));
+                let feature = feature.get(usize::from(row));
+                let feature = feature.map_or("the feature", |f| labels::text(data, &f.feature));
+                format!("{who} uses {feature} on whom?")
+            }
         }
     }
 
@@ -325,7 +386,7 @@ impl CombatMenu {
             Step::Spells => spells(world, data, &view, &party, own),
             Step::Features => features(world, data, &view, &party, own),
             Step::Items => items(world, data, &view, &party),
-            Step::Target(action) => target_entries(world, data, &view, action),
+            Step::Target(action) => target_entries(world, data, &view, &party, action),
         };
         entries.push(Entry {
             label: "Back".to_owned(),
@@ -366,7 +427,7 @@ impl CombatMenu {
         self.step = match self.step {
             Step::Target(Action::Cast(_)) => Step::Spells,
             Step::Target(Action::Use(_)) => Step::Items,
-            Step::Target(Action::Feature(_)) => Step::Features,
+            Step::Target(Action::Feature(_) | Action::Own(_)) => Step::Features,
             _ => Step::Top,
         };
     }
@@ -527,8 +588,9 @@ fn in_force(party: &PartyView, spell: &str, own: CharacterId) -> bool {
         .any(|e| e.spell == spell && e.caster == own)
 }
 
-/// The acting member's spells, each "Bless  1 pt". A spell whose target does not matter is cast
-/// at once on the caster; the others ask for a target. A spell the bonus action can pay for is
+/// The acting member's spells, each "Bless  1 pt". Every one asks for its target, a spell of
+/// the caster's own offering the caster alone; a spell with no target to choose is blocked
+/// with the first one's reason. A spell the bonus action can pay for is
 /// cast that way, leaving the action; it is blocked only when neither can pay. A reaction is
 /// never cast from here: it answers its trigger from the member's tactics. A live row's note
 /// says the spell is in force from this caster, or that it takes the bonus action.
@@ -560,23 +622,12 @@ fn spells(
                     note: None,
                 };
             }
-            let picks = targets(world, data, Action::Cast(row));
-            let mut entry = if untargeted(&picks) {
-                let cast = command(world, data, Action::Cast(row), Pick::Member(own));
-                order(
-                    world,
-                    data,
-                    party,
-                    label,
-                    cast.expect("a member target fits a cast"),
-                )
-            } else {
-                Entry {
-                    label,
-                    act: later,
-                    blocked: picks.is_empty().then(|| "no target".to_owned()),
-                    note: None,
-                }
+            let rows = listed(world, data, Action::Cast(row));
+            let mut entry = Entry {
+                label,
+                act: later,
+                blocked: unreachable_why(party, &rows, "no target"),
+                note: None,
             };
             if entry.blocked.is_none() {
                 entry.note = if in_force(party, &s.spell, own) {
@@ -616,12 +667,6 @@ fn features(
         };
         let name = labels::text(data, &f.feature);
         let refused = f.blocked.as_ref().map(|r| labels::reason(party, r));
-        let feature = |choice| {
-            Act::Command(Command::Combat(CombatCommand::Feature {
-                feature: f.feature.clone(),
-                choice,
-            }))
-        };
         if f.choices.contains(&ChoiceKind::Exchange) {
             let swap = targets(world, data, Action::Feature(row))
                 .is_empty()
@@ -644,16 +689,14 @@ fn features(
         } else {
             None
         };
-        if let Some((label, choice)) = choice {
-            let act = feature(choice);
-            let blocked = refused.clone().or_else(|| match &act {
-                Act::Command(c) => why(world, data, party, c),
-                _ => None,
-            });
+        if let Some((label, _)) = choice {
+            let listed = listed(world, data, Action::Own(row));
             rows.push(Entry {
                 label,
-                act,
-                blocked,
+                act: Act::Open(Step::Target(Action::Own(row))),
+                blocked: refused
+                    .clone()
+                    .or_else(|| unreachable_why(party, &listed, "cannot be used now")),
                 note: Some(uses(f)),
             });
         }
@@ -679,9 +722,8 @@ fn items(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) ->
                 .as_ref()
                 .map(|r| labels::reason(party, r))
                 .or_else(|| {
-                    targets(world, data, Action::Use(row))
-                        .is_empty()
-                        .then(|| "no one to use it on".to_owned())
+                    let rows = listed(world, data, Action::Use(row));
+                    unreachable_why(party, &rows, "no one to use it on")
                 });
             Entry {
                 label: labels::count_label(labels::text(data, &item.name), item.count),
@@ -693,14 +735,35 @@ fn items(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) ->
         .collect()
 }
 
-/// One entry per target the simulation accepts the action on.
-fn target_entries(world: &SimWorld, data: &Data, view: &CombatView, action: Action) -> Vec<Entry> {
+/// Why none of an option's possible targets can be chosen, if none can: the first one's
+/// reason in a few words, or `nothing` when there is no one to list.
+fn unreachable_why(
+    party: &PartyView,
+    rows: &[(Pick, Option<Rejection>)],
+    nothing: &str,
+) -> Option<String> {
+    if rows.iter().any(|(_, refusal)| refusal.is_none()) {
+        return None;
+    }
+    let first = rows.first().and_then(|(_, refusal)| refusal.as_ref());
+    Some(first.map_or_else(|| nothing.to_owned(), |r| labels::reason(party, r)))
+}
+
+/// One entry per possible target of the action, as the engine lists them: a target the rules
+/// would refuse stays listed, blocked with the reason.
+fn target_entries(
+    world: &SimWorld,
+    data: &Data,
+    view: &CombatView,
+    party: &PartyView,
+    action: Action,
+) -> Vec<Entry> {
     let Some(resolved) = resolve(view, action) else {
         return Vec::new();
     };
-    targets(world, data, action)
+    listed(world, data, action)
         .into_iter()
-        .filter_map(|pick| {
+        .filter_map(|(pick, refusal)| {
             let label = match pick {
                 Pick::Stack(i) => {
                     let s = view.stacks.iter().find(|s| s.stack == i)?;
@@ -711,7 +774,7 @@ fn target_entries(world: &SimWorld, data: &Data, view: &CombatView, action: Acti
             Some(Entry {
                 label,
                 act: Act::Command(build(&resolved, pick)?),
-                blocked: None,
+                blocked: refusal.map(|r| labels::reason(party, &r)),
                 note: None,
             })
         })

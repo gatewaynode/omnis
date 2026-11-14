@@ -174,21 +174,52 @@ fn a_spell_at_a_stack_and_a_spell_on_a_member() {
     assert!(events.iter().any(|e| matches!(e, Event::Healed { .. })));
 }
 
+/// "Self only shows self as the available option" (owner, 2026-11-14): a spell of the caster's
+/// own is not cast at once. It asks, and offers the caster alone.
 #[test]
-fn a_spell_whose_target_does_not_matter_is_cast_at_once() {
+fn a_spell_of_the_caster_s_own_asks_and_offers_the_caster_alone() {
     let session = turn_of("Durin");
-    let spells = CombatMenu { step: Step::Spells }.entries(&session.world, &session.data);
+    let (world, data) = (&session.world, &session.data);
+    let mut menu = CombatMenu { step: Step::Spells };
+    let spells = menu.entries(world, data);
     let light = entry(&spells, "Light");
     assert!(
+        matches!(light.act, Act::Open(Step::Target(Action::Cast(_)))),
+        "Light asks for its target: {light:?}"
+    );
+    assert_eq!(light.blocked, None);
+    assert_eq!(menu.choose(&light.act), None, "nothing is sent yet");
+    let targets = menu.entries(world, data);
+    assert_eq!(labels(&targets), ["Durin", "Back"]);
+    let Act::Command(command) = &entry(&targets, "Durin").act else {
+        panic!("a target sends the cast");
+    };
+    assert!(
         matches!(
-            &light.act,
-            Act::Command(Command::Combat(CombatCommand::Cast {
+            command,
+            Command::Combat(CombatCommand::Cast {
                 target: Target::Member(durin),
                 ..
-            })) if *durin == id(&session.world, 1)
+            }) if *durin == id(world, 1)
         ),
-        "cast on Durin, slot 1, without asking: {light:?}"
+        "{command:?}"
     );
+    events_of(world, data, command.clone());
+    // A click on anyone else chooses nothing.
+    assert_eq!(menu.pick(world, data, Pick::Member(id(world, 0))), None);
+    assert!(menu.pick(world, data, Pick::Member(id(world, 1))).is_some());
+    // Back from a target step returns to the list the option was chosen from.
+    for (step, list) in [
+        (Step::Target(Action::Cast(0)), Step::Spells),
+        (Step::Target(Action::Use(0)), Step::Items),
+        (Step::Target(Action::Feature(0)), Step::Features),
+        (Step::Target(Action::Own(0)), Step::Features),
+        (Step::Target(Action::Attack), Step::Top),
+    ] {
+        let mut menu = CombatMenu { step };
+        menu.back();
+        assert_eq!(menu.step, list, "{step:?}");
+    }
 }
 
 #[test]
@@ -392,5 +423,38 @@ fn a_member_is_picked_by_identity_wherever_they_stand() {
     assert_eq!(
         entry(&names, "Ilvara").act,
         Act::Command(Command::Combat(CombatCommand::Exchange { with: ilvara }))
+    );
+}
+
+/// A possible target the rules would refuse stays listed, blocked with the reason, and a click
+/// on it chooses nothing (owner, 2026-11-14: the list is the engine's, with its reasons).
+#[test]
+fn a_target_the_rules_refuse_is_listed_blocked_with_the_reason() {
+    let mut session = turn_of("Durin");
+    let dead = session
+        .data
+        .registry
+        .conditions
+        .get("base:condition:dead")
+        .unwrap();
+    let brenna = id(&session.world, 0);
+    session.world.party.members[0].hp = 0;
+    session.world.party.members[0].conditions.push(dead);
+    let (world, data) = (&session.world, &session.data);
+    let mut menu = CombatMenu { step: Step::Spells };
+    let cure = entry(&menu.entries(world, data), "Cure Wounds").clone();
+    assert_eq!(cure.blocked, None, "others can still be healed");
+    menu.choose(&cure.act);
+    let targets = menu.entries(world, data);
+    assert_eq!(labels(&targets)[0], "Brenna", "still listed");
+    assert_eq!(
+        entry(&targets, "Brenna").blocked.as_deref(),
+        Some("Brenna is dead")
+    );
+    assert_eq!(entry(&targets, "Durin").blocked, None);
+    assert_eq!(menu.pick(world, data, Pick::Member(brenna)), None);
+    assert!(
+        matches!(menu.step, Step::Target(Action::Cast(_))),
+        "the step waits"
     );
 }
