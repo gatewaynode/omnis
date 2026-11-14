@@ -298,22 +298,14 @@ pub(crate) fn meet(
     )
 }
 
-/// Build the stacks, settle surprise, and either offer the choice or start the fight with the
-/// party surprised.
-#[allow(clippy::too_many_arguments)]
-fn begin(
-    world: &mut World,
+/// The stacks of a group as a fight holds them, each individual's hit points rolled.
+fn build(
     data: &Data,
-    source: EncounterSource,
-    stacks: Vec<(MonsterId, u8)>,
-    disposition: Disposition,
-    counts: Vec<RollTrace>,
-    retreat: Position,
-    events: &mut Vec<Event>,
-) -> Result<(), RuleError> {
-    let mut roller = Roller::take(world);
+    stacks: &[(MonsterId, u8)],
+    roller: &mut Roller,
+) -> Result<Vec<Stack>, RuleError> {
     let mut built = Vec::with_capacity(stacks.len());
-    for (monster, count) in &stacks {
+    for (monster, count) in stacks {
         let m = data
             .monsters
             .get(monster)
@@ -334,10 +326,76 @@ fn begin(
             spent: Vec::new(),
         });
     }
+    Ok(built)
+}
+
+/// The party's best passive Perception among those who can act.
+fn best_perception(world: &World, data: &Data) -> Result<i64, RuleError> {
     let mut perception = 0;
     for member in world.party.members.iter().filter(|m| can_fight(m, data)) {
         perception = perception.max(passive(member, data, Skill::Perception)?);
     }
+    Ok(perception)
+}
+
+/// The placed group `id` of the party's map as a fight's encounter, struck from the road (the
+/// opening strike, PRD §8.2): its stacks are rolled as for any meeting, it is hostile whatever
+/// it was, there is no surprise roll and no choice before the fight, and Run puts the party
+/// back at `retreat`. None when the map has no such group.
+pub(crate) fn struck(
+    world: &mut World,
+    data: &Data,
+    id: &str,
+    retreat: Position,
+    events: &mut Vec<Event>,
+) -> Result<Option<EncounterState>, RuleError> {
+    let Some(e) = data
+        .maps
+        .get(&world.position.map)
+        .and_then(|m| m.encounter(id))
+    else {
+        return Ok(None);
+    };
+    let mut roller = Roller::take(world);
+    let built = build(data, &e.stacks, &mut roller)?;
+    let stacks = e.stacks.iter();
+    events.push(Event::EncounterStarted {
+        source: EncounterSource::Fixed(e.id.clone()),
+        stacks: stacks
+            .map(|&(monster, count)| (id_of(&data.registry.monsters, monster), count))
+            .collect(),
+        disposition: Disposition::Hostile,
+        counts: Vec::new(),
+        stealth: None,
+        perception: best_perception(world, data)?,
+        noticed: true,
+    });
+    roller.store(world);
+    world.quiet = quiet_steps(data);
+    Ok(Some(EncounterState {
+        source: EncounterSource::Fixed(e.id.clone()),
+        stacks: built,
+        disposition: Disposition::Hostile,
+        retreat,
+    }))
+}
+
+/// Build the stacks, settle surprise, and either offer the choice or start the fight with the
+/// party surprised.
+#[allow(clippy::too_many_arguments)]
+fn begin(
+    world: &mut World,
+    data: &Data,
+    source: EncounterSource,
+    stacks: Vec<(MonsterId, u8)>,
+    disposition: Disposition,
+    counts: Vec<RollTrace>,
+    retreat: Position,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let mut roller = Roller::take(world);
+    let built = build(data, &stacks, &mut roller)?;
+    let perception = best_perception(world, data)?;
     // The surprise check is a rules value (`surprise`, off by default since 2026-09-13): with
     // it off every group is noticed and the party always gets its choice.
     // An ambush at rest reads its own value, `rest_ambush_surprise`.

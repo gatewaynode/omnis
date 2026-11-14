@@ -2,7 +2,8 @@
 //! door or an object of the party's level, how far it is as a king moves, whether the line to
 //! it is clear, and whether the party can touch it. Sight is asked in every direction from the
 //! party's tile, not only the way it faces. What the party neither sees nor knows of is not
-//! there: a hidden object not found, a thing on an unexplored tile behind a wall.
+//! there: a hidden object not found, a thing on an unexplored tile behind a wall. A standing
+//! group is there only while it is seen (step 7).
 
 use super::Sight;
 use crate::combat::cast::Target;
@@ -114,6 +115,31 @@ pub(crate) fn object<'d>(
         };
         (placement, spot)
     })
+}
+
+/// The group `id` standing on the party's level, when the party sees it. A group out of sight
+/// is not there for the party, known of or not: it may have moved on.
+pub(crate) fn being(world: &World, data: &Data, id: &str) -> Option<Spot> {
+    let stood = crate::beings::stood(world, data);
+    let (_, tile) = stood.into_iter().find(|(being, _)| *being == id)?;
+    sees(world, data, tile).then(|| Spot {
+        distance: distance(world, tile),
+        sight: Sight::Clear,
+        touch: crate::beings::in_reach(world, data).iter().any(|b| b == id),
+    })
+}
+
+/// The groups in sight that `targeting` reaches, nearest first.
+pub(crate) fn beings(world: &World, data: &Data, targeting: Targeting) -> Vec<(Target, Spot)> {
+    let stood = crate::beings::stood(world, data);
+    let mut found: Vec<(Target, Spot)> = stood
+        .into_iter()
+        .filter_map(|(id, _)| Some((id, being(world, data, id)?)))
+        .filter(|(_, spot)| within(world, data, targeting, *spot).is_ok())
+        .map(|(id, spot)| (Target::Being { being: id.into() }, spot))
+        .collect();
+    found.sort_by(|a, b| (a.1.distance, &a.0).cmp(&(b.1.distance, &b.0)));
+    found
 }
 
 /// How far `targeting` looks for things of the map: nothing its range cannot reach is farther.

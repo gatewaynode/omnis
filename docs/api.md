@@ -593,7 +593,8 @@ met).
 
 ### 7.8 `CastView`
 
-One entry per spell a member may cast outside a fight, in marching order, then the order the
+One entry per spell a member may cast outside a fight (a heal, a buff, a light, a spell on
+the world, and a harmful spell, which on the road is an opening strike), in marching order, then the order the
 member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spell` (the spell
 id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast charges: the
 spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
@@ -636,6 +637,12 @@ another level, a door behind a wall on an unexplored tile. A thing beyond the ra
 listed and is refused `BeyondRange`. An object that offers a hand nothing (none of `Open`,
 `Close`, `Push`, `Pull`, `Use` in its state) is not listed and is refused `VerbRefused`
 (`NotOffered`).
+
+On the road a harmful spell (an attack, an auto-hit, a save) lists the standing groups of the
+party's level that the party sees and the spell's `targeting` reaches, nearest first, as
+`{"Being": ...}` rows (`Touch` is the group `Approach` reaches). A group is there only while
+it is seen: out of sight it is not listed and is refused `NoSuchBeing`, known of or not;
+beyond the range, `BeyondRange`. With no group in sight the list is empty.
 
 ### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
 
@@ -831,7 +838,7 @@ means the same thing after a reorder or a change to a list.
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
-| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. |
+| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. A harmful spell (an attack, an auto-hit, a save) takes a `Being`, a standing group in sight and in range, and is the **opening strike**: the cast is paid; `EncounterStarted` follows with the group hostile whatever it was, `noticed` true and no stealth roll; then `CombatStarted` with `surprised: "Monsters"` (or `"None"` when the rules value `opening_strike_surprise` is written 0), `Initiative`, the spell's own events on the group's first stack in front by its `reach` as in a fight, and round one. The strike was the caster's action for round one (`CombatState.struck` until that turn begins). No pre-fight choice is offered, no minute passes (the fight keeps the time), and Run returns the party to where it stood. Any other target for a harmful spell on the road is `WrongTarget`. |
 | `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
@@ -864,8 +871,8 @@ the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn
 `{"Door": {"x", "y", "facing"}}` (a door of the party's level by a tile and the edge of it the
 door stands on; either tile of the edge names the same door, and the list gives the south or
 east edge's tile), `{"Object": {"object"}}` (a placement's id in the party's map, as `Act`
-takes it) and `{"Being": {"being"}}` (a standing group's id, as `Approach` takes it; refused
-`WrongTarget` until the opening strike is built). A fight's cast takes a stack or a member
+takes it) and `{"Being": {"being"}}` (a standing group's id, as `Approach` takes it: the
+target of a harmful spell, the opening strike). A fight's cast takes a stack or a member
 only. `Pay`: `Action`, `BonusAction`.
 `FeatureChoice`: `None`, `Exchange { with }` (Cunning Action's swap, `with` a `CharacterId`),
 `Hide`.
@@ -1239,7 +1246,7 @@ As of protocol 2:
 - **Triggers.** `SpellCast` and `EnemyCasts` are raised, but no action can answer them (only
   reaction spells answer, and only `Attacked`, `MemberAttacked`, `MemberWounded`,
   `MemberDying`). `EnemyFlees` and `OwnTurn` have no source; `TacticsView.auto` is stored, not
-  built. `Surprise::Monsters` is reserved and never produced.
+  built.
 - **Stubs.** `RestEvent` changes nothing yet. `MessageKey` has one key, `NothingHere`.
 - **Transport.** The dev socket has no authentication beyond loopback, one client, and exists
   only in `devtools` builds. `Failed` and `BadRequest` messages are English text, not keys.
@@ -1289,6 +1296,14 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (targeting, step 7: the opening strike; PRD §8.2): `Command::Cast` of an attack, auto-hit or
+  save spell at `Target::Being` starts a fight with the spell already landed (see `Cast`). **Changes of
+  behaviour**: such a spell on the road was `NotCastable` and is now castable (at a stack or a member it is
+  `WrongTarget`); `cast.get` lists harmful spells, so a caster's road list is longer; `Surprise::Monsters`,
+  reserved until now, is produced; `EncounterStarted` and `CombatStarted` can follow a `Cast`. `CombatState`
+  gains `struck` (the caster whose first action the strike was; left out when none, so `SAVE_SCHEMA` stays 9).
+  A rules value, `opening_strike_surprise` (on unless a pack writes 0), turns the surprise off. `targets.get`
+  lists the groups in sight for a harmful spell. No op, rejection or event is added.
 - 2026-11-14 (targeting, step 6: things of the map): `Target` gains `Door { x, y, facing }`,
   `Object { object }` and `Being { being }`, so it is no longer `Copy` in Tier 1. On the road `targets.get`
   lists the doors and objects a spell that works on the world reaches, with `distance` and `sight` filled in

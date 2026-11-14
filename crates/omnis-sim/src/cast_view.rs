@@ -41,7 +41,8 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
             let Some(def) = data.spells.get(id) else {
                 continue;
             };
-            if !def.effect.as_ref().is_some_and(|e| e.explore_castable()) {
+            let on_the_road = |e: &omnis_data::SpellEffect| e.explore_castable() || e.strikes();
+            if !def.effect.as_ref().is_some_and(on_the_road) {
                 continue;
             }
             rows.push(CastView {

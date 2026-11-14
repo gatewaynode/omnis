@@ -8,8 +8,8 @@ use crate::screen::{Control, ControlId, Game, Panel, Row, Screen, ScreenId, Span
 use crate::style::{Role, Size};
 use omnis_sim::api::{Chosen, Sight, TargetView};
 use omnis_sim::omnis_core::{CharacterId, Facing};
-use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::placement::ResolvedPlacement;
+use omnis_sim::omnis_data::{Data, ResolvedEncounter};
 use omnis_sim::{Command, ItemCommand, Target};
 
 /// An option chosen on the road, waiting for its target.
@@ -129,7 +129,8 @@ fn cell(data: &Data, game: Game, target: &Target) -> Option<(u16, u16)> {
     match target {
         Target::Door { x, y, .. } => Some((*x, *y)),
         Target::Object { object } => placed(data, game, object).map(|p| (p.x, p.y)),
-        Target::Being { .. } | Target::Member(_) | Target::Stack(_) => None,
+        Target::Being { being } => stood(data, game, being).map(|e| (e.x, e.y)),
+        Target::Member(_) | Target::Stack(_) => None,
     }
 }
 
@@ -140,6 +141,11 @@ fn placed<'d>(data: &'d Data, game: Game, id: &str) -> Option<&'d ResolvedPlacem
     objects
         .into_iter()
         .find(|p| p.id == id && p.level == at.level)
+}
+
+/// The placed group `id` of the party's map.
+fn stood<'d>(data: &'d Data, game: Game, id: &str) -> Option<&'d ResolvedEncounter> {
+    data.maps.get(&game.views.position.map)?.encounter(id)
 }
 
 /// Which way a point lies from the party, in half tiles east and south of it: one of the
@@ -203,7 +209,17 @@ fn label(data: &Data, game: Game, aim: &Aim, target: &Target) -> (String, Option
             let way = placement.map_or("here", |p| toward(game, (p.x, p.y), None));
             (format!("{name}, {way}"), None)
         }
-        Target::Being { .. } => ("A group".to_owned(), None),
+        Target::Being { being } => {
+            let Some(group) = stood(data, game, being) else {
+                return ("A group".to_owned(), None);
+            };
+            let monsters = &data.registry.monsters;
+            let front = group.front().and_then(|id| monsters.name(id));
+            let name = front.map_or("Something", |id| labels::monster(data, id));
+            let count = group.stacks.iter().map(|s| u16::from(s.1)).sum();
+            let way = toward(game, (group.x, group.y), None);
+            (format!("{}, {way}", labels::count_label(name, count)), None)
+        }
     }
 }
 

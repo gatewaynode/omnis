@@ -730,9 +730,9 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
             spell: missile.clone(),
             target: Target::Stack(0),
         },
-        Rejection::NotCastable {
-            spell: missile.clone(),
-        },
+        // A harmful spell on the road is sent at a group in sight (the opening strike); a
+        // stack is a fight's target.
+        Rejection::WrongTarget,
     );
     let cure = spell_index(&world, &data, CLERIC, "cure_wounds");
     refuse(

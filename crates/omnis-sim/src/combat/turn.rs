@@ -26,6 +26,7 @@ pub(crate) fn start(
     data: &Data,
     encounter: EncounterState,
     surprised: Surprise,
+    opening: Option<&cast::CastPlan>,
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
@@ -48,6 +49,7 @@ pub(crate) fn start(
         reactions: Vec::new(),
         hidden: Vec::new(),
         monster_shields: Vec::new(),
+        struck: None,
     };
     // Every combatant may react from the start, except the side that is surprised, which gets
     // its reactions at its first turn.
@@ -61,10 +63,34 @@ pub(crate) fn start(
         }
     }
     world.bus.subscribe(Topic::Battle, Subscriber::Reactions);
+    if let Some(plan) = opening {
+        strike(world, data, &mut state, plan, roller, events)?;
+    }
     events.push(Event::RoundStarted { round: 1 });
     if !run_until_member(world, data, &mut state, roller, events)? {
         world.mode = Mode::Combat(state);
     }
+    Ok(())
+}
+
+/// The opening strike: a spell already paid for on the road lands on the group before the
+/// first round, on its first stack in front, by the spell's reach as in any fight; it was the
+/// caster's action for the round.
+fn strike(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    plan: &cast::CastPlan,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let front = state.front_stacks(data).first().copied().unwrap_or(0);
+    let plan = cast::CastPlan {
+        target: cast::Aim::Stack(front),
+        ..plan.clone()
+    };
+    cast::resolve(world, data, state, &plan, roller, events)?;
+    state.struck = world.party.members.get(plan.own).map(|m| m.id);
     Ok(())
 }
 
@@ -328,6 +354,11 @@ pub(crate) fn run_until_member(
                 if member_acts(state, world, data, id) {
                     effects::clear_next_turn(world, data, Some(id), EffectEnd::TurnBegan, events);
                     budget::begin_member_turn(world, data, state, id, roller)?;
+                    if state.struck == Some(id) {
+                        // The strike that opened the fight was this turn's action.
+                        state.struck = None;
+                        state.budget.actions = state.budget.actions.saturating_sub(1);
+                    }
                     events.push(Event::Turn { actor });
                     return Ok(false);
                 }

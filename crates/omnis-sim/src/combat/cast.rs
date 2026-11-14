@@ -117,7 +117,8 @@ pub fn check<'a>(
         _ if spell.cost == Cost::Reaction => false,
         None | Some(SpellEffect::Reaction { .. }) => false,
         Some(SpellEffect::Utility(_)) => !fight,
-        Some(effect) => fight || effect.explore_castable(),
+        // A harmful spell is cast on the road as an opening strike, at a group in sight.
+        Some(effect) => fight || effect.explore_castable() || effect.strikes(),
     };
     if !castable {
         return Err(Rejection::NotCastable {

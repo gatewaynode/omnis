@@ -9,6 +9,7 @@ use crate::event::Event;
 use crate::party;
 use crate::utility::{self, Hand};
 use crate::world::World;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32};
 use omnis_data::{Data, Spell, SpellEffect, Utility};
@@ -25,6 +26,8 @@ pub(crate) struct Checked<'a> {
     plan: CastPlan,
     /// What a hand will do, when the spell is one.
     hand: Option<Hand<'a>>,
+    /// The standing group an opening strike is sent at, when the cast is one.
+    strike: Option<String>,
 }
 
 /// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
@@ -67,10 +70,19 @@ pub(crate) fn validate<'a>(
         }
         _ => None,
     };
+    // A harmful spell on the road is an opening strike, at a group the party sees.
+    let strike = match &target {
+        Target::Being { being } if effect.strikes() => {
+            crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
+            Some(being.clone())
+        }
+        _ if effect.strikes() => return Err(Rejection::WrongTarget),
+        _ => None,
+    };
     let aim = match target {
         Target::Member(id) => Aim::Member(usize::from(world.party.slot_of(id)?)),
         Target::Stack(stack) => Aim::Stack(stack),
-        _ if hand.is_some() => Aim::Party,
+        _ if hand.is_some() || strike.is_some() => Aim::Party,
         _ => return Err(Rejection::WrongTarget),
     };
     let plan = CastPlan {
@@ -85,6 +97,7 @@ pub(crate) fn validate<'a>(
         effect,
         plan,
         hand,
+        strike,
     })
 }
 
@@ -105,8 +118,24 @@ pub(crate) fn apply(
         effect,
         plan,
         hand,
+        strike,
     } = validate(world, data, caster, spell, target, &mut roller.rng)?;
     cast::pay(world, data, &plan, events).map_err(Rejection::Rule)?;
+    if let Some(being) = strike {
+        // The opening strike: the group is met where the party stands and the spell lands in
+        // the fight it starts, which keeps the time from here.
+        roller.store(world);
+        let retreat = omnis_core::Position {
+            facing: world.position.facing.opposite(),
+            ..world.position
+        };
+        let met = crate::encounter::struck(world, data, &being, retreat, events);
+        if let Some(state) = met.map_err(Rejection::Rule)? {
+            crate::combat::start_struck(world, data, state, &plan, events)
+                .map_err(Rejection::Rule)?;
+        }
+        return Ok(());
+    }
     match (effect, plan.target) {
         (SpellEffect::Heal { dice, add_mod }, Aim::Member(slot)) => {
             let caster = &world.party.members[own];

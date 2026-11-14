@@ -67,6 +67,11 @@ pub struct CombatState {
     /// sorted.
     #[serde(default)]
     pub monster_shields: Vec<(u8, u8)>,
+    /// The member whose spell opened the fight from the road (the opening strike): the strike
+    /// was their action for the first round, taken off when that turn begins. Unwritten when
+    /// none, so a save of a fight that began any other way reads as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub struck: Option<CharacterId>,
 }
 
 /// The actions and bonus actions left in the current turn.

@@ -32,6 +32,7 @@ mod object_act;
 mod object_use;
 mod objects;
 mod objects_view;
+mod opening_strike;
 mod ops;
 mod party;
 mod reactions;

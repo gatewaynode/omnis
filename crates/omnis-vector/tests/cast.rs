@@ -249,6 +249,9 @@ fn a_heal_offers_every_member_and_goes_to_the_one_chosen() {
             .unwrap();
         if c.cost > 0 {
             assert_eq!(control.why_not, Some(format!("need {} pt", c.cost)));
+        } else if c.spell == "base:spell:sacred_flame" {
+            // A harmful cantrip is listed on the road and waits for a group in sight.
+            assert_eq!(control.why_not.as_deref(), Some("nothing in reach"));
         } else {
             assert_eq!(control.why_not, None, "a cantrip costs nothing");
         }

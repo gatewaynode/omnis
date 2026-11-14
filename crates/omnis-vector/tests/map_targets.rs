@@ -104,6 +104,61 @@ fn a_hand_s_targets_are_named_with_the_way_they_lie_and_how_far() {
     assert_eq!(heal.marked(&data, game, 0), None);
 }
 
+/// A harmful spell on the road names the group in sight, how many, which way and how far; the
+/// row sends the cast at the group and closes the screen, since a fight follows (the opening
+/// strike); the group's cell is what the view marks.
+#[test]
+fn a_harmful_spell_s_target_is_the_group_in_sight_and_the_screen_gives_way() {
+    let data = common::objects_data();
+    let world = crate::loot::yard(&data, 3, 1, Facing::East);
+    let ilvara = common::id(&world, 2);
+    let views = common::views(&world, &data);
+    let context = ctx(&data, &world, &views);
+    let mut forms = Forms::default();
+    forms.owner = Some(ilvara);
+    let bolt = "base:spell:fire_bolt";
+    // The spell is on the road's list now, free while a group is in sight.
+    let at = views
+        .casts
+        .iter()
+        .position(|c| c.caster == ilvara && c.spell == bolt);
+    let cast = ControlId::Cast(u16::try_from(at.expect("fire bolt, on the road")).unwrap());
+    let list = screen::content(ScreenId::Cast, &context, &forms);
+    assert_eq!(list.control(cast).unwrap().why_not, None);
+    let press = |forms: &mut Forms, id| {
+        screen::apply(ScreenId::Cast, &context, forms, id, &Payload::Press, 0)
+    };
+    assert_eq!(press(&mut forms, cast), Ok(Effect::None));
+    let step = screen::content(ScreenId::Cast, &context, &forms);
+    let rows: Vec<_> = step.panels[0]
+        .rows
+        .iter()
+        .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
+        .collect();
+    assert_eq!(rows.len(), 1);
+    let rat = labels::monster(&data, "objects:monster:pack_rat");
+    assert_eq!(
+        (
+            rows[0].spans[0].text.clone(),
+            rows[0].after[0].text.as_str()
+        ),
+        (format!("{}, east", labels::count_label(rat, 2)), "2 tiles")
+    );
+    let aim = forms.aim.clone().unwrap();
+    assert_eq!(aim.marked(&data, context.game.unwrap(), 0), Some((5, 1)));
+    let sent = press(&mut forms, ControlId::Target(0));
+    let Ok(Effect::Command {
+        command,
+        close: true,
+    }) = sent
+    else {
+        panic!("the row sends the strike and closes the screen: {sent:?}");
+    };
+    let mut after = world.clone();
+    after.apply(&data, command).expect("the strike");
+    assert!(after.combat(&data).is_some(), "a fight follows");
+}
+
 /// The ends of the view's outline, when one is drawn.
 fn outline(app: &mut App) -> Option<Vec<[f32; 3]>> {
     let world = app.world_mut();

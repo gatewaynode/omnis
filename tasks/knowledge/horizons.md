@@ -142,7 +142,7 @@ corners in 1a). No saving mid-fight is the owner's rule (2026-10-15), built in M
 
 ## Combat and magic
 `Reach::AllStacks`, upcasting, counterspell (monster spellcasting came with Bob the Rat King, M7c), torches,
-`Surprise::Monsters`, finesse weapons, encounter budgets (M9) and loot tables for the base monsters
+finesse weapons, encounter budgets (M9) and loot tables for the base monsters
 (the mechanism came in M8.5 step 2a), floating damage numbers, MAP in a fight,
 `turn::act` restoring `party` as well as `state` on a `RuleError`.
 

@@ -108,7 +108,12 @@ pub(crate) fn in_range(
                 })?;
             map::within(world, data, targeting, spot)
         }
-        (_, Target::Being { .. }) => Err(Rejection::WrongTarget),
+        (_, Target::Being { being }) => {
+            let spot = map::being(world, data, being).ok_or_else(|| Rejection::NoSuchBeing {
+                being: being.clone(),
+            })?;
+            map::within(world, data, targeting, spot)
+        }
         (Range::Own, Target::Member(id)) if Some(*id) == actor => Ok(()),
         (Range::Own | Range::Link, _) => Err(Rejection::BeyondRange),
         (Range::Touch | Range::Tiles(_) | Range::Sight, Target::Member(_)) => Ok(()),
@@ -182,6 +187,12 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
     let hand = matches!(effect, SpellEffect::Utility(Utility::OpenDoor { .. }));
     if hand && matches!(world.mode, Mode::Explore) {
         return hand_rows(world, data, def.targeting());
+    }
+    if effect.strikes() && matches!(world.mode, Mode::Explore) {
+        let groups = map::beings(world, data, def.targeting()).into_iter();
+        return groups
+            .map(|(target, spot)| (target, spot.distance, spot.sight))
+            .collect();
     }
     let on_the_party = matches!(
         effect,

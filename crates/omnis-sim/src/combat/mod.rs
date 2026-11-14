@@ -188,7 +188,38 @@ pub fn start(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let mut roller = Roller::take(world);
-    turn::start(world, data, encounter, surprised, &mut roller, events)?;
+    turn::start(world, data, encounter, surprised, None, &mut roller, events)?;
+    roller.store(world);
+    Ok(())
+}
+
+/// Start a fight with a spell cast from the road (the opening strike, PRD §8.2): `plan` is
+/// paid already; it lands on the group before the first round and was its caster's action
+/// for that round. The monsters are surprised unless the rules value
+/// `opening_strike_surprise` is written 0.
+pub(crate) fn start_struck(
+    world: &mut World,
+    data: &Data,
+    encounter: EncounterState,
+    plan: &cast::CastPlan,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let caught = data.rules.value("opening_strike_surprise").unwrap_or(1) != 0;
+    let surprised = if caught {
+        Surprise::Monsters
+    } else {
+        Surprise::None
+    };
+    let mut roller = Roller::take(world);
+    turn::start(
+        world,
+        data,
+        encounter,
+        surprised,
+        Some(plan),
+        &mut roller,
+        events,
+    )?;
     roller.store(world);
     Ok(())
 }

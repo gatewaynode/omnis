@@ -147,7 +147,7 @@ old saves only).
   (`on_attack`, `on_wound`, `on_cast`, `on_missile`: declared reactions walked in marching order),
   `combat/monster_cast.rs` (a monster's dice roll among its weapon and affordable spells; attack,
   missile and save spells; a caster's own Shield). `CombatState` gains `budget`, `reactions`,
-  `hidden`, `monster_shields`; `Stack.spent` (points per individual). `tactics.rs`
+  `hidden`, `monster_shields`, `struck` (the opening strike's caster: `combat::start_struck`, `turn::strike`, `encounter::struck`, `casting::apply`); `Stack.spent` (points per individual). `tactics.rs`
   (`TacticsCommand { SetReactions, PutReaction { at }, RemoveReaction }`, `answers`: what an action
   may answer). `view.rs` (`combat_view`: budget, reactions, hidden, members' switch and features,
   points, shields, spell rows' `blocked` and `bonus`); `party_view.rs` (moved out of `ops.rs` in

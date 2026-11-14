@@ -125,6 +125,16 @@ impl SpellEffect {
         matches!(self, SpellEffect::Heal { .. } | SpellEffect::Buff { .. })
     }
 
+    /// Whether the effect harms monsters: an attack, a hit that cannot miss, or a save. What
+    /// may open a fight from the road (the opening strike, PRD §8.2).
+    #[must_use]
+    pub const fn strikes(&self) -> bool {
+        matches!(
+            self,
+            SpellEffect::Attack { .. } | SpellEffect::AutoHit { .. } | SpellEffect::Save { .. }
+        )
+    }
+
     /// Whether the effect can be cast outside a fight.
     #[must_use]
     pub const fn explore_castable(&self) -> bool {

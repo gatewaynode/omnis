@@ -140,6 +140,16 @@ pub(crate) fn reached(world: &World, data: &Data) -> Vec<BeingView> {
         .collect()
 }
 
+/// Every group standing on the party's level, with its cell, in file order: what a spell may
+/// be sent at when the party sees it.
+pub(crate) fn stood<'d>(world: &World, data: &'d Data) -> Vec<(&'d str, (u16, u16))> {
+    let pos = world.position;
+    standing(world, data, pos.map)
+        .filter(|(e, _)| e.level == pos.level)
+        .map(|(e, _)| (e.id.as_str(), (e.x, e.y)))
+        .collect()
+}
+
 /// The ids of the groups standing in reach.
 pub(crate) fn in_reach(world: &World, data: &Data) -> Vec<String> {
     reached(world, data).into_iter().map(|b| b.being).collect()

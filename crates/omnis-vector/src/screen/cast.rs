@@ -13,6 +13,7 @@ use crate::style::{Role, Size};
 use crate::targeting::Aim;
 use omnis_sim::api::CastView;
 use omnis_sim::omnis_data::Data;
+use omnis_sim::{Command, Target};
 
 /// A small dim note.
 fn note(text: impl Into<String>) -> Span {
@@ -121,9 +122,20 @@ pub fn apply(
         }
         ControlId::Target(at) => {
             let command = forms.aim.take().and_then(|aim| aim.chosen(data, game, at));
+            // A spell sent at a group opens a fight (the opening strike): the screen gives way
+            // to it. Any other cast leaves the screen up for the next.
+            let strikes = |command: &Command| {
+                matches!(
+                    command,
+                    Command::Cast {
+                        target: Target::Being { .. },
+                        ..
+                    }
+                )
+            };
             command.map_or(Effect::None, |command| Effect::Command {
+                close: strikes(&command),
                 command,
-                close: false,
             })
         }
         _ => Effect::None,
