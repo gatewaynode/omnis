@@ -547,3 +547,20 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
   (the plain headless app lays nothing out: every rectangle of `screen_text` is 0, and it has no
   `InputFocus` unless a test inserts one). A tip's node is found by its text; `Hovered` is inserted by hand.
 
+## The fight on the palette (2026-11-13, `tasks/plans/fight-on-the-palette.md`)
+- The arena's inks: `tones.rs` (`Side`, `Tone` with sides, `ink(tone, &Palette)`, the factors `DOWN`, `DEAD`,
+  `BAR`, `HEALTH`, `TARGET`, `HOVER`); `arena.rs` re-exports `Side` and `Tone`; `shell/combat.rs::palette`
+  (the fight's map's palette) and `draw`.
+- The picture window: `cinema::Inks::of(&Palette)` (hostile ink, its glow taken out; `ground` is the
+  theme's panel shade), `paint(scene, w, h, inks)`; `shell/cinema.rs` keeps the last image by scene and inks.
+- The interface's theme: `style::Theme` (`default`, `of(&Palette)`, `rgb(Role)`, `shade(i)`; `style::srgb`);
+  `shell/theme.rs`: the `Theme` resource, `follow` (the fight's map's theme in `ViewState::Fight`, else the
+  default), the components `Ink`, `Edge`, `Fill` with the bundles `ink(role)`, `edge(role)`, `fill(i)`,
+  `solid(role)`, and `apply` (PostUpdate) which paints them when made, when a role changes and when the
+  theme does, keeping alpha. A system that changes a node's role writes the component (`controls::light`,
+  `loot::offer`, `screen_draw::sync`); one that fades or shades reads `Res<Theme>` (`controls::shade`,
+  `notice::paint`, `hud::log`). `screen_draw::{colour, shade}` remain as the default theme's, for tests,
+  the editor's selection and the text cursor. Icons (`icons::tint`) are not on the theme.
+- Tests: `tests/fight_palette.rs` (the yard's fight through `common::app::met_in_the_yard`; every text,
+  border and background of the world is read and none may keep the other theme's own colours),
+  `tests/contrast.rs` (the two sides apart), unit tests in `tones.rs`, `cinema.rs`, `style.rs`.

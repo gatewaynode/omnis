@@ -1,6 +1,24 @@
 # Continuity notes
 
-Written 2026-11-13, later the same day. **The owner tried part 3 and reported two things; both are built
+Written 2026-11-13, evening. **The fight screen and the picture window are on the palette: built, not
+yet tried by the owner** (`tasks/plans/fight-on-the-palette.md`, approved in plan mode;
+`tasks/acceptance/fight-on-the-palette.md`, which ends with five decisions). Commits `64e61897` (plan),
+`76b3623a` (arena), `90b67da7` (picture window), `06b96af3` (theme), then the documents. Gate 1352.
+- **Owner's choices**: scope is the fight screen and the picture window; party ink and hostile ink by
+  side; the fight's interface follows the biosphere's interface ink, other screens green until the HUD's
+  plan.
+- **Built**: `tones.rs` (`Tone` with `Side`, `ink`), `cinema::Inks`, `style::Theme`, `shell/theme.rs`
+  (`Ink`, `Edge`, `Fill` painted by `apply`; `follow` gives the fight's map's theme in a fight only). See
+  the code-map's last section. `controls::GREEN`/`SHADES` are gone.
+- **Open with the owner**: this sheet's five decisions (amber and cyan gone; dead not red; party and
+  interface one hue by default; HUD or minimap next; icons); part 3's five; loot everywhere's try.
+- **Next, in the owner's order**: the HUD (lift `follow`'s fight-only rule, icons, the cursor) or the
+  minimap, each its own plan; then parts 4, 5, 6.
+- **Process notes**: the fixture fight on a biosphere map is `common::app::met_in_the_yard`; a windowed
+  game started from here did not answer its dev socket (no picture); the mutation runner only runs
+  integration tests, so a mutant must be caught there.
+
+**Before that, the same day**: the editor's forms and tips, accepted. **The owner tried part 3 and reported two things; both are built
 and accepted (2026-11-13: "Label brightness is fine and the wording is pretty good for what I reviewed.
 Consider this accepted."; the keyboard's tip, list rows and other screens were not answered and stay as
 built)** (`tasks/plans/editor-forms-and-tips.md`, approved in plan mode; the owner's script

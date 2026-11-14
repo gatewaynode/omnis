@@ -809,7 +809,8 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     (caught by the compiler, read and removed); an interrupted mutation run left a mutant in the tree,
     found by the next run's own assertion and restored. Not built: tips and the new rows on the game's
     screens and Settings; a tip listing in `screen.text`. Not seen by me: a tip following a real pointer.
-- [ ] **The fight screen and the picture window on the palette** (owner, 2026-11-13;
+- [x] **The fight screen and the picture window on the palette** (built, not yet tried by the owner;
+  `tasks/acceptance/fight-on-the-palette.md`) (owner, 2026-11-13;
   `tasks/plans/fight-on-the-palette.md`, approved in plan mode the same day). Owner's choices: this plan
   is the fight screen and the picture window (the minimap and the HUD keep their own plans); party in the
   party ink and monsters in the hostile ink; the fight's text, borders and panels follow the biosphere's
@@ -819,7 +820,14 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette). Gate 1345. Four mutations caught. Found: the default party ink is the interface's hue, twice as bright, so party figures and bars differ by brightness and shape, not hue; the two sides are apart for every vision.
   - [x] Step 2: the picture window in the hostile ink, repainted when the inks change (`cinema::Inks`, `style::srgb`). Gate 1348. Four mutations caught. A stroke lightens, so a line's channel darker than the ground's keeps the ground's (at most 8 in 255).
   - [x] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it. Gate 1352. Seven mutations caught. Departure from the plan's wording, same outcome: the theme is not passed into the builders; a node names its roles (`Ink`, `Edge`, `Fill`) and one system paints them from the theme, so every screen's nodes are on it already and the HUD's plan only lifts the fight-only rule. `controls::GREEN` and `SHADES` are gone. The picture window's ground is the theme's panel shade. Left on fixed colours: icons and the text cursor (none on the fight screen; a test holds the icons).
-  - [ ] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.
+  - [x] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.
+  - Review (2026-11-13). Built in five commits; gate 1339 to 1352; 15 mutations caught. Departures, said
+    in their steps: the theme reaches the nodes through role components and one painting system, not a
+    parameter of the builders; no fixture changed (the yard already had a biosphere and an encounter).
+    Found: the default party ink is the interface's hue; a stroke in the picture window lightens, so the
+    ground shows through a darker channel. Not built: the minimap; the theme outside a fight; icons and
+    the text cursor on the theme; the arena on the line material. Not seen by me: the fight screen (the
+    dev socket did not answer); the factors are untuned by eye.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
   palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
