@@ -500,9 +500,17 @@ fn turn(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) -> 
         return Vec::new();
     };
     let none = |empty: bool, why| empty.then_some(why);
-    let castable = spells(world, data, view, party, own)
-        .iter()
-        .any(|e| e.blocked.is_none());
+    let known = spells(world, data, view, party, own);
+    let castable = known.iter().any(|e| e.blocked.is_none());
+    // One reason shared by every spell (the action is spent) says more than "none can be".
+    let shared = known.first().and_then(|e| e.blocked.clone());
+    let shared = shared.filter(|why| known.iter().all(|e| e.blocked.as_ref() == Some(why)));
+    let cast_why = shared.as_deref().unwrap_or("no spell can be cast now");
+    let attack_why = unreachable_why(
+        party,
+        &listed(world, data, Action::Attack),
+        "no foe in reach",
+    );
     let usable = features(world, data, view, party, own)
         .iter()
         .any(|e| e.blocked.is_none());
@@ -511,10 +519,7 @@ fn turn(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) -> 
         open(
             "Attack",
             Step::Target(Action::Attack),
-            none(
-                targets(world, data, Action::Attack).is_empty(),
-                "no foe in reach",
-            ),
+            attack_why.as_deref(),
         ),
         open(
             "Cast",
@@ -524,7 +529,7 @@ fn turn(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) -> 
                 if view.spells.is_empty() {
                     "knows no spells"
                 } else {
-                    "no spell can be cast now"
+                    cast_why
                 },
             ),
         ),

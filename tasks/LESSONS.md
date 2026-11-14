@@ -794,3 +794,15 @@
   a seam (a map states its scale), not the unit. This is [[srd-is-the-default-direction]] applied to scale.
 - **Rule**: when offering options, do not mark as recommended one that departs from the SRD merely
   because it makes our existing data consistent.
+
+## 2026-11-14: a dim menu entry gives the rule's own reason, not a guess at it
+
+The owner met a fight their wizard had opened with a spell and read "Cast: no spell can be cast now" and
+"Attack: no foe in reach" as a fault ("a player who can't cast a ranged spell, despite having the spell
+points"). The rule was right (the strike was the round's action); the top menu's two entries made up a
+reason of their own while Dodge beside them gave the engine's.
+
+- A dim entry that stands for a list (Attack, Cast) shows the reason its rows share; a made-up phrase is
+  kept only for the case with no rows at all.
+- When a new rule spends something before the player's turn (the strike's action), walk every entry of
+  the menu in that state and read what each says.

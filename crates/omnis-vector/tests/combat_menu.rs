@@ -458,3 +458,21 @@ fn a_target_the_rules_refuse_is_listed_blocked_with_the_reason() {
         "the step waits"
     );
 }
+
+/// With the turn's action spent (an opening strike was the caster's action for round one),
+/// Attack and Cast say so, as Dodge does, and not that nothing is in reach (the owner's
+/// report, 2026-11-14: "a player who can't cast a ranged spell, despite having the spell
+/// points").
+#[test]
+fn with_the_action_spent_attack_and_cast_say_so() {
+    let mut session = turn_of("Durin");
+    let Mode::Combat(state) = &mut session.world.mode else {
+        panic!("a fight")
+    };
+    state.budget.actions = 0;
+    let entries = CombatMenu::default().entries(&session.world, &session.data);
+    let spent = entry(&entries, "Dodge").blocked.clone();
+    assert_eq!(spent.as_deref(), Some("the turn's action is spent"));
+    assert_eq!(entry(&entries, "Attack").blocked, spent);
+    assert_eq!(entry(&entries, "Cast").blocked, spent);
+}
