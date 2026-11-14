@@ -809,6 +809,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     (caught by the compiler, read and removed); an interrupted mutation run left a mutant in the tree,
     found by the next run's own assertion and restored. Not built: tips and the new rows on the game's
     screens and Settings; a tip listing in `screen.text`. Not seen by me: a tip following a real pointer.
+- [ ] **The fight screen and the picture window on the palette** (owner, 2026-11-13;
+  `tasks/plans/fight-on-the-palette.md`, approved in plan mode the same day). Owner's choices: this plan
+  is the fight screen and the picture window (the minimap and the HUD keep their own plans); party in the
+  party ink and monsters in the hostile ink; the fight's text, borders and panels follow the biosphere's
+  interface ink, other screens staying green until the HUD's plan. The fixture is the `objects` pack's
+  yard (biosphere ember, an encounter at 5,1); no fixture changes.
+  - [x] Step 0: the plan and this item.
+  - [ ] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette).
+  - [ ] Step 2: the picture window in the hostile ink, repainted when the inks change.
+  - [ ] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it.
+  - [ ] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
   palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,
