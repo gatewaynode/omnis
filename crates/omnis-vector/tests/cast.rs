@@ -93,10 +93,11 @@ fn press(
     )
 }
 
-/// The caster's road spells, each with the view's cost and where it goes; every live Cast is
-/// taken by the engine, every dim one says why.
+/// The caster's road spells, each with the view's cost. Cast sends nothing by itself: it opens
+/// the spell's target step, where every live target is taken by the engine and every dim one
+/// says why (owner, 2026-11-14: option, then target, then validate, pay and execute).
 #[test]
-fn the_caster_s_road_spells_cost_what_the_view_says_and_cast_as_shown() {
+fn the_caster_s_road_spells_cost_what_the_view_says_and_cast_through_the_target_step() {
     let data = common::data();
     let (world, _) = common::town_session(&data);
     let (brenna, durin) = (common::id(&world, 0), common::id(&world, 1));
@@ -111,35 +112,61 @@ fn the_caster_s_road_spells_cost_what_the_view_says_and_cast_as_shown() {
         .filter(|r| !r.controls.is_empty() && r.controls[0].label == "Cast")
         .collect();
     assert_eq!(rows.len(), mine.len());
+    let mut stepped = 0;
     for (row, cast) in rows.iter().zip(&mine) {
         assert_eq!(row.spans[0].text, labels::spell(&data, &cast.spell));
-        let mut note = format!("{} pt", cast.cost);
-        if cast.targets_members {
-            note.push_str("  on Brenna");
-        }
-        assert_eq!(row.after[0].text, note);
+        assert_eq!(
+            row.after[0].text,
+            format!("{} pt", cast.cost),
+            "no target yet"
+        );
         let id = row.controls[0].id;
         let used = press(&data, &world, &mut f, id);
-        match &row.controls[0].why_not {
-            None => {
-                let Ok(Effect::Command {
-                    command,
-                    close: false,
-                }) = used
-                else {
-                    panic!("Cast sends and stays open: {used:?}");
-                };
-                assert!(world.trial(&data, &command).is_ok(), "{command:?}");
-            }
-            Some(why) => assert_eq!(used, Err(Refused::Dim(why.clone()))),
+        if let Some(why) = &row.controls[0].why_not {
+            assert_eq!(used, Err(Refused::Dim(why.clone())));
+            continue;
         }
+        assert_eq!(used, Ok(Effect::None), "Cast sends nothing by itself");
+        let step = shown(&data, &world, &f);
+        assert_eq!(step.title.text, "Choose a target");
+        let targets: Vec<_> = step.controls().filter(|c| c.label == "Choose").collect();
+        assert!(!targets.is_empty(), "{}", cast.spell);
+        for target in targets {
+            let mut again = f.clone();
+            let used = press(&data, &world, &mut again, target.id);
+            match &target.why_not {
+                None => {
+                    let Ok(Effect::Command {
+                        command,
+                        close: false,
+                    }) = used
+                    else {
+                        panic!("a target sends the cast and the screen stays: {used:?}");
+                    };
+                    assert!(world.trial(&data, &command).is_ok(), "{command:?}");
+                    assert_eq!(again.aim, None, "the step is over");
+                }
+                Some(why) => assert_eq!(used, Err(Refused::Dim(why.clone()))),
+            }
+        }
+        // Back returns to the list with nothing sent.
+        assert_eq!(
+            press(&data, &world, &mut f, ControlId::Back),
+            Ok(Effect::None)
+        );
+        assert_eq!(f.aim, None);
+        assert_eq!(shown(&data, &world, &f).title.text, "Spells");
+        stepped += 1;
     }
+    assert!(stepped > 0, "a spell went through the step");
 }
 
-/// A spell aimed at a member goes to the column's selection, or to the caster with none; with no
-/// points left the costed spells are dim and a cantrip is not.
+/// The owner's bug (2026-11-14): a heal on the road could go to no one but its caster. Its
+/// target step offers every member, the caster marked, whoever the column has selected; the
+/// one chosen is who the cast names. With no points left the costed spells are dim and a
+/// cantrip is not.
 #[test]
-fn a_heal_goes_to_the_selection_or_the_caster_and_points_dim_the_costed() {
+fn a_heal_offers_every_member_and_goes_to_the_one_chosen() {
     let data = common::data();
     let (mut world, _) = common::town_session(&data);
     let (brenna, durin) = (common::id(&world, 0), common::id(&world, 1));
@@ -148,23 +175,66 @@ fn a_heal_goes_to_the_selection_or_the_caster_and_points_dim_the_costed() {
         .casts
         .iter()
         .enumerate()
-        .find(|(_, c)| c.caster == durin && c.targets_members)
-        .expect("Durin has a spell for a member");
+        .find(|(_, c)| c.caster == durin && c.spell == "base:spell:cure_wounds")
+        .expect("Durin cures wounds");
     let id = ControlId::Cast(u16::try_from(at).unwrap());
-    for (selected, to) in [(None, durin), (Some(brenna), brenna)] {
+    let names: Vec<String> = views.party.members.iter().map(|m| m.name.clone()).collect();
+    for selected in [None, Some(brenna), Some(durin)] {
         let mut f = forms(durin, selected);
-        assert_eq!(
-            press(&data, &world, &mut f, id),
-            Ok(Effect::Command {
-                command: Command::Cast {
-                    caster: durin,
-                    spell: heal.spell.clone(),
-                    target: Target::Member(to),
-                },
-                close: false
-            })
-        );
+        assert_eq!(press(&data, &world, &mut f, id), Ok(Effect::None));
+        let step = shown(&data, &world, &f);
+        let rows: Vec<_> = step.panels[0]
+            .rows
+            .iter()
+            .filter(|r| r.controls.iter().any(|c| c.label == "Choose"))
+            .collect();
+        let listed: Vec<String> = rows.iter().map(|r| r.spans[0].text.clone()).collect();
+        assert_eq!(listed, names, "every member, in marching order");
+        for (i, row) in rows.iter().enumerate() {
+            assert_eq!(row.controls[0].why_not, None);
+            let own = row.after.first().map(|s| s.text.as_str());
+            assert_eq!(own, (i == 1).then_some("self"), "only Durin is himself");
+        }
+        // Each row is that member, whatever the column has selected.
+        for (i, member) in views.party.members.iter().enumerate() {
+            let mut one = f.clone();
+            let target = ControlId::Target(u8::try_from(i).unwrap());
+            assert_eq!(
+                press(&data, &world, &mut one, target),
+                Ok(Effect::Command {
+                    command: Command::Cast {
+                        caster: durin,
+                        spell: heal.spell.clone(),
+                        target: Target::Member(member.member),
+                    },
+                    close: false
+                })
+            );
+        }
     }
+    // The step belongs to the screen it was opened on: it ends when another screen is shown.
+    let mut f = forms(durin, None);
+    f.shown(Some(ScreenId::Cast), None);
+    assert_eq!(press(&data, &world, &mut f, id), Ok(Effect::None));
+    f.shown(Some(ScreenId::Cast), None);
+    assert!(f.aim.is_some(), "the same screen keeps it");
+    f.shown(Some(ScreenId::Inventory), None);
+    assert_eq!(f.aim, None, "another screen ends it");
+
+    // A spell of the caster's own: one row, the caster.
+    let ilvara = common::id(&world, 2);
+    let light = views
+        .casts
+        .iter()
+        .position(|c| c.caster == ilvara && c.spell == "base:spell:light")
+        .unwrap();
+    let mut f = forms(ilvara, Some(brenna));
+    let light = ControlId::Cast(u16::try_from(light).unwrap());
+    assert_eq!(press(&data, &world, &mut f, light), Ok(Effect::None));
+    let step = shown(&data, &world, &f);
+    let choose: Vec<_> = step.controls().filter(|c| c.label == "Choose").collect();
+    assert_eq!(choose.len(), 1, "self only shows self");
+
     world.party.members[1].spell_points = 0;
     let views = common::views(&world, &data);
     let s = shown(&data, &world, &forms(durin, None));
@@ -204,7 +274,9 @@ fn a_member_with_no_road_spell_says_so_and_so_does_a_party_with_none() {
     );
 }
 
-/// The column's Spells opens the screen; a cast keeps it open and reports the line.
+/// The column's Spells opens the screen; Cast opens the target step, a target casts, and the
+/// screen stays open and reports the line. During the step a member's entry in the column is
+/// that member as the target.
 #[test]
 fn a_cast_from_the_column_keeps_the_screen_open_and_reports() {
     let mut app = common::app::app_with(".omnis/vector-session.ron".into(), 1);
@@ -243,6 +315,18 @@ fn a_cast_from_the_column_keeps_the_screen_open_and_reports() {
     };
     press_ui(&mut app, None, Some(Pressable(light)));
     assert_eq!(top(&app), Some(ScreenId::Cast), "the screen stays open");
+    {
+        let forms = &app.world().resource::<Screens>().forms;
+        assert!(forms.aim.is_some(), "Cast opens the target step");
+        assert_eq!(forms.message, None, "nothing is cast yet");
+    }
+    press_ui(&mut app, None, Some(Pressable(ControlId::Target(0))));
+    assert_eq!(
+        top(&app),
+        Some(ScreenId::Cast),
+        "and stays open after the cast"
+    );
+    assert_eq!(app.world().resource::<Screens>().forms.aim, None);
     let text = app
         .world()
         .resource::<Screens>()
@@ -252,6 +336,41 @@ fn a_cast_from_the_column_keeps_the_screen_open_and_reports() {
         .map(|m| m.text)
         .unwrap_or_default();
     assert!(text.ends_with("lights the party's way"), "{text}");
+
+    // Durin's cure wounds, aimed by a click on Brenna's entry in the column.
+    let (brenna, durin) = {
+        let members = &app.world().resource::<Session>().views.party.members;
+        (members[0].member, members[1].member)
+    };
+    press_ui(&mut app, Some(Side(ControlId::Member(durin))), None);
+    press_ui(&mut app, Some(Side(ControlId::Open(Tool::Spells))), None);
+    let (cure, points) = {
+        let session = app.world().resource::<Session>();
+        let at = session
+            .views
+            .casts
+            .iter()
+            .position(|c| c.caster == durin && c.spell == "base:spell:cure_wounds")
+            .unwrap();
+        (
+            ControlId::Cast(u16::try_from(at).unwrap()),
+            session.views.party.members[1].spell_points,
+        )
+    };
+    press_ui(&mut app, None, Some(Pressable(cure)));
+    assert!(app.world().resource::<Screens>().forms.aim.is_some());
+    press_ui(&mut app, Some(Side(ControlId::Member(brenna))), None);
+    let screens = app.world().resource::<Screens>();
+    assert_eq!(screens.forms.aim, None, "the click chose the target");
+    let text = screens
+        .forms
+        .message
+        .clone()
+        .map(|m| m.text)
+        .unwrap_or_default();
+    assert!(text.contains("Brenna"), "{text}");
+    let session = app.world().resource::<Session>();
+    assert!(session.views.party.members[1].spell_points < points, "paid");
 }
 
 /// The fog is drawn at the depth the engine sees to, so a light in the dungeon lifts it as it

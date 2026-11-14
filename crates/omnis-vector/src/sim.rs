@@ -50,6 +50,18 @@ impl SimWorld {
         apply(&mut self.0.clone(), data, command.clone())
     }
 
+    /// What `chosen` may be aimed at by `member` now, each with the engine's refusal; empty
+    /// when the engine has no list to give (not a member, not their turn).
+    #[must_use]
+    pub fn targets(
+        &self,
+        data: &Data,
+        member: omnis_sim::omnis_core::CharacterId,
+        chosen: &omnis_sim::api::Chosen,
+    ) -> Vec<omnis_sim::api::TargetView> {
+        omnis_sim::api::targets(&self.0, data, member, chosen).unwrap_or_default()
+    }
+
     /// Answer one op of the JSON protocol (`api::dispatch`).
     ///
     /// # Errors

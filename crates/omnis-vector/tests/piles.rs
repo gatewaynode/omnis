@@ -128,6 +128,8 @@ fn live_ones_are_accepted(data: &Data, world: &SimWorld, forms: &Forms) {
                 );
             }
             Err(Refused::Dim(why)) => assert_eq!(Some(why), c.why_not.clone()),
+            // Use opens its target step and sends nothing by itself.
+            Ok(Effect::None) if c.label == "Use" => assert!(c.why_not.is_none()),
             other => panic!("{}: {other:?}", c.label),
         }
     }

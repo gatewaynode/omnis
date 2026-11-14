@@ -11,6 +11,7 @@ use super::{Control, ControlId, Effect, Forms, Game, Kind, Panel, Payload, Row, 
 use super::{ScreenId, Span};
 use crate::labels;
 use crate::style::{Role, Size};
+use crate::targeting::Aim;
 use omnis_sim::api::{ItemCount, ItemView, MemberView, ObjectView};
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::{Data, EquipSlot};
@@ -23,7 +24,7 @@ pub enum ItemAct {
     Equip,
     /// Take it off.
     Unequip,
-    /// Use it, on the selected member or else the user.
+    /// Use it: opens the target step, where who it goes to is chosen.
     Use,
     /// Put one in the stores.
     Stow,
@@ -144,6 +145,13 @@ fn item_at(
     }
 }
 
+/// The use of kit row `at`, chosen and waiting for its target.
+fn aim(game: Game, forms: &Forms, at: u16) -> Option<Aim> {
+    let owner = owner(game, forms)?;
+    let (id, _) = item_at(game, owner, at, ItemAct::Use)?;
+    Some(Aim::item(owner.member, &id))
+}
+
 /// The command a row's button sends, or why it has none to send (a give with no one to receive).
 fn command(game: Game, forms: &Forms, at: u16, act: ItemAct) -> Result<Command, String> {
     let owner = owner(game, forms).ok_or_else(|| "No one in the party".to_owned())?;
@@ -160,11 +168,8 @@ fn command(game: Game, forms: &Forms, at: u16, act: ItemAct) -> Result<Command, 
             member,
             slot: slot.ok_or_else(|| "Not worn".to_owned())?,
         },
-        ItemAct::Use => ItemCommand::Use {
-            member,
-            item: id,
-            receiver: forms.selected,
-        },
+        // Use sends nothing by itself: it opens the target step ([`aim`]).
+        ItemAct::Use => return Err("Choose who it goes to".to_owned()),
         ItemAct::Stow => ItemCommand::Stow {
             member,
             item: id,
@@ -240,6 +245,9 @@ fn button(data: &Data, game: Game, forms: &Forms, at: u16, act: ItemAct) -> Cont
         _ => act.caption().to_owned(),
     };
     let why_not = match command(game, forms, at, act) {
+        Err(_) if act == ItemAct::Use => {
+            aim(game, forms, at).map_or_else(|| Some("Gone".to_owned()), |a| a.blocked(data, game))
+        }
         Err(why) => Some(why),
         Ok(command) => game
             .world
@@ -388,6 +396,9 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
     let Some(owner) = owner(game, forms) else {
         return super::empty(ScreenId::Inventory);
     };
+    if let Some(aim) = forms.aim.as_ref().filter(|_| game.views.combat.is_none()) {
+        return crate::targeting::content(data, game, aim, ScreenId::Inventory);
+    }
     let party = &game.views.party;
     let mut kit = vec![
         Row::controls(vec![
@@ -442,14 +453,39 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
 }
 
 /// The owner steps; Close closes; a row's button sends its command and the screen stays open.
-/// The control was found live on the screen as it stands.
-pub fn apply(game: Game, forms: &mut Forms, control: ControlId, payload: &Payload) -> Effect {
+/// Use opens the target step instead, where a target sends the use and Back returns to the
+/// kit. The control was found live on the screen as it stands.
+pub fn apply(
+    data: &Data,
+    game: Game,
+    forms: &mut Forms,
+    control: ControlId,
+    payload: &Payload,
+) -> Effect {
     match control {
         ControlId::Owner => {
             step_owner(game, forms, payload);
             Effect::None
         }
         ControlId::Close => Effect::Back,
+        ControlId::Back => {
+            forms.aim = None;
+            Effect::None
+        }
+        ControlId::Item {
+            at,
+            act: ItemAct::Use,
+        } => {
+            forms.aim = aim(game, forms, at);
+            Effect::None
+        }
+        ControlId::Target(at) => {
+            let command = forms.aim.take().and_then(|aim| aim.chosen(data, game, at));
+            command.map_or(Effect::None, |command| Effect::Command {
+                command,
+                close: false,
+            })
+        }
         ControlId::Item { at, act } => {
             command(game, forms, at, act).map_or(Effect::None, |command| Effect::Command {
                 command,

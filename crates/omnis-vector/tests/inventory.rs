@@ -273,7 +273,32 @@ fn every_live_button_is_taken_and_every_dim_one_says_why() {
             .filter(|c| matches!(c.id, ControlId::Item { .. }))
         {
             let used = press(&data, &world, &mut f, control.id);
+            let uses = matches!(
+                control.id,
+                ControlId::Item {
+                    act: ItemAct::Use,
+                    ..
+                }
+            );
             match &control.why_not {
+                // Use sends nothing by itself: it opens the target step, which offers at
+                // least one target the engine takes.
+                None if uses => {
+                    live += 1;
+                    assert_eq!(used, Ok(Effect::None));
+                    let step = shown(&data, &world, &f);
+                    assert_eq!(step.title.text, "Choose a target");
+                    let free = step
+                        .controls()
+                        .find(|c| c.label == "Choose" && c.why_not.is_none())
+                        .expect("a target to choose");
+                    let Ok(Effect::Command { command, .. }) = press(&data, &world, &mut f, free.id)
+                    else {
+                        panic!("a target sends the use");
+                    };
+                    assert!(world.trial(&data, &command).is_ok(), "{command:?} is taken");
+                    assert_eq!(f.aim, None);
+                }
                 None => {
                     live += 1;
                     let Ok(Effect::Command {
@@ -349,7 +374,7 @@ fn give_goes_to_the_member_selected_in_the_column() {
 /// Take fills the kit shown, whoever is selected; the owner choice steps through the party; a
 /// potion goes to the selected member, or with none to the user.
 #[test]
-fn take_fills_the_kit_shown_and_a_potion_goes_to_the_selection() {
+fn take_fills_the_kit_shown_and_a_potion_goes_to_the_target_chosen() {
     let data = common::data();
     let (mut world, _) = common::town_session(&data);
     let (brenna, durin, pip) = (
@@ -404,21 +429,27 @@ fn take_fills_the_kit_shown_and_a_potion_goes_to_the_selection() {
     assert_eq!(f.owner, Some(brenna));
 
     let drink = labels::item(&data, "base:item:potion_of_healing");
-    for (selected, receiver) in [(None, None), (Some(brenna), Some(brenna))] {
-        let mut f = forms(durin, selected);
-        let id = button(&shown(&data, &world, &f), 0, drink, ItemAct::Use).id;
-        let used = press(&data, &world, &mut f, id);
-        assert_eq!(
-            used,
-            Ok(Effect::Command {
-                command: Command::Item(ItemCommand::Use {
-                    member: durin,
-                    item: "base:item:potion_of_healing".into(),
-                    receiver,
-                }),
-                close: false
-            })
-        );
+    // Use opens the target step whoever the column has selected; the row chosen receives.
+    for selected in [None, Some(brenna)] {
+        for (row, receiver) in [(0, brenna), (1, durin), (3, pip)] {
+            let mut f = forms(durin, selected);
+            let id = button(&shown(&data, &world, &f), 0, drink, ItemAct::Use).id;
+            assert_eq!(press(&data, &world, &mut f, id), Ok(Effect::None));
+            assert!(f.aim.is_some(), "the potion waits for its target");
+            let used = press(&data, &world, &mut f, ControlId::Target(row));
+            assert_eq!(
+                used,
+                Ok(Effect::Command {
+                    command: Command::Item(ItemCommand::Use {
+                        member: durin,
+                        item: "base:item:potion_of_healing".into(),
+                        receiver: Some(receiver),
+                    }),
+                    close: false
+                })
+            );
+            assert_eq!(f.aim, None);
+        }
     }
 }
 

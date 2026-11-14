@@ -12,7 +12,7 @@ use super::session::Session;
 use super::theme::{edge, fill};
 use crate::arena::{BUTTONS, MARGIN, layout, zoom};
 use crate::screen::roster::{self, RosterEffect};
-use crate::screen::{Panel, ScreenId};
+use crate::screen::{ControlId, Panel, ScreenId, Span};
 use crate::style::{Role, scaled};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -75,26 +75,41 @@ fn beside(session: &Session, screens: &Screens) -> bool {
 /// A pressed button of the column, applied: a member selected, or their sheet, kit or spells
 /// opened.
 pub(super) fn route(
-    session: Option<Res<Session>>,
+    mut session: Option<ResMut<Session>>,
     mut screens: ResMut<Screens>,
     showing: Res<Showing>,
     buttons: Query<&Side, super::controls::Pressing>,
 ) {
-    let Some(session) = session else {
+    let Some(session) = session.as_mut() else {
         screens.forms.selected = None;
         return;
     };
-    let ctx = ctx(&session);
+    let ctx = ctx(session);
     let Some(game) = ctx.game else {
         return;
     };
     screens.forms.selected = roster::settle(game, screens.forms.selected);
-    if !shown(Some(&session), &screens, *showing) {
+    if !shown(Some(session), &screens, *showing) {
         return;
     }
     let Some(id) = buttons.iter().next().map(|s| s.0) else {
         return;
     };
+    // During a target step a member's entry is that member as the target, when the list
+    // offers them: the same command the step's own row sends.
+    if let (Some(aim), ControlId::Member(member)) = (screens.forms.aim.clone(), id) {
+        if let Some(command) = aim.on_member(ctx.data, game, member) {
+            screens.forms.aim = None;
+            match session.ordered(command.clone()) {
+                Ok(line) => {
+                    screens.forms.accepted(&command);
+                    screens.forms.message = line.map(Span::body);
+                }
+                Err(why) => screens.forms.message = Some(Span::alert(why)),
+            }
+        }
+        return;
+    }
     let mut selected = screens.forms.selected;
     match roster::apply(ctx.data, game, &mut selected, id) {
         Ok(RosterEffect::None) => screens.forms.selected = selected,

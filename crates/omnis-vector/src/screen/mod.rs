@@ -231,6 +231,8 @@ pub enum ControlId {
     OpenDebug,
     /// The verbs screen's nth button: the faced door, then each object's interactions.
     Verb(u8),
+    /// The target step's nth possible target (`crate::targeting`).
+    Target(u8),
     /// The full log's filter.
     LogFilter,
     /// The title's Editor button (M5.4).
@@ -749,6 +751,9 @@ pub struct Forms {
     pub selected: Option<omnis_sim::omnis_core::CharacterId>,
     /// Whose kit, spells or sheet a screen shows; set when the column opens one.
     pub owner: Option<omnis_sim::omnis_core::CharacterId>,
+    /// The option chosen on the road whose target is being chosen (a spell, an item's use);
+    /// cleared when the screen changes, on Back and once a target is chosen.
+    pub aim: Option<crate::targeting::Aim>,
     /// The hit dice each member is to spend at camp, by index into the rest view's members;
     /// cleared when the screen changes and after a short rest.
     pub dice: Vec<u8>,
@@ -792,6 +797,7 @@ impl Forms {
     pub fn shown(&mut self, top: Option<ScreenId>, base: Option<ScreenId>) {
         if top != self.seen.0 {
             self.message = None;
+            self.aim = None;
             self.dice.clear();
             self.tactics = tactics::TacticsForm::default();
             self.settings = None;
@@ -924,9 +930,11 @@ pub fn apply(
         (ScreenId::Verbs, Some(game)) => verbs::apply(ctx.data, game, control),
         (ScreenId::Log, _) => log::apply(forms, control, payload),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
-        (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
+        (ScreenId::Inventory, Some(game)) => {
+            inventory::apply(ctx.data, game, forms, control, payload)
+        }
         (ScreenId::Loot, Some(game)) => loot::apply(ctx.data, game, forms, control, payload),
-        (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
+        (ScreenId::Cast, Some(game)) => cast::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Camp, Some(game)) => camp::apply(game, forms, control, payload),
         (ScreenId::Sheet, Some(game)) => sheet::apply(game, forms, control, payload),
         (ScreenId::Tactics, Some(game)) => tactics::apply(ctx.data, game, forms, control, payload),
