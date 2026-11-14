@@ -13,7 +13,12 @@ Targeting is accepted by the owner (same day).
   container spills and fragile items can be lost; repair by mending, by tools with time and supplies, and by a
   town service.
 - **Done and committed (not pushed)**: `acce0ed7` (0, documents), `cbf253e9` (1, data; base resealed 0.1.4,
-  goldens rebaselined), `279296fc` (2, `Stack.distance`), `f32384ed` (3, monsters in feet). Gate 1414.
+  goldens rebaselined), `279296fc` (2, `Stack.distance`), `f32384ed` (3, monsters in feet), `3172e9ed`
+  (**6, built ahead of 4 and 5 at the owner's word**: the strike's group Stealth roll `combat::unseen`,
+  advantage through `state.hidden`, `Command::Attack { member, target }` in `assault.rs`, `combat::Opening`,
+  `targets` rows for `Attack` on the road; 17 commands; `schema_proof.rs` 144 instances, 204 branches),
+  `7c31d458` (the fight menu's Attack and Cast give the shared reason, from the owner's playtest). Gate 1423.
+  **Steps 4 and 5 are still open**; step 4 should move the item span read in `assault::span` into `Weapon`.
 - **Found in step 1, fixed there**: new base items renumber every item; a save older than name tables is read
   on the table without them (`NameTable::before_names`, the list `ITEMS_SINCE_NAMES` in `save/names.rs`;
   **any definition added to a shipped pack goes in that list in the same change**), before its migrations.
@@ -21,7 +26,7 @@ Targeting is accepted by the owner (same day).
   durable kinds wait for steps 10 and 8; step 2 kept "front stacks" and step 3 replaced it with engaged;
   `monster_front_stacks` is still written in base's `combat.ron` and asserted in `load_base_pack.rs` (remove
   both at the next base reseal, step 10); monster spells' own ranges moved from step 3 to step 4.
-- **Next: step 4, members in feet.** Design I had settled on:
+- **Next: step 4, members in feet, then 5, then 7.** Design I had settled on:
   - `omnis_rules::Weapon` gains `reach` and `range` from `Item::span()` (unarmed 5).
   - `CombatState` gains `advanced: u16` and `dashes: u8` (serde default, reset in `turn::end_of_round`). The
     line's allowance a round is the slowest standing front-row member's race speed x (1 + dashes).
