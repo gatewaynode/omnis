@@ -828,6 +828,25 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     ground shows through a darker channel. Not built: the minimap; the theme outside a fight; icons and
     the text cursor on the theme; the arena on the line material. Not seen by me: the fight screen (the
     dev socket did not answer); the factors are untuned by eye.
+- [ ] **Calmer fight colours, and one targeting flow for spells, items and actions** (owner, 2026-11-14;
+  `tasks/plans/targeting.md`, approved in plan mode the same day; PRD §7.3, §8.2, §8.3 and ARCHITECTURE
+  §4.5 amended by that approval). From the owner's try of the fight on the palette: the colours are too
+  saturated (answer: less glow and paler, the fight only); and on the road a spell for one individual
+  could be aimed at no one but the caster. The owner's rule: open menu, check requirements, show options,
+  select option, select from possible targets, validate, pay, execute; target kinds self, touch, range N,
+  line of sight, link. Owner's choices: targeting in data with one engine list, map targets now (doors,
+  objects and creatures, an attack spell at a standing group being an opening strike); failed
+  requirements dim with the reason; Dodge, Run and End turn keep one click.
+  - [x] Step 0: the plan, this item, PRD and ARCHITECTURE lines, the lesson.
+  - [ ] Step 1: calmer fight colours (`tones.rs`, `cinema.rs`). Reported "built, please try" when it lands.
+  - [ ] Step 2: `Targeting` in data; base written out in SRD terms, resealed, replays rebaselined.
+  - [ ] Step 3: the engine's list and shared check for members and stacks (`targets`, `targets.get`, MCP).
+  - [ ] Step 4: the road's target step (cast and inventory Use). Closes the reported bug; "built, please try".
+  - [ ] Step 5: the fight menu on the engine's list.
+  - [ ] Step 6: map targets: doors and objects (mage hand as a hand; the 3D mark).
+  - [ ] Step 7: the opening strike.
+  - [ ] Step 8: links.
+  - [ ] Step 9: acceptance sheet, code-map, presentation-ARCHITECTURE 6.5 and 6.7, continuity, review.
 - [ ] **M8.5 step 5, the colour scheme and biosphere palettes** (the colour half for the 3D view and the
   editor preview is built, 2026-11-13, the item above; what remains: the fight screen and the HUD on the
   palette, relief noise, glyph markers and motion) (owner's 2 and 5; presentation-PRD §5.2, X18, X19,

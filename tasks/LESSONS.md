@@ -767,3 +767,19 @@
 - **Rule**: read the owner's pack (read only, never in a test) for which of those kinds it uses, and say
   in the report what they will see on their own maps ("the meadow's trees are blocks: they will look like
   walls").
+
+## 2026-11-14: a target is chosen, never implied; and a flow is one flow
+- **What happened**: on the road the Cast screen had no target step. The target was the party column's
+  selection, which starts as the caster because the screen is opened from the caster's entry; nothing on
+  the screen said so. The owner could not aim a heal at anyone else, and set the rule: open menu, check
+  requirements, show options, select option, select from possible targets, validate target, pay costs,
+  execute, for every spell, item and action. The fight had its own target step, built by trying every
+  candidate on a copy of the world; the road and the inventory had none. Three paths, three behaviours.
+- **Rule**: an input the player must decide (a target, a receiver, an amount) is asked for by a step the
+  screen shows, after the option is chosen. State left over from another control (a selection, a default)
+  never stands in for the choice.
+- **Rule**: when two screens do the same kind of thing (here: act on a target in a fight and on the road),
+  they are built on one facility in the engine, and the plan says so. Before adding a behaviour to one
+  screen, list the other screens that do the same kind of thing and say what each does.
+- **Rule** (tuning): brightness and saturation factors I could not see are reported as untuned, and the
+  owner's first try will find them; get a picture before reporting where a picture can be had.
