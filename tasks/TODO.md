@@ -764,7 +764,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     palette to its author; a preset in Settings; the channel check of 7.3. Consequences the owner should
     judge by eye: floors no longer differ by terrain; cliffs are the walls' colour; piles are the objects'
     colour; the walls' green differs from the HUD's. Not seen in a window by me.
-- [x] **A terrain's block face, the editor form's layout, and tooltips** (built, not yet tried by the owner) (owner's try of part 3, 2026-11-13;
+- [x] **A terrain's block face, the editor form's layout, and tooltips** (**accepted by the owner 2026-11-13**: labels' brightness fine, wording good for what was reviewed) (owner's try of part 3, 2026-11-13;
   `tasks/plans/editor-forms-and-tips.md`, approved in plan mode the same day). The meadow has no cliffs: the
   owner saw the trees terrain's blocks, which part 3 made the walls' colour. The form in the editor's right
   column is unclear and has no tooltips.

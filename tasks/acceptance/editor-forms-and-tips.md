@@ -1,7 +1,9 @@
 # A terrain's block face, the editor's form, and tooltips: acceptance
 
 Built 2026-11-13 after your try of rendering size 2 part 3 (`tasks/plans/editor-forms-and-tips.md`).
-Not tried by you yet. What I saw myself: captures at Low and High of a hatched block
+**Accepted by the owner, 2026-11-13**: "Label brightness is fine and the wording is pretty good for
+what I reviewed. Consider this accepted." Decisions 1 and 3 are answered by that; 2, 4 and 5 were not
+answered and stay as built. What I saw myself: captures at Low and High of a hatched block
 (`target/shots/face/`), and one capture each of the new form and of a tip
 (`target/shots/form/terrain.png`, `tip.png`), taken through a temporary change that opened the form
 at start and is not in the tree. I have not seen a tip follow a real pointer.
