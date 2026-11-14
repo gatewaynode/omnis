@@ -1,6 +1,40 @@
 # Continuity notes
 
-Written 2026-11-13, evening. **The fight screen and the picture window are on the palette: built, not
+Written 2026-11-14. **In progress: calmer fight colours and one targeting flow**
+(`tasks/plans/targeting.md`, approved in plan mode; the TODO item of that name in W2 lists the nine steps).
+The owner tried the fight on the palette and said: the colours are too saturated; and on the road a spell
+for one individual could be aimed at no one but the caster. Their rule: open menu, check requirements, show
+options, select option, select from possible targets, validate, pay, execute; kinds self, touch, range N,
+line of sight, link. Lesson in `tasks/LESSONS.md` (2026-11-14).
+- **Owner's choices**: less glow and paler, fight only; targeting in data plus one engine list, **map
+  targets now** (doors, objects, creatures; an attack spell at a standing group is an opening strike);
+  failed requirements dim with the reason; Dodge, Run, End turn keep one click.
+- **Done and committed (not pushed)**: step 0 `9b82129c` (plan, PRD 7.3/8.2/8.3, ARCHITECTURE 4.5);
+  step 1 `bdf4f387` (`tones::calm`/`pale`; glow cap 1.25, paleness 15%, held there by green-blind
+  contrast of the default inks, which fails at 20%); step 2 `e1aa1d13` (`omnis_data::Targeting`, base
+  0.1.3 hash 8477582243095538951, replays rebaselined); step 3 `4b715dd6` (`omnis_sim::targets`,
+  `targets.get`, 49 tools, `Rejection::BeyondRange`/`OutOfSight`, 74); step 4 `b02628b1`
+  (`omnis-vector/src/targeting.rs`, `Forms.aim`, `ControlId::Target`; Cast and Use open the target step).
+  Gate 1369.
+- **Reported to the owner as "built, please try"**: step 1 (the fight's colours) and step 4 (the bug).
+- **Next: step 5**, the fight menu on the engine's list (`combat_menu.rs`): `targets()` from
+  `SimWorld::targets` with `Chosen` (Attack, Spell{pay}, Item, Exchange, Feature{exchange}); target
+  entries show refused rows dim; `untargeted` ("cast at once") goes; a plain or hide feature gets a one-row
+  target step (a new `Action` variant; `back()` to Features); tests in `tests/combat_menu.rs` change
+  (`a_spell_whose_target_does_not_matter_is_cast_at_once` and the feature rows). Then step 6 (doors and
+  objects: `Target::Door/Object/Being`, mage hand as a hand through `objects::act::admit`, `Sight`,
+  distance, the 3D `Aimed` mark), 7 (opening strike, `Surprise::Monsters`, rules value
+  `opening_strike_surprise`), 8 (`World.links`, a dev command), 9 (acceptance sheet walking the table arm
+  by arm, code-map, presentation-ARCHITECTURE 6.5, review).
+- **Said plainly so far**: light is Own, burning hands and thunderwave Touch (not the plan's list);
+  `BeyondRange` not `OutOfRange` (taken); `TargetView` has no name; light, detect magic and mage hand
+  still ignore the target sent; monsters' casting does not read targeting; Give still takes the column's
+  selection; nothing of this seen by me (no picture tried yet this session: try `mcp__omnis__screenshot`
+  with the game running before the final report).
+- **Also this session**: the owner's Parva map files under `docs/locations` committed twice, unedited
+  (`a604c193`, `5a3d9b21`).
+
+**Before that** (written 2026-11-13, evening). **The fight screen and the picture window are on the palette: built, not
 yet tried by the owner** (`tasks/plans/fight-on-the-palette.md`, approved in plan mode;
 `tasks/acceptance/fight-on-the-palette.md`, which ends with five decisions). Commits `64e61897` (plan),
 `76b3623a` (arena), `90b67da7` (picture window), `06b96af3` (theme), then the documents. Gate 1352.
