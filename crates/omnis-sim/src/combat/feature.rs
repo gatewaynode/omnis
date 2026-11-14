@@ -14,7 +14,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::Dice;
 use omnis_data::{Ability, ClassFeature, Cost, Data, FeatureEffect, Skill};
-use omnis_rules::{RollMode, RuleError, combat_features, passive_perception, spend_use, uses_left};
+use omnis_rules::{RollMode, RuleError, combat_features, spend_use, uses_left};
 
 /// What a validated feature does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,15 +142,7 @@ fn hide(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let dc = state
-        .encounter
-        .stacks
-        .iter()
-        .filter(|s| s.alive())
-        .filter_map(|s| data.monsters.get(&s.monster))
-        .map(passive_perception)
-        .max()
-        .unwrap_or(10);
+    let dc = crate::encounter::watch(data, &state.encounter.stacks);
     let spec = CheckSpec {
         skill: Some(Skill::Stealth),
         ability: Ability::Dexterity,

@@ -137,7 +137,8 @@ pub(crate) fn apply(
         };
         let met = crate::encounter::struck(world, data, &being, retreat, events);
         if let Some(state) = met.map_err(Rejection::Rule)? {
-            crate::combat::start_struck(world, data, state, &plan, events)
+            let opening = crate::combat::Opening::Spell(&plan);
+            crate::combat::start_struck(world, data, state, &opening, events)
                 .map_err(Rejection::Rule)?;
         }
         return Ok(());

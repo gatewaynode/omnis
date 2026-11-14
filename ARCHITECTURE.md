@@ -174,7 +174,7 @@ A character's save and the world it plays in are kept apart, so a world outlives
 As built through M8.5 7f (`omnis-sim/src/command.rs`, `event.rs`); every field, with its wire form, is in `docs/api.md`.
 
 ```rust
-pub enum Command {                  // 16 variants
+pub enum Command {                  // 17 variants
     Step(Direction),                // forward, back, left, right
     Turn(Rotation),                 // left, right, around
     Interact,                       // the service on the tile, else the one door or object interaction in reach
@@ -192,6 +192,7 @@ pub enum Command {                  // 16 variants
                                     // monster hp, kill stack, reconcile (M8), fold (M8.5 7e), pass minutes; refused unless `Settings.devtools` (§12)
     Act { object, verb, option },   // a verb on an object in reach (M8.5 2)
     Approach { being },             // go up to a group in reach (M8.5 2c)
+    Attack { member, target },      // a weapon's opening strike at a standing group in sight (combat in feet, step 6)
 }
 
 pub enum Event {                    // 75 variants, integers, ids and roll traces only

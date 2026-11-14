@@ -26,14 +26,15 @@ pub(crate) fn monster<'a>(data: &'a Data, stack: &Stack) -> Result<&'a Monster, 
         .ok_or_else(|| RuleError::new("combat", "a stack names an unknown monster"))
 }
 
-/// A member attacks the lead individual of a stack.
+/// A member attacks the lead individual of a stack; `hindered`, the attack has disadvantage (a
+/// shot past the weapon's normal range).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn member_attacks(
     world: &mut World,
     data: &Data,
     state: &mut CombatState,
     actor: CharacterId,
-    stack: u8,
+    (stack, hindered): (u8, bool),
     weapon: &Weapon,
     roller: &mut Roller,
     events: &mut Vec<Event>,
@@ -46,7 +47,7 @@ pub(crate) fn member_attacks(
     let (bonus, proficiency) = attack_bonus(member, data, weapon)?;
     let mode = RollMode::combine(
         state.reveal(actor),
-        flags(&member.conditions, data).own_attacks_disadvantage,
+        hindered || flags(&member.conditions, data).own_attacks_disadvantage,
     );
     let ac = i64::from(monster.ac) + monster_cast::shield_bonus(state, data, stack, 0);
     let extra = roll_bonus(

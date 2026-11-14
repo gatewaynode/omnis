@@ -75,6 +75,14 @@ pub enum Command {
         /// The group's id in the map (`rat`).
         being: String,
     },
+    /// Attack with a weapon from the road (the opening strike, PRD §8.2): the member's weapon
+    /// that reaches a group standing in sight lands on it and the fight begins.
+    Attack {
+        /// Who attacks.
+        member: CharacterId,
+        /// What is attacked: a standing group, `{"Being": {being}}`.
+        target: Target,
+    },
 }
 
 impl Command {
@@ -129,6 +137,7 @@ impl Command {
             Command::Dev(_) => "dev",
             Command::Act { .. } => "act",
             Command::Approach { .. } => "approach",
+            Command::Attack { .. } => "strike",
         }
     }
 }

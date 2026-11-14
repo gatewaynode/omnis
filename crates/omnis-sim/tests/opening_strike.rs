@@ -31,7 +31,7 @@ fn chosen(spell: &str) -> Chosen {
 }
 
 /// The six in the yard at `(x, y)`; the two pack rats stand at (5, 1).
-fn at(data: &Data, x: u16, y: u16, facing: Facing) -> World {
+pub(crate) fn at(data: &Data, x: u16, y: u16, facing: Facing) -> World {
     let settings = Settings {
         devtools: true,
         ..Settings::default()

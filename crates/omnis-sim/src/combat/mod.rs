@@ -23,17 +23,18 @@ pub use turn::run_dc;
 pub(crate) use budget::affordable;
 pub(crate) use monster_cast::points_of;
 
+use crate::checks::{self, CheckSpec};
 use crate::command::Rejection;
 use crate::encounter::EncounterState;
-use crate::event::{ActorRef, Event, Surprise};
+use crate::event::{ActorRef, CheckKind, Event, Surprise};
 use crate::items;
 use crate::party;
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32, StreamName};
-use omnis_data::{Cost, Data};
-use omnis_rules::{RuleError, Weapon, best_weapon};
+use omnis_data::{Ability, Cost, Data, Skill};
+use omnis_rules::{RollMode, RuleError, Weapon, best_weapon};
 use serde::{Deserialize, Serialize};
 
 /// One member's action on their turn.
@@ -193,30 +194,82 @@ pub fn start(
     Ok(())
 }
 
-/// Start a fight with a spell cast from the road (the opening strike, PRD §8.2): `plan` is
-/// paid already; it lands on the group before the first round and was its caster's action
-/// for that round. The monsters are surprised unless the rules value
-/// `opening_strike_surprise` is written 0.
+/// What opens a fight from the road (the opening strike, PRD §8.2).
+pub(crate) enum Opening<'a> {
+    /// A spell, paid already.
+    Spell(&'a cast::CastPlan),
+    /// A weapon attack by the member in slot `own`.
+    Weapon {
+        /// The attacker's slot.
+        own: usize,
+        /// The weapon that reaches.
+        weapon: &'a Weapon,
+        /// Past its normal range: disadvantage.
+        hindered: bool,
+    },
+}
+
+/// The party's group Stealth check against the group's best passive Perception (the SRD's
+/// group check: everyone who can act rolls, and half or more passing carries all).
+fn unseen(
+    world: &mut World,
+    data: &Data,
+    encounter: &EncounterState,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<bool, RuleError> {
+    let dc = crate::encounter::watch(data, &encounter.stacks);
+    let spec = CheckSpec {
+        skill: Some(Skill::Stealth),
+        ability: Ability::Dexterity,
+        mode: RollMode::Normal,
+    };
+    let (mut rolled, mut passed) = (0u32, 0u32);
+    for index in 0..world.party.members.len() {
+        if !state::can_fight(&world.party.members[index], data) {
+            continue;
+        }
+        let roll = checks::roll(world, data, index, spec, roller, events)?;
+        let success = roll.total >= dc;
+        rolled += 1;
+        passed += u32::from(success);
+        events.push(Event::Check {
+            actor: ActorRef::Member(world.party.members[index].id),
+            kind: CheckKind::Hide,
+            roll: Some(roll),
+            dc,
+            success,
+        });
+    }
+    Ok(rolled > 0 && passed * 2 >= rolled)
+}
+
+/// Start a fight with a strike from the road (the opening strike, PRD §8.2): a spell paid
+/// already or a weapon's blow lands on the group before the first round and was its maker's
+/// action for that round. The party rolls Stealth as a group against the group's best passive
+/// Perception: passing, the monsters are surprised and the strike's attack has advantage;
+/// failing, the fight starts even. Written 0, the rules value `opening_strike_surprise` leaves
+/// out the roll and the surprise.
 pub(crate) fn start_struck(
     world: &mut World,
     data: &Data,
     encounter: EncounterState,
-    plan: &cast::CastPlan,
+    opening: &Opening<'_>,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let caught = data.rules.value("opening_strike_surprise").unwrap_or(1) != 0;
-    let surprised = if caught {
+    let mut roller = Roller::take(world);
+    let rolled = data.rules.value("opening_strike_surprise").unwrap_or(1) != 0;
+    let surprised = if rolled && unseen(world, data, &encounter, &mut roller, events)? {
         Surprise::Monsters
     } else {
         Surprise::None
     };
-    let mut roller = Roller::take(world);
     turn::start(
         world,
         data,
         encounter,
         surprised,
-        Some(plan),
+        Some(opening),
         &mut roller,
         events,
     )?;

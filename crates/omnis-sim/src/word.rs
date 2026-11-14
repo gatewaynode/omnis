@@ -239,6 +239,18 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
                     being: being.into(),
                 });
             }
+            if let Some((slot, being)) = word
+                .strip_prefix("strike-")
+                .and_then(|rest| rest.split_once('-'))
+            {
+                let member = scope.member(slot)?;
+                return (!being.is_empty() && !being.contains('-')).then(|| Command::Attack {
+                    member,
+                    target: Target::Being {
+                        being: being.into(),
+                    },
+                });
+            }
             if let Some(rest) = word.strip_prefix("use-item-") {
                 return parse_use(rest, scope).map(Command::Combat);
             }
@@ -509,6 +521,17 @@ mod tests {
                 being: "rat".into()
             })
         );
+        assert_eq!(
+            command("strike-1-rat", &Scope::Any),
+            Some(Command::Attack {
+                member: CharacterId(1),
+                target: Target::Being {
+                    being: "rat".into()
+                }
+            })
+        );
+        assert_eq!(command("strike-rat", &Scope::Any), None);
+        assert_eq!(command("strike-1-", &Scope::Any), None);
         assert_eq!(
             command("heal-3", &Scope::Any),
             Some(Command::Service(ServiceCommand::Heal {

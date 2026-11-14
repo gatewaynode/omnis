@@ -41,6 +41,7 @@ mod reactions;
 mod reload;
 mod rest;
 mod rest_view;
+mod road_attack;
 mod rules_ops;
 mod save_and_replay;
 mod save_check;

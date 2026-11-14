@@ -77,7 +77,7 @@ const fn engaged() -> u16 {
 
 /// Feet between the party and a group `tiles` tiles off on the party's map: the map's own
 /// scale, a tile being one square where it states none, and never nearer than engaged.
-fn feet_off(world: &World, data: &Data, tiles: u16) -> u16 {
+pub(crate) fn feet_off(world: &World, data: &Data, tiles: u16) -> u16 {
     let tile = data
         .maps
         .get(&world.position.map)
@@ -385,8 +385,9 @@ fn best_perception(world: &World, data: &Data) -> Result<i64, RuleError> {
 
 /// The placed group `id` of the party's map as a fight's encounter, struck from the road (the
 /// opening strike, PRD §8.2): its stacks are rolled as for any meeting, it is hostile whatever
-/// it was, there is no surprise roll and no choice before the fight, and Run puts the party
-/// back at `retreat`. None when the map has no such group.
+/// it was, it had no chance to notice the party first and there is no choice before the fight
+/// (whether it is surprised is the party's roll, `combat::start_struck`), and Run puts the
+/// party back at `retreat`. None when the map has no such group.
 pub(crate) fn struck(
     world: &mut World,
     data: &Data,
@@ -643,18 +644,23 @@ fn roller_for(world: &World, data: &Data, spec: CheckSpec) -> Result<usize, Rule
     checks::best(world, data, spec).ok_or_else(|| RuleError::new("encounter", "no member can act"))
 }
 
+/// The best passive Perception among the stacks that stand: what the party's Stealth has to
+/// reach.
+pub(crate) fn watch(data: &Data, stacks: &[Stack]) -> i64 {
+    let standing = stacks.iter().filter(|s| s.alive());
+    standing
+        .filter_map(|s| data.monsters.get(&s.monster))
+        .map(passive_perception)
+        .max()
+        .unwrap_or(10)
+}
+
 /// Hide: Stealth against the monsters' best passive Perception; they stay where they are.
 fn hide(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), RuleError> {
     let Mode::Encounter(state) = &world.mode else {
         return Ok(());
     };
-    let dc = state
-        .stacks
-        .iter()
-        .filter_map(|s| data.monsters.get(&s.monster))
-        .map(passive_perception)
-        .max()
-        .unwrap_or(10);
+    let dc = watch(data, &state.stacks);
     let friendly = state.disposition == Disposition::Friendly;
     let spec = CheckSpec {
         skill: Some(Skill::Stealth),

@@ -45,7 +45,7 @@ pub enum Chosen {
         #[serde(default)]
         exchange: bool,
     },
-    /// A weapon attack, in a fight.
+    /// A weapon attack: at a stack in a fight, at a standing group in sight on the road.
     Attack,
     /// An exchange of places, in a fight.
     Exchange,
@@ -147,6 +147,14 @@ fn near(targets: Vec<Target>) -> Vec<Row> {
     rows.map(|target| (target, 0, Sight::Clear)).collect()
 }
 
+/// Things of the map as rows.
+fn seen(found: Vec<(Target, map::Spot)>) -> Vec<Row> {
+    let found = found.into_iter();
+    found
+        .map(|(target, spot)| (target, spot.distance, spot.sight))
+        .collect()
+}
+
 /// What a hand may be sent at on the road: the doors and objects its range reaches or would
 /// with a clear line, less the objects that offer a hand nothing.
 fn hand_rows(world: &World, data: &Data, targeting: Targeting) -> Vec<Row> {
@@ -222,10 +230,7 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
         return hand_rows(world, data, def.targeting());
     }
     if effect.strikes() && matches!(world.mode, Mode::Explore) {
-        let groups = map::beings(world, data, def.targeting()).into_iter();
-        return groups
-            .map(|(target, spot)| (target, spot.distance, spot.sight))
-            .collect();
+        return seen(map::beings(world, data, def.targeting()));
     }
     let on_the_party = matches!(
         effect,
@@ -338,7 +343,8 @@ pub fn targets(
             let rows = match chosen {
                 Chosen::Spell { spell, .. } => spell_rows(world, data, own.clone(), spell),
                 Chosen::Item { item } => item_rows(item),
-                Chosen::Feature { .. } | Chosen::Attack | Chosen::Exchange => Vec::new(),
+                Chosen::Attack => seen(map::seen(world, data)),
+                Chosen::Feature { .. } | Chosen::Exchange => Vec::new(),
             };
             (rows, &|target| match (chosen, target) {
                 (Chosen::Spell { spell, .. }, target) => {
@@ -347,6 +353,9 @@ pub fn targets(
                 }
                 (Chosen::Item { item }, Target::Member(receiver)) => {
                     items::use_refusal(world, data, member, item, Some(*receiver))
+                }
+                (Chosen::Attack, target) => {
+                    crate::assault::validate(world, data, member, target).err()
                 }
                 _ => Some(Rejection::WrongTarget),
             })

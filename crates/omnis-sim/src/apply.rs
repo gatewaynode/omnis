@@ -45,6 +45,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         (Mode::Explore, Command::Approach { being }) => {
             beings::approach(world, data, being, &mut events)?;
         }
+        (Mode::Explore, Command::Attack { member, target }) => {
+            crate::assault::apply(world, data, *member, target, &mut events)?;
+        }
         (Mode::Explore, Command::Climb(way)) => climb(world, data, *way, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Party(command))
         | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))

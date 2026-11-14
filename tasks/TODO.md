@@ -842,7 +842,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.
   - [ ] 4. Members in feet: reach, range, the line's advance, `Advance`, spell range, real distances.
   - [ ] 5. Area by squares.
-  - [ ] 6. Opening strike: surprise roll, advantage, real distance, road `Command::Attack` at a group.
+  - [x] 6. Opening strike: surprise roll, advantage, real distance, road `Command::Attack` at a group.
+        **Built ahead of steps 4 and 5 at the owner's word ("jump into step 6", 2026-11-14).** The party's
+        group Stealth check (`combat::unseen`: everyone who can act, half or more passing) against the
+        group's best passive Perception (`encounter::watch`) settles surprise; unseen, the striker is hidden
+        for the strike alone (advantage). `Command::Attack { member, target }` (17 commands, `assault.rs`,
+        `combat::Opening`): melee when the reach covers the feet (back row 5 ft further), else the ranged
+        weapon to its long range, hindered past normal. `targets` lists the groups in sight for `Attack` on
+        the road. Twenty mutations caught. Said plainly: a weapon's reach and range are read from the item
+        here (step 4 moves them into `Weapon`); the older strike tests pass by their seed's roll; no client
+        entry until step 7; ammunition is not counted.
   - [ ] 7. Client: distances, Advance, Attack on the road; the tile cap in loader and editor. Report.
   - [ ] 8. Objects take damage: state, AC and hit points, cast and attack, break, spill, fragile loss.
   - [ ] 9. Doors the same.

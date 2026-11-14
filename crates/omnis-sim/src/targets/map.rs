@@ -184,16 +184,22 @@ pub(crate) fn being(world: &World, data: &Data, id: &str) -> Option<Spot> {
     })
 }
 
-/// The groups in sight that `targeting` reaches, nearest first.
-pub(crate) fn beings(world: &World, data: &Data, targeting: Targeting) -> Vec<(Target, Spot)> {
+/// The groups in sight, nearest first.
+pub(crate) fn seen(world: &World, data: &Data) -> Vec<(Target, Spot)> {
     let stood = crate::beings::stood(world, data);
     let mut found: Vec<(Target, Spot)> = stood
         .into_iter()
         .filter_map(|(id, _)| Some((id, being(world, data, id)?)))
-        .filter(|(_, spot)| within(world, data, targeting, *spot).is_ok())
         .map(|(id, spot)| (Target::Being { being: id.into() }, spot))
         .collect();
     found.sort_by(|a, b| (a.1.distance, &a.0).cmp(&(b.1.distance, &b.0)));
+    found
+}
+
+/// The groups in sight that `targeting` reaches, nearest first.
+pub(crate) fn beings(world: &World, data: &Data, targeting: Targeting) -> Vec<(Target, Spot)> {
+    let mut found = seen(world, data);
+    found.retain(|(_, spot)| within(world, data, targeting, *spot).is_ok());
     found
 }
 

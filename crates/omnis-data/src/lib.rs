@@ -54,7 +54,7 @@ pub use biosphere::{BiosphereDef, ColourRole, Ink};
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;
-pub use durability::{Craft, DoorMake, Durability, SQUARE_FEET};
+pub use durability::{Craft, DEFAULT_RANGE, DoorMake, Durability, SQUARE_FEET};
 pub use encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, ResolvedEncounter, ResolvedEntry,
     ResolvedRandom, Stand,

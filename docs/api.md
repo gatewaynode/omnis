@@ -614,7 +614,8 @@ it), `distance` (tiles from the party as a king moves; 0 for a member and in a f
 Which targets are listed follows the option's `targeting` in pack data (`Own`, `Touch`,
 `Tiles(n)`, `Sight`, `Link`): a spell or item of the actor's own, or one that lands on the
 whole party (light, detect magic), lists the actor alone; a heal or a buff lists every
-member; a harmful spell and `Attack` list every standing stack in a fight; `Exchange` lists
+member; a harmful spell and `Attack` list every standing stack in a fight; on the road `Attack`
+lists every standing group in sight, one out of the weapon's reach with its refusal; `Exchange` lists
 the other members. A listed target out of reach is still listed, with its refusal: in a
 fight a touch reaches only the engaged stacks, those five feet off (`OutOfReach`). Each row is judged by the
 validation of the very command a client would send, so a row with a null `refusal` is
@@ -831,7 +832,7 @@ origin says which file defined the slot, not that the formula is still that file
 
 ## 8. Commands
 
-`Command` (16 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (17 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -854,6 +855,7 @@ means the same thing after a reorder or a change to a list.
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
 | `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
 | `Approach` | `being` (the group's id in the map, `BeingView.being`) | Go up to a group standing in the party's cell, or the faced cell across an edge with no wall, closed door or cliff (else `NoSuchBeing`): the encounter begins as a step into its cell begins it (`EncounterStarted` with its `Fixed` source), but the party stays where it is, and Run puts it back there facing away. Takes no time. Exploring only. |
+| `Attack` | `member` (`CharacterId`), `target` (`Target`: `{"Being": {being}}`, a standing group the party sees) | A weapon's opening strike from the road (`targets.get` with `Attack` lists the groups in sight). The member's melee weapon is used when its reach covers the distance (tiles to the group times the map's `tile_feet`, never under 5; the back row stands 5 ft further), else the ranged weapon in the `Ranged` slot within its long range, at disadvantage past its normal range. The group is met as hostile, the party's group Stealth check settles surprise as for a spell's strike, the blow lands on the nearest stack before round one and was the member's action for that round. Takes no time and pays nothing. Refused `NoSuchBeing` (not in sight), `NeedsRangedWeapon`, `BeyondRange`, `WrongTarget` (anything but a group), `MemberDown`, `MemberDead`. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -1307,6 +1309,16 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (**behaviour** and an addition; combat in feet, step 6: the opening strike): the strike no longer
+  surprises by itself. With the rules value `opening_strike_surprise` on (the default), every member who can
+  act rolls Stealth (`Check` events of kind `Hide`, between `EncounterStarted` and `CombatStarted`) against
+  the group's best passive Perception; half or more passing (the SRD's group check), the monsters are
+  surprised and the strike's attack roll has advantage; otherwise `CombatStarted.surprised` is `None` and
+  the strike still lands first. Written 0, the value leaves out the roll and the surprise as before.
+  `Command::Attack { member, target }` (17 commands; script word `strike-<slot>-<being>`): a weapon's
+  opening strike at a standing group in sight, by reach or range in feet. `targets.get` with `Attack` lists
+  the groups in sight on the road (it listed nothing there). No event or rejection is new. The golden
+  replays cast no strike and did not move.
 - 2026-11-14 (**behaviour**; combat in feet, step 3): the monsters fight in feet. On its turn a stack with a
   melee attack closes by its `speed`, stopping at that attack's `reach` (`Event::StackMoved { stack, from, to }`,
   75 events); if it still cannot reach and cannot shoot from where it stands it dashes (its speed again, no

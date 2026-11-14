@@ -2,7 +2,7 @@
 //! monster turns until the next member, the end of a round, and the end of the fight.
 
 use super::state::{CombatState, Initiative, can_fight};
-use super::{Plan, Roller};
+use super::{Opening, Plan, Roller};
 use super::{budget, cast, feature, monster_cast, opportunity, reaction, resolve};
 use crate::apply::{advance, retreat};
 use crate::bus::{Subscriber, Topic};
@@ -26,7 +26,7 @@ pub(crate) fn start(
     data: &Data,
     encounter: EncounterState,
     surprised: Surprise,
-    opening: Option<&cast::CastPlan>,
+    opening: Option<&Opening<'_>>,
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
@@ -63,8 +63,8 @@ pub(crate) fn start(
         }
     }
     world.bus.subscribe(Topic::Battle, Subscriber::Reactions);
-    if let Some(plan) = opening {
-        strike(world, data, &mut state, plan, roller, events)?;
+    if let Some(opening) = opening {
+        strike(world, data, &mut state, opening, roller, events)?;
     }
     events.push(Event::RoundStarted { round: 1 });
     if !run_until_member(world, data, &mut state, roller, events)? {
@@ -73,14 +73,14 @@ pub(crate) fn start(
     Ok(())
 }
 
-/// The opening strike: a spell already paid for on the road lands on the group before the
-/// first round, on its first stack in front, by the spell's reach as in any fight; it was the
-/// caster's action for the round.
+/// The opening strike: a spell already paid for on the road, or a weapon's blow, lands on the
+/// group before the first round, on its nearest stack, as in any fight; it was its maker's
+/// action for the round.
 fn strike(
     world: &mut World,
     data: &Data,
     state: &mut CombatState,
-    plan: &cast::CastPlan,
+    opening: &Opening<'_>,
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
@@ -88,12 +88,46 @@ fn strike(
     let stacks = &state.encounter.stacks;
     let front = stacks.iter().position(crate::encounter::Stack::alive);
     let front = front.and_then(|i| u8::try_from(i).ok()).unwrap_or(0);
-    let plan = cast::CastPlan {
-        target: cast::Aim::Stack(front),
-        ..plan.clone()
+    let own = match opening {
+        Opening::Spell(plan) => plan.own,
+        Opening::Weapon { own, .. } => *own,
     };
-    cast::resolve(world, data, state, &plan, roller, events)?;
-    state.struck = world.party.members.get(plan.own).map(|m| m.id);
+    let Some(striker) = world.party.members.get(own).map(|m| m.id) else {
+        return Ok(());
+    };
+    // Unseen, the striker attacks with advantage, as anyone hidden does; the strike is the
+    // one attack that has it, whether or not it rolled to hit.
+    if state.surprised == Surprise::Monsters
+        && let Err(at) = state.hidden.binary_search(&striker)
+    {
+        state.hidden.insert(at, striker);
+    }
+    match opening {
+        Opening::Spell(plan) => {
+            let plan = cast::CastPlan {
+                target: cast::Aim::Stack(front),
+                ..(*plan).clone()
+            };
+            cast::resolve(world, data, state, &plan, roller, events)?;
+        }
+        Opening::Weapon {
+            weapon, hindered, ..
+        } => {
+            let far = *hindered;
+            resolve::member_attacks(
+                world,
+                data,
+                state,
+                striker,
+                (front, far),
+                weapon,
+                roller,
+                events,
+            )?;
+        }
+    }
+    state.reveal(striker);
+    state.struck = Some(striker);
     Ok(())
 }
 
@@ -177,7 +211,8 @@ fn act_inner(
 ) -> Result<bool, RuleError> {
     match plan {
         Plan::Attack { stack, weapon } => {
-            resolve::member_attacks(world, data, state, actor, stack, &weapon, roller, events)?;
+            let at = (stack, false);
+            resolve::member_attacks(world, data, state, actor, at, &weapon, roller, events)?;
         }
         Plan::Cast(plan) => {
             cast::pay(world, data, &plan, events)?;

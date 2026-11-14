@@ -427,6 +427,10 @@ fn next(command: &Command) -> Option<Command> {
         spell: "base:spell:cure_wounds".into(),
         target,
     };
+    let strike = |target| Command::Attack {
+        member: CharacterId(0),
+        target,
+    };
     Some(match command {
         Command::Step(direction) => next_step(*direction),
         Command::Turn(rotation) => next_turn(*rotation),
@@ -447,7 +451,28 @@ fn next(command: &Command) -> Option<Command> {
                 being: "rat".into(),
             },
         },
-        Command::Approach { .. } => Command::Climb(Vertical::Up),
+        Command::Approach { .. } => strike(Target::Stack(0)),
+        // The road's attack takes a `Target` as a cast does: one of each shape.
+        Command::Attack { target, .. } => match target {
+            Target::Stack(_) => strike(Target::Member(CharacterId(1))),
+            Target::Member(_) => strike(Target::Door {
+                x: 3,
+                y: 4,
+                facing: Facing::North,
+            }),
+            Target::Door { x, y, facing } if *facing != Facing::West => strike(Target::Door {
+                x: *x,
+                y: *y,
+                facing: facing.right(),
+            }),
+            Target::Door { .. } => strike(Target::Object {
+                object: "chest_1".into(),
+            }),
+            Target::Object { .. } => strike(Target::Being {
+                being: "rat".into(),
+            }),
+            Target::Being { .. } => Command::Climb(Vertical::Up),
+        },
         Command::Climb(Vertical::Up) => Command::Climb(Vertical::Down),
         Command::Climb(Vertical::Down) => {
             Command::Party(PartyCommand::Create(draft(Alignment::ALL[0])))
