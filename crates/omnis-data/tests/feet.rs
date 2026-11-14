@@ -255,3 +255,55 @@ fn an_item_is_a_tool_or_supplies_for_named_materials() {
     assert_eq!(messages(|f, e| nothing.validate(f, e)).len(), 1);
     assert!(gear(", fragile: true").fragile);
 }
+
+/// The tile cap: on a map that states its scale a group must fit one tile's five-foot squares,
+/// each monster taking what its type says; a map that states none is not held to it.
+#[test]
+fn a_group_must_fit_the_squares_of_a_scaled_tile() {
+    use crate::biospheres::{refused, rewrite};
+    use crate::common::{base_pack, copy_pack, fixture_pack, test_pack};
+    let scaled = |name: &str, feet: u32, per_square: Option<u8>| {
+        let pack = copy_pack(&fixture_pack("objects"), name);
+        let map = "data/maps/yard.ron";
+        let scale = format!("id: \"objects:map:yard\",\n    tile_feet: Some({feet}),");
+        rewrite(&pack, map, "id: \"objects:map:yard\",", &scale);
+        if let Some(n) = per_square {
+            let rat = "data/monsters/pack_rat.ron";
+            rewrite(
+                &pack,
+                rat,
+                "size: Small,",
+                &format!("size: Small, per_square: Some({n}),"),
+            );
+        }
+        omnis_data::seal::seal(&pack, None).unwrap();
+        pack
+    };
+    // Two pack rats, one a square: a tile of five feet holds one of them.
+    let tight = scaled("tile-cap-tight", 5, None);
+    let text = refused(&[&base_pack(), &test_pack(), &tight]);
+    assert!(
+        text.contains("encounter 'rat' needs 2 five-foot squares; a tile of 5 ft holds 1"),
+        "{text}"
+    );
+    // Two to a square, they fit it; and a tile of ten feet holds four squares.
+    for (name, feet, per_square) in [("tile-cap-pairs", 5, Some(2)), ("tile-cap-wide", 10, None)] {
+        let pack = scaled(name, feet, per_square);
+        omnis_data::load_packs(&[&base_pack(), &test_pack(), &pack])
+            .unwrap_or_else(|report| panic!("{name}: {report}"));
+    }
+    // A random table is held to it at its fullest roll.
+    let pack = copy_pack(&test_pack(), "tile-cap-random");
+    let id = "id: \"test:map:dungeon\",";
+    let scale = format!("{id}\n    tile_feet: Some(5),");
+    rewrite(&pack, "data/maps/dungeon.ron", id, &scale);
+    omnis_data::seal::seal(&pack, None).unwrap();
+    let text = refused(&[&base_pack(), &pack]);
+    assert!(
+        text.contains("random encounter 1 at its fullest needs"),
+        "{text}"
+    );
+    // The yard as shipped states no scale and loads, whatever stands on its tiles.
+    omnis_data::load_packs(&[&base_pack(), &test_pack(), &fixture_pack("objects")])
+        .unwrap_or_else(|report| panic!("{report}"));
+}

@@ -22,14 +22,14 @@ fn map(data: &Data, id: &str) -> omnis_core::MapId {
 }
 
 /// `file` under `root` with `old` replaced by `new`, once.
-fn rewrite(root: &Path, file: &str, old: &str, new: &str) {
+pub(crate) fn rewrite(root: &Path, file: &str, old: &str, new: &str) {
     let path = root.join(file);
     let text = std::fs::read_to_string(&path).unwrap();
     assert_eq!(text.matches(old).count(), 1, "{old} in {file}");
     std::fs::write(&path, text.replace(old, new)).unwrap();
 }
 
-fn refused(packs: &[&Path]) -> String {
+pub(crate) fn refused(packs: &[&Path]) -> String {
     match load_packs(packs) {
         Ok(_) => panic!("the pack loaded"),
         Err(report) => report.to_string(),

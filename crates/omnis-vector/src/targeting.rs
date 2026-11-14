@@ -34,6 +34,15 @@ impl Aim {
         }
     }
 
+    /// A weapon attack `member` is about to make from the road.
+    #[must_use]
+    pub const fn attack(member: CharacterId) -> Aim {
+        Aim {
+            member,
+            option: Chosen::Attack,
+        }
+    }
+
     /// An item `member` is about to use.
     #[must_use]
     pub fn item(member: CharacterId, item: &str) -> Aim {
@@ -67,6 +76,10 @@ impl Aim {
                     receiver: Some(receiver),
                 }))
             }
+            (Chosen::Attack, target @ Target::Being { .. }) => Some(Command::Attack {
+                member: self.member,
+                target,
+            }),
             _ => None,
         }
     }

@@ -565,6 +565,10 @@ pub(crate) fn resolve_one(
     };
     let placed = placement::resolve(def, levels, &lookup, file, errors);
     placement::check_beings(def, levels, &encounters, &data.monsters, file, errors);
+    if let (Some(feet), Some(squares)) = (def.tile_feet, def.tile_squares()) {
+        let (tile, monsters) = ((feet, squares), &data.monsters);
+        encounter::check_fit(tile, &encounters, random.as_ref(), monsters, file, errors);
+    }
     let centres = placement::blocked_centres(&placed.objects, &placed.object_cells, &data.objects);
     let region = targets.owner(id);
     if region.is_none() {

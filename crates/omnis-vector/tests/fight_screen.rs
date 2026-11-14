@@ -105,6 +105,7 @@ fn the_turn_offers_features_beside_the_others() {
             "Features",
             "Use",
             "Dodge",
+            "Advance",
             "Swap",
             "End turn",
             "Flee"

@@ -117,7 +117,7 @@ fn a_rogue_who_knows_no_spells_is_told_so() {
     assert_eq!(
         labels(&entries),
         [
-            "Attack", "Cast", "Features", "Use", "Dodge", "Swap", "End turn", "Flee"
+            "Attack", "Cast", "Features", "Use", "Dodge", "Advance", "Swap", "End turn", "Flee"
         ]
     );
     assert_eq!(
@@ -475,4 +475,62 @@ fn with_the_action_spent_attack_and_cast_say_so() {
     assert_eq!(spent.as_deref(), Some("the turn's action is spent"));
     assert_eq!(entry(&entries, "Attack").blocked, spent);
     assert_eq!(entry(&entries, "Cast").blocked, spent);
+}
+
+/// The line's advance on the turn's menu (combat in feet): "Advance 25 ft" while the round's
+/// pace is free, "Advance (dash)" once it is used, plain and blocked with the reason when a
+/// stack is engaged; a stack that is not engaged is named with its distance.
+#[test]
+fn advance_says_how_far_and_a_far_stack_its_distance() {
+    let mut session = turn_of("Brenna");
+    let stand = |session: &mut omnis_vector::shell::session::Session, feet: u16| {
+        let Mode::Combat(state) = &mut session.world.mode else {
+            panic!("a fight")
+        };
+        state.advanced = 0;
+        for stack in &mut state.encounter.stacks {
+            stack.distance = feet;
+        }
+        session.refresh();
+    };
+    let top = |session: &omnis_vector::shell::session::Session| {
+        CombatMenu::default().entries(&session.world, &session.data)
+    };
+    let engaged = top(&session);
+    let advance = entry(&engaged, "Advance");
+    assert_eq!(advance.label, "Advance");
+    assert_eq!(
+        advance.blocked.as_deref(),
+        Some("the party is engaged already")
+    );
+    // Forty feet off: the dwarf in front sets the pace, 25 ft, free.
+    stand(&mut session, 40);
+    let far = top(&session);
+    let advance = entry(&far, "Advance");
+    assert_eq!(
+        (advance.label.as_str(), &advance.blocked),
+        ("Advance 25 ft", &None)
+    );
+    let targets = CombatMenu {
+        step: Step::Target(Action::Attack),
+    }
+    .entries(&session.world, &session.data);
+    assert!(
+        targets[0].label.ends_with(", 40 ft"),
+        "{:?}",
+        targets[0].label
+    );
+    let Act::Command(command) = advance.act.clone() else {
+        panic!("Advance is a command")
+    };
+    let events = events_of(&session.world, &session.data, command.clone());
+    assert!(
+        events.contains(&Event::PartyAdvanced { feet: 25 }),
+        "{events:?}"
+    );
+    session.order(command);
+    if acting(&session).as_deref() == Some("Brenna") {
+        let after = top(&session);
+        assert_eq!(entry(&after, "Advance").label, "Advance (dash)");
+    }
 }

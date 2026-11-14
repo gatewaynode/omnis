@@ -252,3 +252,93 @@ fn the_row_under_the_pointer_is_marked_in_the_view() {
     app.update();
     assert_eq!(marked(&app), None, "the step is over");
 }
+
+/// On the road the square's actions offer "Attack..." while a group is in sight: it asks who
+/// attacks and at what, names the group as a spell's step does, and the row sends the member's
+/// attack and closes the screen, since a fight follows (the opening strike by a weapon).
+#[test]
+fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
+    let data = common::objects_data();
+    let world = crate::loot::yard(&data, 3, 1, Facing::East);
+    let (brenna, durin) = (common::id(&world, 0), common::id(&world, 1));
+    let views = common::views(&world, &data);
+    let context = ctx(&data, &world, &views);
+    let mut forms = Forms::default();
+    let list = screen::content(ScreenId::Actions, &context, &forms);
+    let offered: Vec<_> = list.panels[0]
+        .rows
+        .iter()
+        .flat_map(|r| &r.controls)
+        .collect();
+    let attack = offered
+        .iter()
+        .find(|c| c.label == "Attack...")
+        .expect("a group is in sight");
+    let press = |forms: &mut Forms, id, payload: &Payload| {
+        screen::apply(ScreenId::Actions, &context, forms, id, payload, 0)
+    };
+    assert_eq!(
+        press(&mut forms, attack.id, &Payload::Press),
+        Ok(Effect::None)
+    );
+    assert_eq!(forms.aim, Some(Aim::attack(brenna)), "the first member");
+    let step = screen::content(ScreenId::Actions, &context, &forms);
+    assert_eq!(step.title.text, "Choose a target");
+    let first = &step.panels[0].rows[0].controls;
+    assert_eq!(
+        first.iter().map(|c| c.label.as_str()).collect::<Vec<_>>(),
+        ["Back", "Attacker"]
+    );
+    // The attacker steps round the party.
+    assert_eq!(
+        press(&mut forms, ControlId::Owner, &Payload::Press),
+        Ok(Effect::None)
+    );
+    assert_eq!(forms.aim, Some(Aim::attack(durin)));
+    let step = screen::content(ScreenId::Actions, &context, &forms);
+    let rows: Vec<_> = step.panels[0]
+        .rows
+        .iter()
+        .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
+        .collect();
+    assert_eq!(rows.len(), 1);
+    let rat = labels::monster(&data, "objects:monster:pack_rat");
+    assert_eq!(
+        rows[0].spans[0].text,
+        format!("{}, east", labels::count_label(rat, 2))
+    );
+    assert_eq!(rows[0].controls[0].why_not, None, "the crossbow reaches");
+    let sent = press(&mut forms, ControlId::Target(0), &Payload::Press);
+    let Ok(Effect::Command {
+        command,
+        close: true,
+    }) = sent
+    else {
+        panic!("the row sends the attack and closes the screen: {sent:?}");
+    };
+    assert_eq!(
+        command,
+        Command::Attack {
+            member: durin,
+            target: Target::Being {
+                being: "rat".into()
+            }
+        }
+    );
+    let mut after = world.clone();
+    after.apply(&data, command).expect("the strike");
+    assert!(after.combat(&data).is_some(), "a fight follows");
+    // Back leaves the step for the square's actions; out of sight nothing is offered.
+    forms.aim = Some(Aim::attack(brenna));
+    assert_eq!(
+        press(&mut forms, ControlId::Back, &Payload::Press),
+        Ok(Effect::None)
+    );
+    assert_eq!(forms.aim, None);
+    let hidden = crate::loot::yard(&data, 5, 4, Facing::North);
+    let views = common::views(&hidden, &data);
+    let context = ctx(&data, &hidden, &views);
+    let list = screen::content(ScreenId::Actions, &context, &Forms::default());
+    let any = list.panels[0].rows.iter().flat_map(|r| &r.controls);
+    assert!(!any.into_iter().any(|c| c.label == "Attack..."));
+}

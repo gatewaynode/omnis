@@ -146,7 +146,11 @@ fn a_stack_behind_stands_higher_and_smaller_and_a_crowd_shows_its_count() {
             "the two in front share a ground line"
         );
         assert_eq!(back.figures.len(), 8, "no more than eight drawn");
-        assert_eq!(back.label.text, "Giant Rat x12");
+        assert_eq!(back.label.text, "Giant Rat x12  15 ft", "and how far off");
+        assert_eq!(
+            front.label.text, "Giant Rat",
+            "an engaged stack says no distance"
+        );
         let (f, b) = (&front.figures[0].rect, &back.figures[0].rect);
         assert!(b.bottom() < f.y, "behind stands higher: {b:?} over {f:?}");
         assert!(b.h < f.h, "and smaller");
@@ -392,4 +396,32 @@ fn the_fight_draws_at_the_default_scale_as_before_and_fits_at_half_and_double() 
     // The ultrawide and the 1440p window take the full double; 1280x720 stays near the default.
     assert_eq!(zoom(2560.0, 1440.0, 2.0), 2.0);
     assert!(zoom(1280.0, 720.0, 2.0) < 1.1);
+}
+
+/// The stacks that are not engaged stand in the order of their distance, the nearest first.
+#[test]
+fn the_stacks_behind_stand_nearest_first() {
+    let session = met();
+    let mut world = with_stacks(&session.world, &[2, 2]);
+    let Mode::Encounter(encounter) = &mut world.mode else {
+        panic!("met in an encounter");
+    };
+    encounter.stacks[1].distance = 40;
+    encounter.stacks[2].distance = 20;
+    let arena = arena(
+        &views(&world, &session.data),
+        &session.data,
+        SIZES[0],
+        &[],
+        None,
+    )
+    .expect("an arena");
+    let (far, near) = (group(&arena, Pick::Stack(1)), group(&arena, Pick::Stack(2)));
+    assert!(
+        near.slot.x < far.slot.x,
+        "{:?} left of {:?}",
+        near.slot,
+        far.slot
+    );
+    assert!(near.label.text.ends_with("20 ft") && far.label.text.ends_with("40 ft"));
 }

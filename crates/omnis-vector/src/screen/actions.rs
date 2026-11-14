@@ -8,12 +8,16 @@
 //! (`ChooseVerb`) or refuse the one thing there is, Use opens the verbs screen instead, so the
 //! choice or the reason shows and nothing refused is sent.
 
-use super::{Control, ControlId, Effect, Game, Key, Panel, Row, Screen, ScreenId, Span};
+use super::inventory::{owner, owner_choice, step_owner};
+use super::{
+    Control, ControlId, Effect, Forms, Game, Key, Panel, Payload, Row, Screen, ScreenId, Span,
+};
 use crate::labels;
 use crate::sim::SimWorld;
+use crate::targeting::Aim;
 use omnis_sim::omnis_core::{Facing, Vertical};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, ItemPlace, MessageKey, Rejection};
+use omnis_sim::{Chosen, Command, Event, ItemPlace, MessageKey, Rejection};
 
 /// What an action does.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +28,8 @@ pub enum Does {
     Choose,
     /// Opens the loot window on a place within reach: the ground, or an open container.
     Loot(ItemPlace),
+    /// Opens the target step for a weapon attack at a group in sight (the opening strike).
+    Attack,
 }
 
 /// One action the square offers.
@@ -122,6 +128,14 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
             });
         }
     }
+    // A group in sight may be attacked from here: who attacks and at what is asked next.
+    let anyone = world.party(data).members.first().map(|m| m.member);
+    if anyone.is_some_and(|id| !world.targets(data, id, &Chosen::Attack).is_empty()) {
+        offers.push(Offer {
+            label: "Attack...".to_owned(),
+            does: Does::Attack,
+        });
+    }
     let search = Command::Search;
     let mut commands: Vec<(Command, &str)> =
         [(Vertical::Up, "Climb up"), (Vertical::Down, "Climb down")]
@@ -146,12 +160,22 @@ pub fn default_action(world: &SimWorld, data: &Data) -> Option<Does> {
     available(world, data)
         .into_iter()
         .map(|o| o.does)
-        .find(|d| *d != Does::Command(Command::Search))
+        .find(|d| *d != Does::Command(Command::Search) && *d != Does::Attack)
 }
 
 /// The screen: the square, its actions, and Close last.
 #[must_use]
-pub fn content(data: &Data, game: Game) -> Screen {
+pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
+    if let Some(aim) = forms.aim.as_ref().filter(|_| game.views.combat.is_none()) {
+        // The attack's target step, with who attacks to choose beside Back.
+        let mut screen = crate::targeting::content(data, game, aim, ScreenId::Actions);
+        let back = screen.panels.first_mut().and_then(|p| p.rows.first_mut());
+        if let Some(row) = back {
+            row.controls
+                .push(owner_choice(game, aim.member, "Attacker"));
+        }
+        return screen;
+    }
     let world = game.world;
     let p = &game.views.here.position;
     let offers = available(world, data);
@@ -186,8 +210,33 @@ pub fn content(data: &Data, game: Game) -> Screen {
 /// An action sends its command and closes the screen, or opens the verbs over it; Close only
 /// closes it.
 #[must_use]
-pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
+pub fn apply(
+    data: &Data,
+    game: Game,
+    forms: &mut Forms,
+    control: ControlId,
+    payload: &Payload,
+) -> Effect {
     match control {
+        ControlId::Back if forms.aim.is_some() => {
+            forms.aim = None;
+            Effect::None
+        }
+        ControlId::Owner => {
+            step_owner(game, forms, payload);
+            let now = owner(game, forms).map(|m| m.member);
+            if let (Some(aim), Some(member)) = (forms.aim.as_mut(), now) {
+                aim.member = member;
+            }
+            Effect::None
+        }
+        ControlId::Target(at) => {
+            let command = forms.aim.take().and_then(|aim| aim.chosen(data, game, at));
+            command.map_or(Effect::None, |command| Effect::Command {
+                command,
+                close: true,
+            })
+        }
         ControlId::Action(i) => available(game.world, data)
             .into_iter()
             .nth(usize::from(i))
@@ -198,6 +247,10 @@ pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
                 },
                 Does::Choose => Effect::Open(ScreenId::Verbs),
                 Does::Loot(from) => Effect::Loot(from),
+                Does::Attack => {
+                    forms.aim = owner(game, forms).map(|m| Aim::attack(m.member));
+                    Effect::None
+                }
             }),
         _ => Effect::Back,
     }

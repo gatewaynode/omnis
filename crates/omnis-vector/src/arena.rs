@@ -477,11 +477,13 @@ pub fn arena(
     let (back, front) = monsters.split(0.45);
     let mut stacks = Vec::new();
     for (band, in_front) in [(back, false), (front, true)] {
-        let here: Vec<_> = view
+        // The nearest first; a stack that is not engaged says how far off it stands.
+        let mut here: Vec<_> = view
             .stacks
             .iter()
             .filter(|s| s.alive && s.in_front == in_front)
             .collect();
+        here.sort_by_key(|s| (s.distance, s.stack));
         for (stack, slot) in here.iter().zip(band.columns(here.len())) {
             let id = data.registry.monsters.get(&stack.monster)?;
             let monster = data.monsters.get(&id)?;
@@ -495,6 +497,11 @@ pub fn arena(
                 format!("{} x{}", labels::text(data, &stack.name), stack.hps.len())
             } else {
                 labels::text(data, &stack.name).to_owned()
+            };
+            let text = if stack.in_front {
+                text
+            } else {
+                format!("{text}  {} ft", stack.distance)
             };
             let kind = Kind {
                 drawing: cinema::drawing(Scene::Enemy(id)),

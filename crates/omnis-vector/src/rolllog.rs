@@ -193,6 +193,15 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         }
         Event::RoundStarted { round } => format!("Round {round}"),
         Event::Waited { actor } => format!("{} waits", names.actor(*actor)),
+        Event::StackMoved { stack, to, .. } => {
+            let who = names.actor(ActorRef::Stack(*stack));
+            if *to <= 5 {
+                format!("{who} closes with the party")
+            } else {
+                format!("{who} closes to {to} ft")
+            }
+        }
+        Event::PartyAdvanced { feet } => format!("The party advances {feet} ft"),
         Event::Dodging { actor } => format!("{} dodges", names.actor(*actor)),
         Event::Exchanged { member, with } => {
             let (a, b) = (names.member(*member), names.member(*with));

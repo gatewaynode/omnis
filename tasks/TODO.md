@@ -871,7 +871,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         the road. Twenty mutations caught. Said plainly: a weapon's reach and range are read from the item
         here (step 4 moves them into `Weapon`); the older strike tests pass by their seed's roll; no client
         entry until step 7; ammunition is not counted.
-  - [ ] 7. Client: distances, Advance, Attack on the road; the tile cap in loader and editor. Report.
+  - [x] 7. Client: distances, Advance, Attack on the road; the tile cap in loader and editor. Report.
+        **Part I is built, not yet tried by the owner** (`tasks/acceptance/combat-in-feet-part-1.md`).
+        The fight screen names a stack that is not engaged with its feet and stands those stacks nearest
+        first; the turn's menu has Advance ("Advance 25 ft", "Advance (dash)", plain and dim when
+        engaged); a target row says ", 40 ft"; the log says "closes to 30 ft", "closes with the party",
+        "The party advances 10 ft". The square's actions offer "Attack..." while a group is in sight: the
+        target step with an Attacker chooser beside Back. The tile cap (`encounter::check_fit`): on a map
+        that writes `tile_feet`, a fixed group and a random entry at its fullest must fit one tile's
+        squares; the editor refuses a save in the loader's words, as for any load error. Fourteen
+        mutations caught. Said plainly: not seen on screen by me; the editor has no form field for
+        `tile_feet` or `door_make` (the map's own fields are files still); Shift+Space never attacks.
   - [ ] 8. Objects take damage: state, AC and hit points, cast and attack, break, spill, fragile loss.
   - [ ] 9. Doors the same.
   - [ ] 10. Repair: mending and `Command::Repair`.

@@ -560,6 +560,18 @@ fn turn(world: &SimWorld, data: &Data, view: &CombatView, party: &PartyView) -> 
             "Dodge".to_owned(),
             combat(CombatCommand::Dodge),
         ),
+        // The line's advance: free while the round's pace lasts, then a dash, the action.
+        order(
+            world,
+            data,
+            party,
+            match view.advance {
+                _ if view.stacks.iter().any(|s| s.alive && s.in_front) => "Advance".to_owned(),
+                0 => "Advance (dash)".to_owned(),
+                feet => format!("Advance {feet} ft"),
+            },
+            combat(CombatCommand::Advance),
+        ),
         open(
             "Swap",
             Step::Target(Action::Swap),
@@ -774,7 +786,12 @@ fn target_entries(
             let label = match pick {
                 Pick::Stack(i) => {
                     let s = view.stacks.iter().find(|s| s.stack == i)?;
-                    format!("{} x{}", labels::text(data, &s.name), s.hps.len())
+                    let name = format!("{} x{}", labels::text(data, &s.name), s.hps.len());
+                    if s.in_front {
+                        name
+                    } else {
+                        format!("{name}, {} ft", s.distance)
+                    }
                 }
                 Pick::Member(m) => name_of(world, data, Some(m)),
             };

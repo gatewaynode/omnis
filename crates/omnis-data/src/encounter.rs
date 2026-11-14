@@ -174,6 +174,47 @@ impl ResolvedRandom {
     }
 }
 
+/// The tile cap (owner, 2026-11-14; `tasks/plans/combat-in-feet.md`): on a map that states its
+/// scale, a group at its fullest must fit the five-foot squares of one tile, each monster
+/// taking what its type says (`Monster::squares`). `squares` is what a tile holds, `feet` its
+/// side. A map that states no scale is not held to it.
+pub(crate) fn check_fit(
+    (feet, squares): (u32, u32),
+    encounters: &[ResolvedEncounter],
+    random: Option<&ResolvedRandom>,
+    monsters: &std::collections::BTreeMap<MonsterId, crate::Monster>,
+    file: &Path,
+    errors: &mut Vec<DataError>,
+) {
+    let needed = |stacks: &mut dyn Iterator<Item = (MonsterId, u16)>| -> u32 {
+        stacks
+            .filter_map(|(id, count)| Some(u32::from(monsters.get(&id)?.squares(count))))
+            .sum()
+    };
+    let mut refuse = |what: String, needs: u32| {
+        if needs > squares {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "{what} needs {needs} five-foot squares; a tile of {feet} ft holds {squares}"
+                ),
+            ));
+        }
+    };
+    for e in encounters {
+        let mut stacks = e.stacks.iter().map(|&(id, count)| (id, u16::from(count)));
+        refuse(format!("encounter '{}'", e.id), needed(&mut stacks));
+    }
+    for (row, entry) in random.iter().flat_map(|r| r.entries.iter().enumerate()) {
+        let most = |dice: Dice| u16::try_from(dice.max().max(0)).unwrap_or(u16::MAX);
+        let mut stacks = entry.stacks.iter().map(|&(id, dice)| (id, most(dice)));
+        refuse(
+            format!("random encounter {} at its fullest", row + 1),
+            needed(&mut stacks),
+        );
+    }
+}
+
 /// Checks that need no other file: coordinates within `size`, stack shapes, chances, weights,
 /// dice.
 pub fn validate(

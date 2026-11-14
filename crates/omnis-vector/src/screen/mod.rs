@@ -848,7 +848,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         ) => empty(id),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
-        (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
+        (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game, forms),
         (ScreenId::Verbs, Some(game)) => verbs::content(ctx.data, game),
         (ScreenId::Log, Some(game)) => log::content(game, forms),
         (ScreenId::Loot, Some(game)) => loot::content(ctx.data, game, forms),
@@ -926,7 +926,7 @@ pub fn apply(
         (ScreenId::Debug, Some(game)) => {
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }
-        (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
+        (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Verbs, Some(game)) => verbs::apply(ctx.data, game, control),
         (ScreenId::Log, _) => log::apply(forms, control, payload),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,

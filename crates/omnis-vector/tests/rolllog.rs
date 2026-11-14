@@ -151,3 +151,34 @@ fn meeting_monsters_starts_a_fresh_log() {
     assert!(session.fight_log[0].starts_with("Met 2 "));
     assert!(session.fight_log[0].ends_with("(wary)"));
 }
+
+/// The fight's log says who closes and how far, and when the party's line advances.
+#[test]
+fn the_log_tells_the_moves_in_feet() {
+    use omnis_sim::Event;
+    use omnis_vector::rolllog::{Names, describe};
+    let data = crate::common::data();
+    let mut names = Names::default();
+    let met = Event::EncounterStarted {
+        source: omnis_sim::EncounterSource::Random,
+        stacks: vec![("base:monster:giant_rat".into(), 2)],
+        disposition: omnis_sim::omnis_data::Disposition::Hostile,
+        counts: Vec::new(),
+        stealth: None,
+        perception: 10,
+        noticed: true,
+    };
+    names.follow(&met, &data);
+    let line = |event: Event| describe(&event, &names, &data).expect("a line");
+    let moved = |to: u16| Event::StackMoved {
+        stack: 0,
+        from: 60,
+        to,
+    };
+    assert_eq!(line(moved(30)), "Giant Rat closes to 30 ft");
+    assert_eq!(line(moved(5)), "Giant Rat closes with the party");
+    assert_eq!(
+        line(Event::PartyAdvanced { feet: 10 }),
+        "The party advances 10 ft"
+    );
+}

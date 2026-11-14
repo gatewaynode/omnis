@@ -18,7 +18,12 @@ Targeting is accepted by the owner (same day).
   advantage through `state.hidden`, `Command::Attack { member, target }` in `assault.rs`, `combat::Opening`,
   `targets` rows for `Attack` on the road; 17 commands; `schema_proof.rs` 144 instances, 204 branches),
   `7c31d458` (the fight menu's Attack and Cast give the shared reason, from the owner's playtest). Gate 1423.
-  **Steps 4 and 5 are still open**; step 4 should move the item span read in `assault::span` into `Weapon`.
+  Then `5308dab4` (4, members in feet: `strike_for`, `Advance`, `PartyAdvanced`, `AlreadyEngaged`,
+  `CombatState.advanced`/`room`), `d7ee3a8f` (5, areas by squares), and step 7 (client and the tile cap).
+  **Part I (steps 0 to 7) is built, not yet tried by the owner**: `tasks/acceptance/combat-in-feet-part-1.md`
+  ends with six decisions (Advance free within the pace; bow before charge; an engaged stack stops the
+  line; ammunition; balance; no editor field for `tile_feet`). Pins now: 17 commands, 76 events, 75
+  rejections, `schema_proof.rs` 145 instances and 205 branches. **Next: step 8, objects take damage.**
 - **Found in step 1, fixed there**: new base items renumber every item; a save older than name tables is read
   on the table without them (`NameTable::before_names`, the list `ITEMS_SINCE_NAMES` in `save/names.rs`;
   **any definition added to a shipped pack goes in that list in the same change**), before its migrations.
@@ -26,7 +31,7 @@ Targeting is accepted by the owner (same day).
   durable kinds wait for steps 10 and 8; step 2 kept "front stacks" and step 3 replaced it with engaged;
   `monster_front_stacks` is still written in base's `combat.ron` and asserted in `load_base_pack.rs` (remove
   both at the next base reseal, step 10); monster spells' own ranges moved from step 3 to step 4.
-- **Next: step 4, members in feet, then 5, then 7.** Design I had settled on:
+- **Step 4's design as it was planned (built since; the plan file's "As built" lists the departures):**
   - `omnis_rules::Weapon` gains `reach` and `range` from `Item::span()` (unarmed 5).
   - `CombatState` gains `advanced: u16` and `dashes: u8` (serde default, reset in `turn::end_of_round`). The
     line's allowance a round is the slowest standing front-row member's race speed x (1 + dashes).

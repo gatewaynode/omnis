@@ -215,10 +215,12 @@ fn nothing_in_reach_says_so() {
     );
 }
 
+/// The square's actions but the attack, which is offered wherever the rats are in sight.
 fn labels(world: &SimWorld, data: &Data) -> Vec<String> {
     available(world, data)
         .into_iter()
         .map(|o| o.label)
+        .filter(|label| label != "Attack...")
         .collect()
 }
 
@@ -228,6 +230,12 @@ fn use_opens_the_verbs_when_the_engine_would_ask_or_refuse_and_search_is_always_
     // The crate offers one thing: Use does it.
     let world = yard(&data, 1, 2, Facing::North);
     assert_eq!(labels(&world, &data), ["Use", "Search here"]);
+    // The rats stand in sight from here, so they may be attacked; that is never the default.
+    let all: Vec<String> = available(&world, &data)
+        .into_iter()
+        .map(|o| o.label)
+        .collect();
+    assert_eq!(all, ["Use", "Attack...", "Search here"]);
     assert_eq!(
         default_action(&world, &data),
         Some(Does::Command(Command::Interact))

@@ -1313,6 +1313,12 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (a load check; combat in feet, step 7: the tile cap). On a map that writes `tile_feet`, a fixed
+  encounter's stacks, and each row of the random table at its fullest roll, must fit the five-foot squares
+  of one tile (`(tile_feet / 5)^2`), each monster taking what its type says (`per_square` to a square, a
+  Large or bigger one its whole space): else the load is refused ("encounter 'rat' needs 2 five-foot
+  squares; a tile of 5 ft holds 1"). A map that writes no `tile_feet` is not held to it, so no shipped pack
+  is refused. No wire shape changed.
 - 2026-11-14 (**behaviour**; combat in feet, step 5: areas by squares). A spell whose `reach` is
   `Area { squares }` no longer catches its whole stack: cast by a member it catches as many of the stack as
   fit those squares (`per_square` a square, or one for each `space` of a Large or bigger monster; at least
