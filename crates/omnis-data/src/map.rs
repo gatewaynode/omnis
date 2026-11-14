@@ -30,6 +30,7 @@
 //! no ground on its level.
 
 use crate::biosphere::ColourRole;
+use crate::durability::{DoorMake, MAX_TILE_FEET, SQUARE_FEET};
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::levels::{LevelDef, NO_GROUND};
@@ -245,6 +246,14 @@ pub struct MapDef {
     /// Tileset surface for open doors, or none to draw an open doorway as empty.
     #[serde(default)]
     pub door_open: Option<String>,
+    /// What the doors are made of and whether they break (owner, 2026-11-14): wooden and
+    /// breakable when left out.
+    #[serde(default, skip_serializing_if = "DoorMake::is_default")]
+    pub door_make: DoorMake,
+    /// How many feet a tile is across, where the map states its scale; left out a tile is one
+    /// five-foot square for ranges and a group on it is not held to the room it has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile_feet: Option<u32>,
     /// The terrains, each with a distinct glyph.
     pub terrains: Vec<Terrain>,
     /// The grid as text; see the module documentation.
@@ -303,9 +312,49 @@ pub struct Cell {
 }
 
 impl MapDef {
+    /// How many feet a tile is across: what the map states, else one five-foot square.
+    #[must_use]
+    pub fn tile_feet(&self) -> u32 {
+        self.tile_feet.unwrap_or(u32::from(SQUARE_FEET))
+    }
+
+    /// The five-foot squares a tile holds, when the map states its scale.
+    #[must_use]
+    pub fn tile_squares(&self) -> Option<u32> {
+        let side = self.tile_feet? / u32::from(SQUARE_FEET);
+        Some(side.saturating_mul(side))
+    }
+
+    /// The scale and the doors' make.
+    fn validate_scale(&self, file: &Path, errors: &mut Vec<DataError>) {
+        let square = u32::from(SQUARE_FEET);
+        if let Some(feet) = self.tile_feet
+            && (feet < square || feet > MAX_TILE_FEET || feet % square != 0)
+        {
+            errors.push(DataError::new(
+                file,
+                format!("tile_feet must be a multiple of {square}, {square}..={MAX_TILE_FEET}"),
+            ));
+        }
+        if let Some(durability) = &self.door_make.durability {
+            for problem in
+                durability.problems(Some(self.door_make.material), Some(self.door_make.size))
+            {
+                errors.push(DataError::new(file, format!("door_make: {problem}")));
+            }
+            if durability.broken_state.is_some() {
+                errors.push(DataError::new(
+                    file,
+                    "door_make: a door has no broken_state",
+                ));
+            }
+        }
+    }
+
     /// Checks that need no other file: sizes, glyphs, start tile, portal, encounter, and site
     /// shapes.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        self.validate_scale(file, errors);
         if self.width == 0
             || self.height == 0
             || self.width > MAX_MAP_SIDE
@@ -468,6 +517,8 @@ mod tests {
             },
             door: "door".into(),
             door_open: None,
+            door_make: DoorMake::default(),
+            tile_feet: None,
             terrains: vec![Terrain {
                 glyph: '.',
                 name: "floor".into(),
@@ -511,6 +562,32 @@ mod tests {
                 .map(|c| c.expect("ground"))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn a_map_states_its_scale_and_its_doors_make() {
+        let mut map = tiny(&["+-+", "|.|", "+-+"]);
+        assert_eq!((map.tile_feet(), map.tile_squares()), (5, None));
+        assert_eq!(map.door_make.numbers(), Some((15, 18)), "wooden doors");
+        let problems = |map: &MapDef| {
+            let mut errors = Vec::new();
+            map.validate_scale(Path::new("m"), &mut errors);
+            errors.len()
+        };
+        assert_eq!(problems(&map), 0);
+        map.tile_feet = Some(15);
+        assert_eq!((map.tile_feet(), map.tile_squares()), (15, Some(9)));
+        assert_eq!(problems(&map), 0);
+        for bad in [0, 4, 12, MAX_TILE_FEET + 5] {
+            map.tile_feet = Some(bad);
+            assert_eq!(problems(&map), 1, "{bad} feet");
+        }
+        map.tile_feet = None;
+        map.door_make.material = crate::Material::Liquid;
+        assert_eq!(problems(&map), 1, "a door of water has no armor class");
+        map.door_make.durability = None;
+        assert_eq!(problems(&map), 0, "unless it cannot be damaged");
+        assert_eq!(map.door_make.numbers(), None);
     }
 
     #[test]

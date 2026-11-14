@@ -836,7 +836,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   and doors breakable and repairable, fragile items can be lost, surprise rolled; `tasks/plans/combat-in-feet.md`,
   approved in plan mode 2026-11-14; PRD 8.1, 8.2, 8.3 and ARCHITECTURE 4.5 amended by that approval).
   - [x] 0. Documents: the plan, PRD and ARCHITECTURE lines, the lesson (combat scale follows the SRD).
-  - [ ] 1. Data, both parts: reach, range, per_square, tile_feet, areas, objects flag, fragile, craft,
+  - [x] 1. Data, both parts: reach, range, per_square, tile_feet, areas, objects flag, fragile, craft,
         durability, door_make, mending, tools and supplies; base resealed, goldens rebaselined.
   - [ ] 2. Distance in the state: `Stack.distance`, starting distances, the view; engaged replaces front.
   - [ ] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.

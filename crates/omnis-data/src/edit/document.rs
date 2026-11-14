@@ -160,6 +160,8 @@ impl Document {
             wall: new.wall,
             door: new.door,
             door_open: new.door_open,
+            door_make: crate::DoorMake::default(),
+            tile_feet: None,
             terrains: vec![new.terrain],
             layout: Vec::new(),
             heights: Vec::new(),

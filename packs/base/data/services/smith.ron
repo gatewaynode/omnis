@@ -1,4 +1,4 @@
-// The smith keeps the town's whole mundane stock: weapons, armor, ammunition, gear, potions.
+// The smith keeps the town's whole mundane stock: weapons, armor, ammunition, gear, potions, and the tools and supplies of a repair.
 (
     schema: 1,
     id: "base:service:smith",
@@ -12,5 +12,7 @@
         "base:item:arrows", "base:item:crossbow_bolts",
         "base:item:component_pouch", "base:item:holy_symbol", "base:item:spellbook",
         "base:item:thieves_tools", "base:item:map_making_kit", "base:item:potion_of_healing",
+        "base:item:carpenters_tools", "base:item:smiths_tools", "base:item:masons_tools",
+        "base:item:timber", "base:item:iron_stock", "base:item:cut_stone",
     ],
 )

@@ -565,7 +565,7 @@ fn cast_save(
     let caster = &world.party.members[plan.own];
     let dc = save_dc(caster, data, &mut roller.rng, &roller.stream)?;
     let stacks: Vec<u8> = match save.reach {
-        Reach::One | Reach::Stack => alloc::vec![stack],
+        Reach::One | Reach::Stack | Reach::Area { .. } => alloc::vec![stack],
         Reach::AllStacks => (0..state.encounter.stacks.len())
             .rev()
             .filter(|i| state.encounter.stacks[*i].alive())
@@ -586,7 +586,9 @@ fn cast_save(
         let count = state.encounter.stacks[usize::from(stack)].hp.len();
         let individuals: Vec<usize> = match save.reach {
             Reach::One => alloc::vec![0],
-            Reach::Stack | Reach::AllStacks => (0..count).rev().collect(),
+            // An area still catches its whole stack; the squares count from step 5 of
+            // `tasks/plans/combat-in-feet.md`.
+            Reach::Stack | Reach::AllStacks | Reach::Area { .. } => (0..count).rev().collect(),
         };
         for index in individuals {
             let actor = ActorRef::Monster {

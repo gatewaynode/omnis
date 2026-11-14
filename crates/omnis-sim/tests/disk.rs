@@ -458,7 +458,14 @@ fn the_schema_9_fixture_still_loads() {
     })
     .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(report.converted_from, None);
-    assert_eq!(world.archive.len(), 1, "the segment the fold put away");
+    // The base pack has gained items since the fixture was made (the repair tools, 2026-11-14),
+    // so its numbers are read by name and the renumbered world is folded once more.
+    let folds = if report.fit == PackFit::Same { 1 } else { 2 };
+    assert_eq!(
+        world.archive.len(),
+        folds,
+        "the segments the folds put away"
+    );
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     assert!(world.maps[&dungeon].cleared.contains("giant_rat_3_8"));
     assert!(

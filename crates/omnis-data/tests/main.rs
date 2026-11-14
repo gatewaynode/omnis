@@ -10,6 +10,7 @@ mod edit_authoring;
 mod edit_document;
 mod edit_grid;
 mod edit_session;
+mod feet;
 mod files;
 mod flags;
 mod footprint;

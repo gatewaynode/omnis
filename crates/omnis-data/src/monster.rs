@@ -1,5 +1,8 @@
 //! `data/monsters`: SRD stat blocks reduced to what the crawler uses (M4 consumes them).
 
+use crate::durability::{
+    DEFAULT_RANGE, MAX_PER_SQUARE, is_melee_reach, melee_reach, span_problems,
+};
 use crate::error::DataError;
 use crate::object::{Look, Shape, check_look};
 use crate::terms::{DamageType, Size};
@@ -22,6 +25,20 @@ pub struct Attack {
     /// Usable from the back and against the party's back row.
     #[serde(default)]
     pub ranged: bool,
+    /// How far it reaches in melee, in feet.
+    #[serde(default = "melee_reach", skip_serializing_if = "is_melee_reach")]
+    pub reach: u8,
+    /// Normal and long range in feet, for a ranged attack; left out it is 80 and 320.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<(u16, u16)>,
+}
+
+impl Attack {
+    /// Normal and long range in feet; `None` for a melee attack.
+    #[must_use]
+    pub fn span(&self) -> Option<(u16, u16)> {
+        self.ranged.then(|| self.range.unwrap_or(DEFAULT_RANGE))
+    }
 }
 
 /// A monster's spellcasting (homebrew until monster runbooks: a dice roll picks among what it
@@ -89,6 +106,10 @@ pub struct Monster {
     /// out, its size gives one (`figure_for`).
     #[serde(default)]
     pub look: Option<Look>,
+    /// How many of it fit a five-foot square (owner, 2026-11-14); left out, its size says
+    /// ([`Monster::per_square`]). Not for a Large or bigger one, which takes several squares.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_square: Option<u8>,
 }
 
 /// The figure a monster of a size is drawn as, in eighths of a cell (a wall is 8 high): a cell's
@@ -118,8 +139,57 @@ impl Monster {
         self.look.unwrap_or(figure_for(self.size))
     }
 
+    /// How many of it fit a five-foot square.
+    #[must_use]
+    pub fn per_square(&self) -> u8 {
+        self.per_square.unwrap_or(self.size.per_square())
+    }
+
+    /// The squares `count` of it take: one each for a big one's whole space, shared for the
+    /// rest. At least one for any.
+    #[must_use]
+    pub fn squares(&self, count: u16) -> u16 {
+        if count == 0 {
+            return 0;
+        }
+        let space = u16::from(self.size.space());
+        if space > 1 {
+            count.saturating_mul(space)
+        } else {
+            count.div_ceil(u16::from(self.per_square().max(1)))
+        }
+    }
+
+    /// How many of it `squares` squares hold: at least one, since something always fits.
+    #[must_use]
+    pub fn fitting(&self, squares: u16) -> u16 {
+        let space = u16::from(self.size.space());
+        let held = if space > 1 {
+            squares / space
+        } else {
+            squares.saturating_mul(u16::from(self.per_square().max(1)))
+        };
+        held.max(1)
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        for attack in &self.attacks {
+            for problem in span_problems(attack.reach, attack.range, attack.ranged) {
+                errors.push(DataError::new(file, problem));
+            }
+        }
+        match self.per_square {
+            Some(n) if n == 0 || n > MAX_PER_SQUARE => errors.push(DataError::new(
+                file,
+                format!("per_square must be 1..={MAX_PER_SQUARE}"),
+            )),
+            Some(_) if self.size.space() > 1 => errors.push(DataError::new(
+                file,
+                "per_square is for a Medium or smaller monster; a bigger one takes several squares",
+            )),
+            _ => {}
+        }
         if self.ac == 0 || self.ac > 30 {
             errors.push(DataError::new(file, "ac must be 1..=30"));
         }

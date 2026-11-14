@@ -172,6 +172,8 @@ fn cast(
                 damage: scale(dice, roller)?,
                 damage_type,
                 ranged: true,
+                reach: 5,
+                range: None,
             };
             match reached(world, data, true, &mut roller.rng) {
                 Some(target) => monster_attacks_member(
@@ -234,7 +236,7 @@ fn cast(
                 Reach::One => reached(world, data, false, &mut roller.rng)
                     .into_iter()
                     .collect(),
-                Reach::Stack | Reach::AllStacks => front_or_all(world, data),
+                Reach::Stack | Reach::AllStacks | Reach::Area { .. } => front_or_all(world, data),
             };
             let dice = scale(dice, roller)?;
             let damage = damage_roll(

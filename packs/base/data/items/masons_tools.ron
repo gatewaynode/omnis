@@ -1,0 +1,2 @@
+// SRD 5.1 artisan's tools (docs/dnd.srd.5.1/04_Equipment). `craft`: the tool a repair of stone or earth needs.
+(schema: 1, id: "base:item:masons_tools", name: "base:text:item.masons_tools.name", kind: Gear, cost_cp: 1000, weight_tenths: 80, craft: Some(Tool([Stone, Earth])))

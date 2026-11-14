@@ -495,6 +495,8 @@ mod tests {
             },
             door: "door".into(),
             door_open: None,
+            door_make: crate::DoorMake::default(),
+            tile_feet: None,
             terrains: vec![
                 terrain('.', true, None),
                 terrain('#', false, None),

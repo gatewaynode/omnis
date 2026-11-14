@@ -1,0 +1,2 @@
+// Omnis's own (the SRD prices no repair supplies). `craft`: used up repairing wood, bone or plant.
+(schema: 1, id: "base:item:timber", name: "base:text:item.timber.name", kind: Gear, cost_cp: 50, weight_tenths: 50, craft: Some(Supply([Wood, Bone, Plant])))

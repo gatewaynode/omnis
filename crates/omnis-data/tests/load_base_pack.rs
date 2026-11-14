@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 24, 16, 19, 3, 36, 7)
+        (4, 4, 3, 30, 16, 19, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -163,7 +163,7 @@ fn the_base_spells_carry_their_effects() {
             .get(&format!("base:spell:{name}"))
             .unwrap()]
     };
-    assert_eq!(spell("burning_hands").reach, Reach::Stack);
+    assert_eq!(spell("burning_hands").reach, Reach::Area { squares: 6 });
     assert!(matches!(
         spell("bless").effect,
         Some(SpellEffect::Buff {
@@ -723,4 +723,88 @@ fn the_base_pack_writes_every_targeting_in_srd_terms() {
             ("base:item:spyglass", Targeting::OWN),
         ]
     );
+}
+
+/// Combat in feet (owner, 2026-11-14): the base pack writes its ranges, how many of a monster fit
+/// a square, the areas of its area spells, what may strike a thing, and what a repair needs.
+#[test]
+fn the_base_pack_writes_the_fight_in_feet() {
+    use omnis_data::{Craft, Material};
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let item = |name: &str| {
+        &data.items[&data
+            .registry
+            .items
+            .get(&format!("base:item:{name}"))
+            .unwrap()]
+    };
+    assert_eq!(item("shortbow").span(), Some((5, Some((80, 320)))));
+    assert_eq!(item("light_crossbow").span(), Some((5, Some((80, 320)))));
+    assert_eq!(item("longsword").span(), Some((5, None)), "melee, no range");
+    assert_eq!(item("shield").span(), None, "not a weapon");
+    assert!(item("potion_of_healing").fragile && !item("dagger").fragile);
+    assert_eq!(
+        item("smiths_tools").craft,
+        Some(Craft::Tool(vec![Material::Metal]))
+    );
+    assert_eq!(
+        item("timber").craft,
+        Some(Craft::Supply(vec![
+            Material::Wood,
+            Material::Bone,
+            Material::Plant
+        ]))
+    );
+    let smith = &data.services[&data.registry.services.get("base:service:smith").unwrap()];
+    for stock in [
+        "carpenters_tools",
+        "masons_tools",
+        "iron_stock",
+        "cut_stone",
+    ] {
+        assert!(
+            smith.items.contains(&format!("base:item:{stock}")),
+            "the smith sells {stock}"
+        );
+    }
+
+    let monster = |name: &str| {
+        &data.monsters[&data
+            .registry
+            .monsters
+            .get(&format!("base:monster:{name}"))
+            .unwrap()]
+    };
+    let (goblin, rat, skeleton) = (monster("goblin"), monster("giant_rat"), monster("skeleton"));
+    assert_eq!(
+        (goblin.per_square(), rat.per_square(), skeleton.per_square()),
+        (2, 3, 1)
+    );
+    assert_eq!((rat.squares(7), rat.fitting(2)), (3, 6));
+    assert_eq!((skeleton.squares(7), skeleton.fitting(2)), (7, 2));
+    assert_eq!(goblin.attacks[0].span(), None, "the scimitar is melee");
+    assert_eq!(goblin.attacks[1].span(), Some((80, 320)));
+    assert_eq!(goblin.attacks[0].reach, 5);
+
+    let spell = |name: &str| {
+        &data.spells[&data
+            .registry
+            .spells
+            .get(&format!("base:spell:{name}"))
+            .unwrap()]
+    };
+    assert_eq!(spell("thunderwave").reach, Reach::Area { squares: 9 });
+    assert_eq!(spell("shatter").reach, Reach::Area { squares: 12 });
+    let strikes_things: Vec<&str> = [
+        "fire_bolt",
+        "acid_arrow",
+        "shatter",
+        "magic_missile",
+        "sacred_flame",
+        "burning_hands",
+    ]
+    .into_iter()
+    .filter(|name| spell(name).objects)
+    .collect();
+    assert_eq!(strikes_things, ["fire_bolt", "acid_arrow", "shatter"]);
 }

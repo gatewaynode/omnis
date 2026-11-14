@@ -1306,6 +1306,21 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (data only; combat in feet, step 1 of `tasks/plans/combat-in-feet.md`): data gains, each with a
+  default so a pack that writes none is unchanged: `reach` (feet, 5) and `range: Some((normal, long))` (feet,
+  80 and 320 when a ranged one writes none) on a weapon and on a monster's attack; `per_square` on a monster
+  (how many fit a five-foot square; by size when left out: four Tiny, one of anything else, a Large or bigger
+  one taking 4, 9 or 16 squares); `tile_feet` and `door_make` on a map (unscaled; wooden, Medium, resilient);
+  `Reach::Area { squares }` and `objects` on a spell; `Utility::Mend { up_to }`; `fragile` and
+  `craft: Some(Tool([..]) | Supply([..]))` on an item; `durability` on an object kind's attributes (absent: it
+  cannot be damaged). `data.get` shows them. Nothing reads them yet: an area still catches its whole stack and a
+  mending spell is `NotCastable`; no command, event, rejection or op changes. `base` writes ranges, `per_square`
+  (goblin 2, giant rat 3), the areas of burning hands (6), thunderwave (9) and shatter (12), `objects` on fire
+  bolt, acid arrow and shatter, a fragile potion, and gains six items (carpenter's, smith's and mason's tools,
+  timber, iron stock, cut stone; the smith sells them); it is resealed at 0.1.4 (hash 17444067960085796512), so
+  the goldens moved: walk `a76da0b7797fc220`, fight `f419d0bf802466b8`. **Item numbers moved** (ids are numbered
+  in sorted order): a schema 9 save is read by its name table as for any pack change; a save older than name
+  tables is read on the table without the six (`NameTable::before_names`), before its migrations run.
 - 2026-11-14 (targeting, step 8: links): `World` and `Checkpoint` gain `links` (a map from `CharacterId` to
   a set of `Target`; left out when empty, so `SAVE_SCHEMA` stays 9 and an older save reads as none).
   `Range::Link`, refused `BeyondRange` for everything until now, reaches what its user is linked to.

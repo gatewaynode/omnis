@@ -54,6 +54,12 @@ pub(crate) fn validate<'a>(
     let effect = def.effect.clone().ok_or_else(|| Rejection::NotCastable {
         spell: cast::spell_name(data, id),
     })?;
+    // Mending is data only until repair is built (step 10 of `tasks/plans/combat-in-feet.md`).
+    if let SpellEffect::Utility(Utility::Mend { .. }) = effect {
+        return Err(Rejection::NotCastable {
+            spell: cast::spell_name(data, id),
+        });
+    }
     if let SpellEffect::Heal { .. } | SpellEffect::Buff { .. } = effect {
         let Target::Member(id) = target else {
             return Err(Rejection::WrongTarget);

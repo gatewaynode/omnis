@@ -5,7 +5,7 @@ use crate::action::Cost;
 use crate::error::DataError;
 use crate::limits::MAX_VISIBILITY_DEPTH;
 use crate::targeting::{Range, Targeting};
-use crate::terms::{Ability, DamageType, School};
+use crate::terms::{Ability, DamageType, School, Size};
 use omnis_core::Dice;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -22,6 +22,11 @@ pub enum Reach {
     Stack,
     /// Every living stack (no base spell uses it yet).
     AllStacks,
+    /// As many of one stack as stand in this many five-foot squares (owner, 2026-11-14).
+    Area {
+        /// Squares the area covers.
+        squares: u8,
+    },
 }
 
 /// Which rolls a buff adds its die to.
@@ -50,6 +55,11 @@ pub enum Utility {
         range_tiles: u8,
         /// Party-clock minutes it lasts.
         minutes: u32,
+    },
+    /// Make a broken or damaged thing whole (mending): an object up to this size.
+    Mend {
+        /// The biggest thing it restores.
+        up_to: Size,
     },
 }
 
@@ -173,6 +183,9 @@ impl SpellEffect {
         {
             errors.push(DataError::new(file, "spell effect dice need dice"));
         }
+        if matches!(reach, Reach::Area { squares: 0 }) {
+            errors.push(DataError::new(file, "an area covers at least one square"));
+        }
         if self.needs_one_target() && reach != Reach::One {
             errors.push(DataError::new(
                 file,
@@ -263,6 +276,10 @@ pub struct Spell {
     /// How far it reaches in a fight.
     #[serde(default)]
     pub reach: Reach,
+    /// It may strike an object or a door as well as a creature (the SRD's "a creature or
+    /// object").
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub objects: bool,
     /// What it may be aimed at; absent, it follows from the effect ([`Spell::targeting`]).
     #[serde(default)]
     pub targeting: Option<Targeting>,
@@ -291,7 +308,11 @@ impl Spell {
     #[must_use]
     pub fn targeting(&self) -> Targeting {
         self.targeting.unwrap_or(match &self.effect {
-            Some(SpellEffect::Heal { .. } | SpellEffect::Buff { .. }) => Targeting::TOUCH,
+            Some(
+                SpellEffect::Heal { .. }
+                | SpellEffect::Buff { .. }
+                | SpellEffect::Utility(Utility::Mend { .. }),
+            ) => Targeting::TOUCH,
             Some(
                 SpellEffect::Attack { .. } | SpellEffect::AutoHit { .. } | SpellEffect::Save { .. },
             ) => Targeting::SIGHT,
@@ -348,6 +369,12 @@ impl Spell {
         if let Some(effect) = &self.effect {
             effect.validate(file, self.reach, errors);
         }
+        if self.objects && !self.effect.as_ref().is_some_and(SpellEffect::strikes) {
+            errors.push(DataError::new(
+                file,
+                "objects is for a spell that strikes: an attack, auto-hit or save effect",
+            ));
+        }
         self.validate_cost(file, errors);
     }
 
@@ -394,6 +421,7 @@ mod tests {
             description: "t:text:spell.x.description".into(),
             effect,
             reach,
+            objects: false,
             targeting: None,
             cost: Cost::Action,
             bonus_action_available: false,

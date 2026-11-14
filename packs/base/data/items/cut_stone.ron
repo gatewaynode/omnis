@@ -1,0 +1,2 @@
+// Omnis's own (the SRD prices no repair supplies). `craft`: used up repairing stone or earth.
+(schema: 1, id: "base:item:cut_stone", name: "base:text:item.cut_stone.name", kind: Gear, cost_cp: 20, weight_tenths: 100, craft: Some(Supply([Stone, Earth])))

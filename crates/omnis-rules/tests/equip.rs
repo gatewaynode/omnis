@@ -138,6 +138,8 @@ fn equipping_swaps_slots_and_refuses_the_impossible() {
                 damage_type: DamageType::Slashing,
                 ranged: false,
                 two_handed: true,
+                reach: 5,
+                range: None,
             },
             cost_cp: 5000,
             weight_tenths: 60,
@@ -145,6 +147,8 @@ fn equipping_swaps_slots_and_refuses_the_impossible() {
             targeting: None,
             consumable: false,
             description: None,
+            fragile: false,
+            craft: None,
         },
     );
     carried.push((greatsword, 1));

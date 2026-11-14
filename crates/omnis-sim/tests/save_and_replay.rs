@@ -847,3 +847,30 @@ fn capture_schema_6_fixture() {
     assert_eq!(world.schema, 6);
     write_ron(&save_path("v6"), &world).unwrap();
 }
+
+/// A save from before name tables keeps bare numbers, counted before the base pack gained the
+/// repair tools and supplies (2026-11-14): it is read on today's table without them, so the
+/// older items keep the numbers they had (the schema 2 and 3 fixtures wear their kits by it).
+#[test]
+fn a_save_from_before_name_tables_is_numbered_without_what_was_added_since() {
+    let data = data();
+    let now = omnis_sim::save::NameTable::of(&data);
+    let then = omnis_sim::save::NameTable::before_names(&data).expect("items were added");
+    assert_eq!(now.items.len(), then.items.len() + 6);
+    for added in ["carpenters_tools", "timber", "smiths_tools"] {
+        let name = format!("base:item:{added}");
+        assert!(now.items.contains(&name) && !then.items.contains(&name));
+    }
+    let number = |table: &omnis_sim::save::NameTable, name: &str| {
+        table.items.iter().position(|n| n == name).unwrap()
+    };
+    assert_eq!(number(&then, "base:item:arrows"), 0);
+    assert_eq!(number(&then, "base:item:chain_mail"), 1, "as it was");
+    assert_eq!(
+        number(&now, "base:item:chain_mail"),
+        2,
+        "after the carpenter's tools"
+    );
+    assert!(then.items.windows(2).all(|w| w[0] < w[1]), "still sorted");
+    assert_eq!((&now.spells, &now.monsters), (&then.spells, &then.monsters));
+}

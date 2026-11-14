@@ -29,5 +29,11 @@
         "base:text:item.spyglass.description": "Reveals the tiles along the line of sight to sixteen tiles, one Perception check per layer.",
         "base:text:item.spyglass.name": "Spyglass",
         "base:text:item.thieves_tools.name": "Thieves' tools",
+        "base:text:item.carpenters_tools.name": "Carpenter's tools",
+        "base:text:item.smiths_tools.name": "Smith's tools",
+        "base:text:item.masons_tools.name": "Mason's tools",
+        "base:text:item.timber.name": "Timber",
+        "base:text:item.iron_stock.name": "Iron stock",
+        "base:text:item.cut_stone.name": "Cut stone",
     },
 )

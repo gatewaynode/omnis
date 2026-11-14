@@ -77,7 +77,32 @@ fn names<I: Copy + From<u32> + Into<u32>>(interner: &Interner<I>) -> Vec<String>
     interner.names().map(String::from).collect()
 }
 
+/// Items the base pack gained after saves began to carry a name table (schema 9). A save older
+/// than that keeps bare numbers, counted when these did not exist, so it is read on the table
+/// without them ([`NameTable::before_names`]). A definition added to a shipped pack from here on
+/// is listed here in the same change.
+const ITEMS_SINCE_NAMES: [&str; 6] = [
+    "base:item:carpenters_tools",
+    "base:item:cut_stone",
+    "base:item:iron_stock",
+    "base:item:masons_tools",
+    "base:item:smiths_tools",
+    "base:item:timber",
+];
+
 impl NameTable {
+    /// The table a save from before name tables was numbered by, on these packs: today's
+    /// without what was added since. `None` when nothing was, and its numbers are today's.
+    #[must_use]
+    pub fn before_names(data: &Data) -> Option<NameTable> {
+        let mut table = NameTable::of(data);
+        let had = table.items.len();
+        table
+            .items
+            .retain(|name| !ITEMS_SINCE_NAMES.contains(&name.as_str()));
+        (table.items.len() != had).then_some(table)
+    }
+
     /// The table of the loaded packs.
     #[must_use]
     pub fn of(data: &Data) -> NameTable {

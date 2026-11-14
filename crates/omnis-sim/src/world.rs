@@ -543,45 +543,34 @@ impl World {
             schema: u32,
         }
         let header: Header = omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?;
-        let world: World = match header.schema {
+        let schema = header.schema;
+        let mut world: World = match schema {
             1 => omnis_data::ron_io::parse::<WorldV1>(text)
                 .map(v1_to_v2)
-                .map(v2_to_v3)
-                .map(|w| v3_to_v4(w, data))
-                .map(v4_to_v5)
-                .map(|w| v5_to_v6(w, data))
-                .map(|w| v6_to_v7(w, data))
-                .map_err(LoadError::Parse)?,
-            2 => omnis_data::ron_io::parse::<World>(text)
-                .map(v2_to_v3)
-                .map(|w| v3_to_v4(w, data))
-                .map(v4_to_v5)
-                .map(|w| v5_to_v6(w, data))
-                .map(|w| v6_to_v7(w, data))
-                .map_err(LoadError::Parse)?,
-            3 => omnis_data::ron_io::parse::<World>(text)
-                .map(|w| v3_to_v4(w, data))
-                .map(v4_to_v5)
-                .map(|w| v5_to_v6(w, data))
-                .map(|w| v6_to_v7(w, data))
-                .map_err(LoadError::Parse)?,
-            4 => omnis_data::ron_io::parse::<World>(text)
-                .map(v4_to_v5)
-                .map(|w| v5_to_v6(w, data))
-                .map(|w| v6_to_v7(w, data))
-                .map_err(LoadError::Parse)?,
-            5 => omnis_data::ron_io::parse::<World>(text)
-                .map(|w| v5_to_v6(w, data))
-                .map(|w| v6_to_v7(w, data))
-                .map_err(LoadError::Parse)?,
-            6 => omnis_data::ron_io::parse::<World>(text)
-                .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
             // Schema 7 is the last whole-world save; 8 and 9 are whole worlds only as snapshots.
-            7 | 8 | SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
+            2..=SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
         };
-        let mut world = world;
+        if schema < SAVE_SCHEMA {
+            // Before the migrations, which look items up by the numbers they find.
+            crate::save::remap::before_names(&mut world, data);
+        }
+        if schema <= 2 {
+            world = v2_to_v3(world);
+        }
+        if schema <= 3 {
+            world = v3_to_v4(world, data);
+        }
+        if schema <= 4 {
+            world = v4_to_v5(world);
+        }
+        if schema <= 5 {
+            world = v5_to_v6(world, data);
+        }
+        if schema <= 6 {
+            world = v6_to_v7(world, data);
+        }
         world.known = legacy_knowledge(text).map_err(LoadError::Parse)?;
         crate::save::rows::world(data, &mut world)?;
         world.prune();

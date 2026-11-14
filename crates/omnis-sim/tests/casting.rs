@@ -231,7 +231,7 @@ fn rejections_leave_the_fight_untouched() {
     );
     assert!(
         !row("burning_hands").targets_members
-            && row("burning_hands").reach == omnis_data::Reach::Stack
+            && row("burning_hands").reach == omnis_data::Reach::Area { squares: 6 }
     );
     assert!(
         view.stacks.iter().all(|s| !s.reachable) || true,

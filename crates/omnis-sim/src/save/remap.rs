@@ -462,6 +462,16 @@ fn holder_of(kind: &str, number: &str) -> Option<HolderId> {
 /// anew, so two numbers that trade places never meet. The bus's region subscriptions are the
 /// loaded packs' (`time::subscriptions`); its other topics are kept. Refused, every name the
 /// packs lack is listed and the world is left half-renumbered: the caller drops it.
+/// A world read from a save older than name tables: its bare numbers were counted before the
+/// packs gained what they have since, so it is renumbered from the table without those. A
+/// number that table does not have stays as it is, as such a save always read it: the checks
+/// after the read judge it.
+pub(crate) fn before_names(world: &mut World, data: &Data) {
+    if let Some(names) = NameTable::before_names(data) {
+        let _unresolved = self::world(world, &names, data, &Chain::of(&[], data));
+    }
+}
+
 pub(crate) fn world(
     world: &mut World,
     old: &NameTable,

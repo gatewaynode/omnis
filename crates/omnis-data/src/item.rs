@@ -1,6 +1,7 @@
 //! `data/items`: weapons, armor, gear, and spell components. `kind` says what an item is
 //! mechanically; `use_effect` says what Use does; `consumable` says what happens to the count.
 
+use crate::durability::{Craft, DEFAULT_RANGE, is_melee_reach, melee_reach, span_problems};
 use crate::error::DataError;
 use crate::sense::SenseSource;
 use crate::targeting::Targeting;
@@ -61,6 +62,12 @@ pub enum ItemKind {
         /// Needs both hands, so no shield.
         #[serde(default)]
         two_handed: bool,
+        /// How far it reaches in melee, in feet: 5, or 10 for a reach weapon.
+        #[serde(default = "melee_reach", skip_serializing_if = "is_melee_reach")]
+        reach: u8,
+        /// Normal and long range in feet, for a ranged weapon; left out it is 80 and 320.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        range: Option<(u16, u16)>,
     },
     /// Armor or a shield.
     Armor {
@@ -115,6 +122,12 @@ pub struct Item {
     /// Text key of a description, when the pack writes one.
     #[serde(default)]
     pub description: Option<String>,
+    /// Lost when the container holding it is broken by a blow that shatters or burns.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fragile: bool,
+    /// What it is to someone repairing a thing: a tool or supplies, and for which materials.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub craft: Option<Craft>,
 }
 
 impl Item {
@@ -145,6 +158,27 @@ impl Item {
                 ..
             }
         )
+    }
+
+    /// A weapon's reach in feet and, when it is ranged, its normal and long range.
+    #[must_use]
+    pub const fn span(&self) -> Option<(u8, Option<(u16, u16)>)> {
+        match &self.kind {
+            ItemKind::Weapon {
+                ranged: true,
+                reach,
+                range,
+                ..
+            } => Some((
+                *reach,
+                Some(match range {
+                    Some(written) => *written,
+                    None => DEFAULT_RANGE,
+                }),
+            )),
+            ItemKind::Weapon { reach, .. } => Some((*reach, None)),
+            _ => None,
+        }
     }
 
     /// The sense source, when using the item looks at the world.
@@ -194,6 +228,24 @@ impl Item {
             }
             _ => {}
         }
+        if let ItemKind::Weapon {
+            ranged,
+            reach,
+            range,
+            ..
+        } = &self.kind
+        {
+            for problem in span_problems(*reach, *range, *ranged) {
+                errors.push(DataError::new(file, problem));
+            }
+        }
+        if self
+            .craft
+            .as_ref()
+            .is_some_and(|c| c.materials().is_empty())
+        {
+            errors.push(DataError::new(file, "craft names at least one material"));
+        }
         match &self.use_effect {
             Some(UseEffect::Heal { dice }) if dice.count == 0 || dice.sides == 0 => {
                 errors.push(DataError::new(file, "heal dice need dice"));
@@ -224,6 +276,8 @@ mod tests {
             targeting: None,
             consumable: false,
             description: None,
+            fragile: false,
+            craft: None,
         }
     }
 
@@ -234,6 +288,8 @@ mod tests {
             damage_type: DamageType::Piercing,
             ranged,
             two_handed,
+            reach: 5,
+            range: None,
         }
     }
 

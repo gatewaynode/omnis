@@ -1,0 +1,2 @@
+// Omnis's own, at the SRD's trade price of iron (1 sp a pound). `craft`: used up repairing metal.
+(schema: 1, id: "base:item:iron_stock", name: "base:text:item.iron_stock.name", kind: Gear, cost_cp: 50, weight_tenths: 50, craft: Some(Supply([Metal])))

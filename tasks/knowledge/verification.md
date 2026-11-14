@@ -88,7 +88,7 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `11784926913437763901` (`a38c7896ab66093d`)
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: since base 0.1.4 (2026-11-14, combat in feet step 1: ranges, per_square, areas, six new items) walk `12064475686673302048` (`a76da0b7797fc220`), fight `17589319340579382968` (`f419d0bf802466b8`); the figures that follow are base 0.1.3's and older. Walk `11784926913437763901` (`a38c7896ab66093d`)
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
   fight `7348957558311545412` (`65fcbdf67c94ea44`) under the golden seed, since base 0.1.3 (2026-11-14, `targeting` written into every spell and usable item; before that walk `244eb411d2c9856c`, fight `961b2593313f176b` since 0.1.2), **against the frozen fixture
   `crates/omnis-sim/tests/packs/test`** (id `test`, 0.2.9, hash 14523718773761627429: `packs/test` as committed at

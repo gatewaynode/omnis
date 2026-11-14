@@ -10,6 +10,7 @@ mod check;
 
 pub(crate) use check::check_objects;
 
+use crate::durability::Durability;
 use crate::error::DataError;
 use crate::limits::{
     MAX_CAPACITY, MAX_CHECK_DC, MAX_EFFECTS, MAX_INTERACTIONS, MAX_OBJECT_HEIGHT, MAX_REQUIREMENTS,
@@ -137,6 +138,9 @@ pub struct Attributes {
     pub tags: BTreeSet<String>,
     /// A magical aura, which a reveal spell senses.
     pub aura: Option<School>,
+    /// That it can be damaged and broken, and how well it stands it; left out, it cannot be.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub durability: Option<Durability>,
 }
 
 /// One named state of a kind. Each field left out keeps the kind's own.
@@ -332,6 +336,19 @@ impl ObjectKind {
         }
         if a.tags.iter().any(|t| t.is_empty() || !string_fits(t)) {
             error("a tag must be within the size limit and not empty".to_owned());
+        }
+        if let Some(durability) = &a.durability {
+            durability
+                .problems(a.material, a.size)
+                .into_iter()
+                .for_each(&mut *error);
+            if let Some(state) = &durability.broken_state
+                && !self.states.contains_key(state)
+            {
+                error(format!(
+                    "broken_state '{state}' is not one of the kind's states"
+                ));
+            }
         }
     }
 
