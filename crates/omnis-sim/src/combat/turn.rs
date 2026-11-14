@@ -84,7 +84,10 @@ fn strike(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let front = state.front_stacks(data).first().copied().unwrap_or(0);
+    // The nearest stack: the first that stands.
+    let stacks = &state.encounter.stacks;
+    let front = stacks.iter().position(crate::encounter::Stack::alive);
+    let front = front.and_then(|i| u8::try_from(i).ok()).unwrap_or(0);
     let plan = cast::CastPlan {
         target: cast::Aim::Stack(front),
         ..plan.clone()

@@ -23,7 +23,7 @@ pub(crate) fn provoke(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    for stack in state.front_stacks(data) {
+    for stack in state.engaged_stacks() {
         if world.party.members[member].is_down() {
             break;
         }
@@ -42,7 +42,7 @@ pub(crate) fn provoke_run(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let front_row = party::front_row(data);
-    for stack in state.front_stacks(data) {
+    for stack in state.engaged_stacks() {
         let standing: Vec<usize> = (0..world.party.members.len().min(front_row))
             .filter(|i| !world.party.members[*i].is_down())
             .collect();

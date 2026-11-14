@@ -38,7 +38,7 @@ variants!(DevCommand, DEV_COMMANDS, dev_name:
 
 variants!(Event, EVENTS, event_name:
     Moved Blocked Reconciled SignalsDropped TimeAdvanced Visible Door Message PartyChanged
-    EncounterCheck EncounterStarted Check Bribed CombatStarted Initiative RoundStarted Turn Waited
+    EncounterCheck EncounterStarted Check Bribed CombatStarted Initiative RoundStarted Turn Waited StackMoved
     Dodging FeatureUsed OpportunityAttack Exchanged AttackResolved Damage MonsterCast ShieldStops
     SpellCast EffectApplied EffectEnded Concentration ReactionsSwitched TacticsChanged Reaction
     Equipped Unequipped ItemMoved ItemDestroyed ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
@@ -336,7 +336,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     for (count, what) in [
         (COMMANDS.len(), "`Command` (16 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (16 variants"),
-        (EVENTS.len(), "`Event` has 74 variants"),
+        (EVENTS.len(), "`Event` has 75 variants"),
         (REJECTIONS.len(), "`Rejection` (74 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
         (OPS.len(), "49 ops."),
@@ -394,7 +394,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             EVENTS.len(),
-            "pub enum Event {                    // 74 variants",
+            "pub enum Event {                    // 75 variants",
         ),
         (
             &architecture,

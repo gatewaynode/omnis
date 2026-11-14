@@ -2,8 +2,8 @@
 
 use crate::combat::feature::refusal;
 use crate::combat::{
-    Budget, CombatState, FeatureChoice, Pay, Roller, affordable, cast, monster_front_stacks,
-    payable, points_of, weapon_for,
+    Budget, CombatState, FeatureChoice, Pay, Roller, affordable, cast, payable, points_of,
+    weapon_for,
 };
 use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack, bribe_cost};
@@ -163,8 +163,6 @@ pub struct CombatView {
     pub gold: u32,
     /// Members in the front row.
     pub front_row: usize,
-    /// Stacks in front.
-    pub monster_front_stacks: usize,
     /// The acting member's spells; empty when no member acts.
     pub spells: Vec<SpellView>,
     /// What the acting member's turn has left to pay with.
@@ -195,22 +193,17 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         Mode::Encounter(e) => (e, None),
         Mode::Combat(c) => (&c.encounter, Some(c)),
     };
-    let front_count = monster_front_stacks(data);
     let acting = fight.and_then(|c| match c.current_actor() {
         Some(ActorRef::Member(id)) => world.party.members.iter().position(|m| m.id == id),
         _ => None,
     });
-    let mut in_front = 0;
     let stacks = encounter
         .stacks
         .iter()
         .enumerate()
         .map(|(i, stack)| {
             let index = u8::try_from(i).unwrap_or(u8::MAX);
-            let front = stack.alive() && in_front < front_count;
-            if front {
-                in_front += 1;
-            }
+            let front = stack.alive() && stack.distance <= crate::encounter::ENGAGED_FEET;
             let refusal = match (fight, acting) {
                 (Some(c), Some(own)) => weapon_for(c, world, data, own, index).err(),
                 _ => None,
@@ -245,7 +238,6 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         dodging: fight.map_or_else(Vec::new, |c| c.dodging.clone()),
         gold: fight.map_or(0, |c| c.gold),
         front_row: party::front_row(data),
-        monster_front_stacks: front_count,
         spells: match (fight, acting) {
             (Some(c), Some(own)) => spell_views(c, world, data, own),
             _ => Vec::new(),

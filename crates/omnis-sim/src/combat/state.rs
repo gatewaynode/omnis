@@ -1,6 +1,6 @@
 //! The state of a fight between two player commands, and what can be read off it.
 
-use crate::encounter::EncounterState;
+use crate::encounter::{ENGAGED_FEET, EncounterState};
 use crate::event::{ActorRef, CombatOutcome, Surprise};
 use crate::party::Party;
 use alloc::vec::Vec;
@@ -8,18 +8,6 @@ use omnis_core::{CharacterId, ItemId};
 use omnis_data::Data;
 use omnis_rules::{Character, condition_id, flags};
 use serde::{Deserialize, Serialize};
-
-/// Stacks that stand in front when the rules do not say: two.
-pub const DEFAULT_FRONT_STACKS: usize = 2;
-
-/// How many living stacks stand in front (rules value `monster_front_stacks`).
-#[must_use]
-pub fn monster_front_stacks(data: &Data) -> usize {
-    data.rules
-        .value("monster_front_stacks")
-        .and_then(|v| usize::try_from(v).ok())
-        .unwrap_or(DEFAULT_FRONT_STACKS)
-}
 
 /// One entry of the initiative order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,24 +110,52 @@ impl CombatState {
         }
     }
 
-    /// The stacks in front: the first living ones, as many as the rules allow. A stack that
-    /// empties drops out and the next living one moves up.
+    /// The engaged stacks: the living ones five feet from the party's front line. What "in
+    /// front" means since the fight is counted in feet (owner, 2026-11-14).
     #[must_use]
-    pub fn front_stacks(&self, data: &Data) -> Vec<u8> {
+    pub fn engaged_stacks(&self) -> Vec<u8> {
         self.encounter
             .stacks
             .iter()
             .enumerate()
-            .filter(|(_, s)| s.alive())
+            .filter(|(_, s)| s.alive() && s.distance <= ENGAGED_FEET)
             .map(|(i, _)| u8::try_from(i).unwrap_or(u8::MAX))
-            .take(monster_front_stacks(data))
             .collect()
     }
 
-    /// Whether a stack stands in front.
+    /// Whether a stack is engaged.
     #[must_use]
-    pub fn is_front(&self, data: &Data, stack: u8) -> bool {
-        self.front_stacks(data).contains(&stack)
+    pub fn is_engaged(&self, stack: u8) -> bool {
+        self.encounter
+            .stacks
+            .get(usize::from(stack))
+            .is_some_and(|s| s.alive() && s.distance <= ENGAGED_FEET)
+    }
+
+    /// How many of `stack` may attack in melee this round: the front row presents one
+    /// five-foot square a member, the stacks within their melee reach fill those squares in
+    /// order, and a longer reach lets further ranks strike past the first.
+    #[must_use]
+    pub fn melee_slots(&self, party: &Party, data: &Data, stack: u8) -> u16 {
+        let mut left = frontage(party, data);
+        for (index, s) in self.encounter.stacks.iter().enumerate() {
+            let Some(monster) = data.monsters.get(&s.monster) else {
+                continue;
+            };
+            let Some(melee) = monster.attacks.iter().find(|a| !a.ranged) else {
+                continue;
+            };
+            if !s.alive() || s.distance > u16::from(melee.reach) {
+                continue;
+            }
+            let taken = monster.line(u16::from(s.count())).min(left);
+            if index == usize::from(stack) {
+                let ranks = (u16::from(melee.reach) / ENGAGED_FEET).max(1);
+                return monster.abreast(taken).saturating_mul(ranks);
+            }
+            left -= taken;
+        }
+        0
     }
 
     /// The actor whose turn it is.
@@ -171,4 +187,19 @@ pub fn is_dead(member: &Character, data: &Data) -> bool {
 #[must_use]
 pub fn can_fight(member: &Character, data: &Data) -> bool {
     !member.is_down() && !is_dead(member, data) && !flags(&member.conditions, data).incapacitated
+}
+
+/// The five-foot squares the party's front presents: one for each member of the front row still
+/// standing, or for each of the rest once the front row has fallen; one at the least.
+#[must_use]
+pub fn frontage(party: &Party, data: &Data) -> u16 {
+    let front_row = crate::party::front_row(data);
+    let standing = |range: &[Character]| range.iter().filter(|m| !m.is_down()).count();
+    let split = front_row.min(party.members.len());
+    let (front, back) = party.members.split_at(split);
+    let squares = match standing(front) {
+        0 => standing(back),
+        some => some,
+    };
+    u16::try_from(squares).unwrap_or(u16::MAX).max(1)
 }

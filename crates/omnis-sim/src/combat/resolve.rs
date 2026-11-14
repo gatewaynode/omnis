@@ -5,7 +5,7 @@ use super::Roller;
 use super::state::{CombatState, is_dead};
 use super::{loot, monster_cast, reaction};
 use crate::effects;
-use crate::encounter::Stack;
+use crate::encounter::{ENGAGED_FEET, Stack};
 use crate::event::{ActorRef, CheckKind, Event, Loot};
 use crate::items::add_to;
 use crate::party::{self, set_condition};
@@ -16,8 +16,7 @@ use omnis_data::{Ability, Attack, BuffOn, Data, Monster};
 use omnis_rules::{
     AttackBonus, Character, DeathSaveResult, DeathSaves, RollMode, RuleError, Weapon, armor_class,
     attack_bonus, attack_roll, attack_roll_with, choose_target, concentration_dc, damage_roll,
-    death_save, flags, member_defenses, monster_defenses, pick_attack, roll_bonus, save,
-    wound_at_zero,
+    death_save, flags, member_defenses, monster_defenses, roll_bonus, save, wound_at_zero,
 };
 
 /// The stat block of a stack, or the rule error a hand-edited save would cause.
@@ -158,10 +157,32 @@ pub(crate) fn hurt_individual(
     Ok(())
 }
 
-/// Every living individual of a stack acts once: a caster by a dice roll among its staff and
-/// the spells it can pay for (`monster_cast`); the others attack, a front stack in melee
-/// against the front row (the back row once the front has fallen), a back stack with a ranged
-/// attack against anyone, or the stack waits.
+/// A stack closes on the party by `feet`, never nearer than `stop`; whether it moved.
+fn close(
+    state: &mut CombatState,
+    stack: u8,
+    feet: u16,
+    stop: u16,
+    events: &mut Vec<Event>,
+) -> bool {
+    let s = &mut state.encounter.stacks[usize::from(stack)];
+    let from = s.distance;
+    let to = from.saturating_sub(feet).max(stop);
+    if to >= from {
+        return false;
+    }
+    s.distance = to;
+    events.push(Event::StackMoved { stack, from, to });
+    true
+}
+
+/// A stack's turn, in feet (owner, 2026-11-14). One with a melee attack closes by its speed,
+/// stopping at that attack's reach; if it still cannot reach and cannot shoot from where it
+/// stands, it dashes instead of attacking. Then every living individual acts once: in melee,
+/// as many as find a square of the party's front (`CombatState::melee_slots`); the rest, and a
+/// stack out of reach, with a ranged attack when the party is within its long range; a caster
+/// by a dice roll among that attack and the spells it can pay for (`monster_cast`). A stack
+/// with only ranged attacks holds where it stands.
 pub(crate) fn monster_turn(
     world: &mut World,
     data: &Data,
@@ -170,37 +191,62 @@ pub(crate) fn monster_turn(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let s = &state.encounter.stacks[usize::from(stack)];
-    let m = monster(data, s)?;
-    let front = state.is_front(data, stack);
-    let attack = pick_attack(m, !front).cloned();
+    let m = monster(data, &state.encounter.stacks[usize::from(stack)])?;
+    let melee = m.attacks.iter().find(|a| !a.ranged);
+    let shot = m.attacks.iter().find(|a| a.ranged);
     let casts = m.casting.is_some();
-    if attack.is_none() && !casts {
+    let speed = u16::from(m.speed);
+    let in_range = |state: &CombatState, attack: &Attack| {
+        let distance = state.encounter.stacks[usize::from(stack)].distance;
+        match attack.span() {
+            Some((_, long)) => distance <= long,
+            None => distance <= u16::from(attack.reach),
+        }
+    };
+    if let Some(melee) = melee {
+        let stop = u16::from(melee.reach).max(ENGAGED_FEET);
+        close(state, stack, speed, stop, events);
+        let idle = !in_range(state, melee) && !shot.is_some_and(|a| in_range(state, a)) && !casts;
+        if idle {
+            // The Dash: its action is its speed again.
+            if !close(state, stack, speed, stop, events) {
+                events.push(Event::Waited {
+                    actor: ActorRef::Stack(stack),
+                });
+            }
+            return Ok(());
+        }
+    }
+    let melee = melee.filter(|a| in_range(state, a));
+    let shot = shot.filter(|a| in_range(state, a));
+    if melee.is_none() && shot.is_none() && !casts {
         events.push(Event::Waited {
             actor: ActorRef::Stack(stack),
         });
         return Ok(());
     }
-    for index in 0..s.hp.len() {
+    let slots = usize::from(state.melee_slots(&world.party, data, stack));
+    let count = state.encounter.stacks[usize::from(stack)].hp.len();
+    for index in 0..count {
         if state.outcome(&world.party, data).is_some() {
             break;
         }
+        let attack = melee.filter(|_| index < slots).or(shot);
         if casts {
-            monster_cast::act(
-                world,
-                data,
-                state,
-                stack,
-                index,
-                attack.as_ref(),
-                roller,
-                events,
-            )?;
-        } else if let Some(attack) = &attack {
+            monster_cast::act(world, data, state, stack, index, attack, roller, events)?;
+        } else if let Some(attack) = attack {
             swing(world, data, state, stack, index, attack, roller, events)?;
         }
     }
     Ok(())
+}
+
+/// Whether a ranged attack from `distance` feet is hindered (the SRD's disadvantage): past its
+/// normal range, or with the party upon the attacker.
+fn hindered(attack: &Attack, distance: u16) -> bool {
+    attack
+        .span()
+        .is_some_and(|(normal, _)| distance > normal || distance <= ENGAGED_FEET)
 }
 
 /// One individual's attack at a member it reaches: anyone for a ranged attack, else the front
@@ -268,7 +314,18 @@ pub(crate) fn monster_attacks_member(
     let target = ActorRef::Member(member.id);
     let condition_flags = flags(&member.conditions, data);
     let dodging = state.dodging.binary_search(&member.id).is_ok();
-    let mode = RollMode::combine(condition_flags.attacks_against_advantage, dodging);
+    let from = match attacker {
+        ActorRef::Monster { stack, .. } | ActorRef::Stack(stack) => state
+            .encounter
+            .stacks
+            .get(usize::from(stack))
+            .map_or(ENGAGED_FEET, |s| s.distance),
+        ActorRef::Member(_) => ENGAGED_FEET,
+    };
+    let mode = RollMode::combine(
+        condition_flags.attacks_against_advantage,
+        dodging || hindered(attack, from),
+    );
     let ac = armor_class(member, data);
     let defenses = member_defenses(member, data, attack.damage_type);
     let mut roll = attack_roll(

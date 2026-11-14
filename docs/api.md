@@ -511,7 +511,7 @@ answer).
 | `surprised` | `None`, `Party`, `Monsters`. |
 | `dodging`, `hidden` | `[CharacterId]` dodging this round; hidden (advantage on the next attack). |
 | `gold` | Copper looted so far. |
-| `front_row`, `monster_front_stacks` | Members in the front row; stacks in front. |
+| `front_row` | Members in the front row. |
 | `spells` | The acting member's `[SpellView]`; empty when no member acts. |
 | `budget` | `{"actions", "bonus_actions"}` the acting member's turn has left. |
 | `reactions` | `[[ActorRef, left]]` reactions left this round. |
@@ -524,7 +524,7 @@ answer).
 
 `StackView`: `stack` (the stack's position in the encounter, the `stack` that `Attack` and
 `Target::Stack` take), `monster` (id), `name` (text key), `initial` (count at the start), `hps`
-(`[hp]` of the living), `ac`, `in_front`, `distance` (feet from the party's front line; 5 is engaged), `alive`, `reachable` (the acting member can reach
+(`[hp]` of the living), `ac`, `in_front` (engaged: `distance` is 5), `distance` (feet from the party's front line), `alive`, `reachable` (the acting member can reach
 it), `points_left` (spell points per living caster; empty for non-casters), `shielded` (the
 living whose Shield is up, by their place among the living), `refusal` (`Rejection` the acting
 member would get attacking it, or null).
@@ -616,7 +616,7 @@ Which targets are listed follows the option's `targeting` in pack data (`Own`, `
 whole party (light, detect magic), lists the actor alone; a heal or a buff lists every
 member; a harmful spell and `Attack` list every standing stack in a fight; `Exchange` lists
 the other members. A listed target out of reach is still listed, with its refusal: in a
-fight a touch reaches only the stacks in front (`OutOfReach`). Each row is judged by the
+fight a touch reaches only the engaged stacks, those five feet off (`OutOfReach`). Each row is judged by the
 validation of the very command a client would send, so a row with a null `refusal` is
 accepted by that command and a row with one is rejected with it. Outside a fight and the
 road nothing is listed. Options with no one to choose (dodge, run, end turn) are not asked.
@@ -967,7 +967,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 74 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 75 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1004,6 +1004,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `RoundStarted` | `round` | A round began (from 1). |
 | `Turn` | `actor` | A turn began; on a member's turn the engine waits for a command. |
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
+| `StackMoved` | `stack`, `from`, `to` | A stack closed on the party: its distance in feet before and after. |
 | `Dodging` | `actor` | A member dodges until the round ends. |
 | `Exchanged` | `member`, `with` (`CharacterId`s) | The acting member and `with` swapped marching places. |
 | `AttackResolved` | `attacker`, `target` (`ActorRef`), `roll` (`Roll`), `ac`, `hit`, `crit` | An attack roll. |
@@ -1306,6 +1307,19 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (**behaviour**; combat in feet, step 3): the monsters fight in feet. On its turn a stack with a
+  melee attack closes by its `speed`, stopping at that attack's `reach` (`Event::StackMoved { stack, from, to }`,
+  75 events); if it still cannot reach and cannot shoot from where it stands it dashes (its speed again, no
+  attack). A stack with only ranged attacks holds. A ranged attack reaches to its long range, at disadvantage
+  past its normal range or with the party upon it (the stack at 5 feet); a monster's ranged spell attack is
+  hindered the same way when engaged. In melee at most as many of a stack attack as find a square: the front
+  row presents one five-foot square per member standing (the back row's once the front has fallen), the stacks
+  within their reach fill the squares in order, `per_square` to a square, and a reach of ten feet lets a second
+  rank strike; the rest shoot if the stack can. **"In front" is now engaged**: `StackView.in_front`, a touch
+  spell's reach, a member's melee and the opportunity attacks all mean the stacks at 5 feet, however many;
+  `CombatView.monster_front_stacks` is gone and the rules value of that name is no longer read. An opening
+  strike lands on the nearest standing stack. Members do not move yet (step 4): a stack that holds off is
+  reached only by a ranged weapon or spell.
 - 2026-11-14 (addition; combat in feet, step 2): `StackView.distance`, feet from the party's front line, 5
   being engaged. A fight starts at the tiles between the party and the group in the map's `tile_feet` (five
   where it states none): a group walked onto or approached a tile away, one approached on its own cell or

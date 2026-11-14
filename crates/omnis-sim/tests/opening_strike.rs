@@ -263,12 +263,9 @@ fn the_caster_s_first_action_is_spent_and_no_monster_acts_in_round_one() {
         let acting = state.current_actor();
         if acting == Some(ActorRef::Member(wizard)) {
             assert_eq!(state.budget.actions, 0, "the strike was the action");
-            let attack = Command::Combat(CombatCommand::Attack { stack: 0 });
+            let dodge = Command::Combat(CombatCommand::Dodge);
             let mut copy = world.clone();
-            assert_eq!(
-                apply(&mut copy, &data, attack),
-                Err(Rejection::NoActionLeft)
-            );
+            assert_eq!(apply(&mut copy, &data, dodge), Err(Rejection::NoActionLeft));
             seen_spent = true;
             let end = Command::Combat(CombatCommand::EndTurn);
             events.extend(apply(&mut world, &data, end).unwrap());

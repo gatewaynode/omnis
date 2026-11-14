@@ -166,3 +166,240 @@ fn the_view_shows_the_distance_and_an_old_fight_loads_engaged() {
     assert!(!distances(&world).is_empty());
     assert!(distances(&world).iter().all(|feet| *feet == 5));
 }
+
+// ---- Step 3: the monsters move, reach and shoot in feet ----
+
+use omnis_data::Disposition;
+use omnis_sim::omnis_rules::RollMode;
+use omnis_sim::{ActorRef, CombatCommand, Event, Rejection, Surprise, combat};
+
+fn monster_mut<'a>(data: &'a mut Data, name: &str) -> &'a mut omnis_data::Monster {
+    let id = data
+        .registry
+        .monsters
+        .get(&format!("base:monster:{name}"))
+        .unwrap();
+    data.monsters.get_mut(&id).unwrap()
+}
+
+/// A fight of `members` against base monsters, each stack `(name, count, feet)`, nobody
+/// surprised, played by ending every member's turn for `rounds` rounds: the world, and each
+/// round's events.
+fn play(
+    data: &Data,
+    members: usize,
+    stacks: &[(&str, u8, u16)],
+    rounds: usize,
+) -> (World, Vec<Vec<Event>>) {
+    let mut world = common::world(data);
+    party_of(&mut world, data, members);
+    for member in &mut world.party.members {
+        member.hp = 500;
+    }
+    let named: Vec<(&str, u8)> = stacks.iter().map(|s| (s.0, s.1)).collect();
+    let mut encounter = common::encounter(data, &named, Disposition::Hostile, world.position);
+    for (stack, spec) in encounter.stacks.iter_mut().zip(stacks) {
+        stack.distance = spec.2;
+    }
+    let mut events = Vec::new();
+    combat::start(&mut world, data, encounter, Surprise::None, &mut events).unwrap();
+    let round_of = |world: &World| match &world.mode {
+        Mode::Combat(state) => Some(state.round),
+        _ => None,
+    };
+    for _ in 0..500 {
+        match round_of(&world) {
+            Some(round) if usize::try_from(round).unwrap() <= rounds => {}
+            _ => break,
+        }
+        let end = Command::Combat(CombatCommand::EndTurn);
+        events.extend(apply(&mut world, data, end).expect("a member's turn"));
+    }
+    let mut by_round: Vec<Vec<Event>> = Vec::new();
+    for event in events {
+        if matches!(event, Event::RoundStarted { .. }) {
+            by_round.push(Vec::new());
+        }
+        if let Some(round) = by_round.last_mut() {
+            round.push(event);
+        }
+    }
+    by_round.truncate(rounds);
+    (world, by_round)
+}
+
+fn moves(events: &[Event], of: u8) -> Vec<(u16, u16)> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::StackMoved { stack, from, to } if *stack == of => Some((*from, *to)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The roll mode of each attack a stack's individuals made.
+fn attacks(events: &[Event], of: u8) -> Vec<RollMode> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::AttackResolved {
+                attacker: ActorRef::Monster { stack, .. },
+                roll,
+                ..
+            } if *stack == of => Some(roll.mode),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A stack with only a melee attack closes by its speed on its turn, dashes when that does not
+/// bring it into reach, and does not attack before it arrives; in reach after its move, it
+/// attacks the same turn.
+#[test]
+fn a_melee_stack_closes_and_cannot_hit_before_it_arrives() {
+    let data = data();
+    let (world, rounds) = play(&data, 6, &[("giant_rat", 2, 100)], 3);
+    assert_eq!(moves(&rounds[0], 0), [(100, 70), (70, 40)], "move and dash");
+    assert_eq!(moves(&rounds[1], 0), [(40, 10), (10, 5)]);
+    assert!(attacks(&rounds[0], 0).is_empty() && attacks(&rounds[1], 0).is_empty());
+    assert!(moves(&rounds[2], 0).is_empty(), "it has arrived");
+    assert_eq!(attacks(&rounds[2], 0).len(), 2, "and both bite");
+    assert_eq!(distances(&world), [5]);
+    // Thirty feet off, its speed brings it into reach and it attacks at once.
+    let (_, rounds) = play(&data, 6, &[("giant_rat", 2, 30)], 1);
+    assert_eq!(moves(&rounds[0], 0), [(30, 5)]);
+    assert_eq!(attacks(&rounds[0], 0).len(), 2);
+}
+
+/// A stack that can shoot closes and shoots instead of dashing: at no penalty within its normal
+/// range, at disadvantage past it, and not at all past its long range, where it dashes.
+#[test]
+fn a_stack_that_can_shoot_shoots_on_the_way() {
+    let data = data();
+    let (_, rounds) = play(&data, 6, &[("goblin", 2, 100)], 1);
+    assert_eq!(moves(&rounds[0], 0), [(100, 70)]);
+    assert_eq!(attacks(&rounds[0], 0), [RollMode::Normal; 2]);
+    let (_, rounds) = play(&data, 6, &[("goblin", 2, 200)], 1);
+    assert_eq!(moves(&rounds[0], 0), [(200, 170)]);
+    assert_eq!(attacks(&rounds[0], 0), [RollMode::Disadvantage; 2]);
+    let (_, rounds) = play(&data, 6, &[("goblin", 2, 400)], 1);
+    assert_eq!(moves(&rounds[0], 0), [(400, 370), (370, 340)]);
+    assert!(attacks(&rounds[0], 0).is_empty(), "past its long range");
+}
+
+/// A stack with nothing but a ranged attack holds where it stands, and shoots at disadvantage
+/// with the party upon it.
+#[test]
+fn a_stack_of_archers_holds_and_is_hindered_when_engaged() {
+    let mut data = data();
+    monster_mut(&mut data, "goblin")
+        .attacks
+        .retain(|a| a.ranged);
+    let (world, rounds) = play(&data, 6, &[("goblin", 2, 60)], 2);
+    assert!(moves(&rounds[0], 0).is_empty() && moves(&rounds[1], 0).is_empty());
+    assert_eq!(attacks(&rounds[1], 0), [RollMode::Normal; 2]);
+    assert_eq!(distances(&world), [60]);
+    let (_, rounds) = play(&data, 6, &[("goblin", 2, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0), [RollMode::Disadvantage; 2]);
+}
+
+/// A reach of ten feet stops ten feet off and strikes from there.
+#[test]
+fn a_long_reach_stops_at_its_reach() {
+    let mut data = data();
+    monster_mut(&mut data, "giant_rat").attacks[0].reach = 10;
+    let (world, rounds) = play(&data, 6, &[("giant_rat", 1, 30)], 1);
+    assert_eq!(moves(&rounds[0], 0), [(30, 10)]);
+    assert_eq!(attacks(&rounds[0], 0).len(), 1);
+    assert_eq!(distances(&world), [10]);
+}
+
+/// The front row presents one five-foot square a member; an engaged stack attacks in melee with
+/// as many as fit those squares, the rest waiting when they cannot shoot.
+#[test]
+fn the_front_rows_squares_limit_who_attacks_in_melee() {
+    let mut data = data();
+    monster_mut(&mut data, "skeleton")
+        .attacks
+        .retain(|a| !a.ranged);
+    // Six skeletons, one a square, against a front row of three.
+    let (_, rounds) = play(&data, 6, &[("skeleton", 6, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 3);
+    // Against one member alone there is one square: one skeleton, or the base rat's three.
+    let (_, rounds) = play(&data, 1, &[("skeleton", 6, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 1);
+    let (_, rounds) = play(&data, 1, &[("giant_rat", 7, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 3, "three rats a square");
+    // A reach of ten feet lets a second rank strike past the first.
+    monster_mut(&mut data, "skeleton").attacks[0].reach = 10;
+    let (_, rounds) = play(&data, 1, &[("skeleton", 6, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 2);
+    monster_mut(&mut data, "skeleton").attacks[0].reach = 5;
+    // The squares are filled in the stacks' order: four skeletons take all three, and the
+    // rats behind them find none.
+    let (_, rounds) = play(&data, 6, &[("skeleton", 4, 5), ("giant_rat", 3, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 3);
+    assert!(attacks(&rounds[0], 1).is_empty());
+    // Two skeletons leave a square, which holds three rats.
+    let (_, rounds) = play(&data, 6, &[("skeleton", 2, 5), ("giant_rat", 5, 5)], 1);
+    assert_eq!(attacks(&rounds[0], 0).len(), 2);
+    assert_eq!(attacks(&rounds[0], 1).len(), 3);
+}
+
+/// Those of an engaged stack who find no square shoot, when the stack can.
+#[test]
+fn those_without_a_square_shoot_when_they_can() {
+    let data = data();
+    let (_, rounds) = play(&data, 1, &[("skeleton", 3, 5)], 1);
+    let modes = attacks(&rounds[0], 0);
+    assert_eq!(modes.len(), 3, "one blade and two bows");
+    assert_eq!(
+        modes
+            .iter()
+            .filter(|m| **m == RollMode::Disadvantage)
+            .count(),
+        2,
+        "the bows are hindered, engaged as they are"
+    );
+}
+
+/// "In front" is engaged: a stack five feet off, however many there are. A member's melee
+/// reaches those and no other.
+#[test]
+fn in_front_is_engaged() {
+    let data = data();
+    let stacks = [
+        ("giant_rat", 1, 5),
+        ("skeleton", 1, 5),
+        ("goblin", 1, 5),
+        ("goblin", 1, 40),
+    ];
+    let mut data_still = data.clone();
+    // Nothing moves, so the picture holds: the far goblins only shoot.
+    for name in ["giant_rat", "skeleton", "goblin"] {
+        monster_mut(&mut data_still, name).speed = 0;
+    }
+    let (world, _) = play(&data_still, 6, &stacks, 0);
+    let view = combat_view(&world, &data_still).expect("a fight");
+    let front: Vec<bool> = view.stacks.iter().map(|s| s.in_front).collect();
+    assert_eq!(front, [true, true, true, false]);
+    let Mode::Combat(state) = &world.mode else {
+        panic!("no fight")
+    };
+    assert_eq!(state.engaged_stacks(), [0, 1, 2]);
+    // The acting member is of the front row or not; a sword reaches the engaged or nothing.
+    let attack = |stack| Command::Combat(CombatCommand::Attack { stack });
+    let mut copy = world.clone();
+    let far = apply(&mut copy, &data_still, attack(3));
+    if let Err(refusal) = far {
+        assert!(
+            matches!(
+                refusal,
+                Rejection::OutOfReach { stack: 3 } | Rejection::NeedsRangedWeapon
+            ),
+            "{refusal:?}"
+        );
+        assert_eq!(copy, world);
+    }
+}

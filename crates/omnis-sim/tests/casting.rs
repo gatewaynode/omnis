@@ -61,7 +61,11 @@ fn cast(spell: &str, target: Target) -> Command {
 
 #[test]
 fn a_caster_empties_the_pool_and_cantrips_stay_free() {
-    let data = data();
+    let mut data = data();
+    // No bows, so nothing reaches the back row while the front line stands.
+    for monster in data.monsters.values_mut() {
+        monster.attacks.retain(|a| !a.ranged);
+    }
     let mut world = world(&data);
     party_of(&mut world, &data, 6);
     // The wizard moves to the back row behind a front line hardened for the test, against

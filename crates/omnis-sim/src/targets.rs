@@ -128,7 +128,7 @@ pub(crate) fn in_range(
         (Range::Own | Range::Link, _) => Err(Rejection::BeyondRange),
         (Range::Touch | Range::Tiles(_) | Range::Sight, Target::Member(_)) => Ok(()),
         (Range::Touch, Target::Stack(stack)) => match fight {
-            Some(state) if state.is_front(data, *stack) => Ok(()),
+            Some(state) if state.is_engaged(*stack) => Ok(()),
             _ => Err(Rejection::OutOfReach { stack: *stack }),
         },
         (Range::Tiles(_) | Range::Sight, Target::Stack(_)) => Ok(()),

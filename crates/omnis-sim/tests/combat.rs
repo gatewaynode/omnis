@@ -102,7 +102,7 @@ fn a_fight_runs_to_victory_and_pays_out() {
     let Mode::Combat(state) = &world.mode else {
         panic!("not fighting")
     };
-    assert_eq!(state.front_stacks(&data), [0, 1]);
+    assert_eq!(state.engaged_stacks(), [0, 1]);
     let events = fight_to_the_end(&mut world, &data);
     let (outcome, xp, gold) = ended(&events).expect("the fight ends");
     assert_eq!(outcome, CombatOutcome::Victory);
@@ -170,6 +170,7 @@ fn rejections_leave_the_world_untouched() {
         &[("goblin", 1), ("giant_rat", 1), ("skeleton", 1)],
         Surprise::None,
     );
+    common::stand_back(&mut world, 2, 600);
     let before = world.clone();
     let refuse = |world: &mut World, command: CombatCommand, expected: Rejection| {
         assert_eq!(
@@ -582,6 +583,7 @@ fn the_protocol_reports_the_fight() {
         &[("goblin", 2), ("giant_rat", 1), ("skeleton", 1)],
         Surprise::None,
     );
+    common::stand_back(&mut world, 2, 600);
     let Reply::Combat { combat } = dispatch(&mut world, &data, &Op::CombatGet).unwrap() else {
         panic!("not a combat reply")
     };
@@ -589,6 +591,7 @@ fn the_protocol_reports_the_fight() {
     assert_eq!(combat.stacks.len(), 3);
     assert_eq!(combat.stacks[2].monster, "base:monster:skeleton");
     assert!(combat.stacks[0].in_front && combat.stacks[1].in_front && !combat.stacks[2].in_front);
+    assert_eq!(combat.stacks[2].distance, 600);
     assert!(matches!(combat.current, Some(ActorRef::Member(_))));
     assert_eq!(combat.order.len(), 9);
     let text = to_string(&Reply::Combat {

@@ -439,6 +439,7 @@ fn a_stack_s_refusal_is_the_attack_s_and_reach_follows_it() {
         &data,
         &[("goblin", 2), ("goblin", 2), ("goblin", 2)],
     );
+    common::stand_back(&mut world, 2, 600);
     until_turn_of(&mut world, &data, BRENNA);
     let view = combat_view(&world, &data).unwrap();
     assert_eq!(view.bribe, None, "no bribe once the fight is on");

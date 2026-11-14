@@ -107,15 +107,16 @@ fn the_rats_stand_above_the_party_in_its_two_rows() {
     }
 }
 
-/// The world with a stack of rats added for each count. The pack keeps two stacks in front,
-/// so a third stands behind.
+/// The world with a stack of rats added for each count: the first beside the one met, engaged
+/// as it is, each later one ten feet further back, so a third stands behind.
 fn with_stacks(world: &SimWorld, counts: &[u8]) -> SimWorld {
     let mut world = world.clone();
     let Mode::Encounter(encounter) = &mut world.mode else {
         panic!("met in an encounter");
     };
-    for &count in counts {
+    for (place, &count) in counts.iter().enumerate() {
         let mut more = encounter.stacks[0].clone();
+        more.distance += 10 * u16::try_from(place).unwrap();
         more.initial = count;
         more.hp = vec![3; usize::from(count)];
         encounter.stacks.push(more);

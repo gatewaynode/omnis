@@ -366,6 +366,15 @@ pub enum Event {
         /// Which.
         actor: ActorRef,
     },
+    /// A stack closed on the party: its distance in feet before and after.
+    StackMoved {
+        /// Which.
+        stack: u8,
+        /// Feet from the party's front line before.
+        from: u16,
+        /// And after.
+        to: u16,
+    },
     /// A member dodges until the round ends.
     Dodging {
         /// Who.

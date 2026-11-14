@@ -254,9 +254,11 @@ fn fire_bolt_is_a_plus_five_spell_attack_of_2d10_that_a_declared_shield_answers(
             .any(|e| matches!(e, Event::Reaction { actor, .. } if *actor == ilvara));
         reacted.then(|| {
             assert!(!hit, "the shield turned the hit");
+            // The shield stands until her own turn begins, which the same command may reach.
+            let hers = state(&mut world).current_actor() == Some(ActorRef::Member(ilvara));
             let effects = &world.party.members[ILVARA].effects;
             assert!(
-                effects
+                hers || effects
                     .iter()
                     .any(|e| matches!(e.kind, EffectKind::ArmorBonus(5)))
             );

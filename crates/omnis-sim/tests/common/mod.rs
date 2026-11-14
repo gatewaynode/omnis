@@ -163,6 +163,15 @@ pub fn encounter(
     }
 }
 
+/// Put a stack of the fight under way `feet` from the party's front line: 600 is past any bow
+/// in the packs, so it only closes, by its speed a turn.
+pub fn stand_back(world: &mut World, stack: usize, feet: u16) {
+    let Mode::Combat(state) = &mut world.mode else {
+        panic!("no fight");
+    };
+    state.encounter.stacks[stack].distance = feet;
+}
+
 /// From the meadow start to the rats at (3, 8) of the dungeon: up the road through the
 /// portal, down the first room, left to the door, through it, and three tiles in.
 pub fn walk_to_the_rats() -> Vec<Command> {

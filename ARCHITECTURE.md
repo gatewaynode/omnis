@@ -194,7 +194,7 @@ pub enum Command {                  // 16 variants
     Approach { being },             // go up to a group in reach (M8.5 2c)
 }
 
-pub enum Event {                    // 74 variants, integers, ids and roll traces only
+pub enum Event {                    // 75 variants, integers, ids and roll traces only
     // Exploration and time: Moved, Blocked, Visible, Door, Message { key: MessageKey }, PartyChanged,
     //   TimeAdvanced { holder, minutes, day_rolled }, Reconciled { a, b, delta_a, delta_b, era_b } (M8),
     //   SignalsDropped { count } (M8, §4.8)

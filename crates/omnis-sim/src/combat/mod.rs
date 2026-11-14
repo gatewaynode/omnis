@@ -17,7 +17,7 @@ pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
+pub use state::{Budget, CombatState, Initiative, frontage};
 pub use turn::run_dc;
 
 pub(crate) use budget::affordable;
@@ -339,7 +339,7 @@ pub fn weapon_for(
 ) -> Result<Weapon, Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
     let front_member = own < party::front_row(data);
-    if front_member && state.is_front(data, stack) {
+    if front_member && state.is_engaged(stack) {
         return Ok(best_weapon(member, data, false).unwrap_or_else(Weapon::unarmed));
     }
     match best_weapon(member, data, true) {

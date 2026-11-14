@@ -173,7 +173,9 @@ fn cast(
                 damage_type,
                 ranged: true,
                 reach: 5,
-                range: None,
+                // A spell's own range is judged where it is chosen; here only the SRD's
+                // disadvantage for a ranged attack with the enemy upon the caster applies.
+                range: Some((u16::MAX, u16::MAX)),
             };
             match reached(world, data, true, &mut roller.rng) {
                 Some(target) => monster_attacks_member(

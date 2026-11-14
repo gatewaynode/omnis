@@ -839,7 +839,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 1. Data, both parts: reach, range, per_square, tile_feet, areas, objects flag, fragile, craft,
         durability, door_make, mending, tools and supplies; base resealed, goldens rebaselined.
   - [x] 2. Distance in the state: `Stack.distance`, starting distances, the view; engaged replaces front.
-  - [ ] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.
+  - [x] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.
   - [ ] 4. Members in feet: reach, range, the line's advance, `Advance`, spell range, real distances.
   - [ ] 5. Area by squares.
   - [ ] 6. Opening strike: surprise roll, advantage, real distance, road `Command::Attack` at a group.

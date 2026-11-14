@@ -172,6 +172,32 @@ impl Monster {
         held.max(1)
     }
 
+    /// The squares of a line `count` of it stand across, shoulder to shoulder.
+    #[must_use]
+    pub fn line(&self, count: u16) -> u16 {
+        let front = u16::from(self.size.front());
+        if front > 1 {
+            count.saturating_mul(front)
+        } else {
+            count.div_ceil(u16::from(self.per_square().max(1)))
+        }
+    }
+
+    /// How many of it stand abreast across `squares` squares of a line: none across none, and
+    /// at least one across any.
+    #[must_use]
+    pub fn abreast(&self, squares: u16) -> u16 {
+        if squares == 0 {
+            return 0;
+        }
+        let front = u16::from(self.size.front());
+        if front > 1 {
+            (squares / front).max(1)
+        } else {
+            squares.saturating_mul(u16::from(self.per_square().max(1)))
+        }
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
         for attack in &self.attacks {

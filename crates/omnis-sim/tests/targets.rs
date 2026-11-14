@@ -194,13 +194,14 @@ fn in_a_fight_a_touch_reaches_the_front_stacks_and_a_range_every_stack() {
         &[("giant_rat", 2), ("giant_rat", 2), ("giant_rat", 2)],
         WIZARD,
     );
+    common::stand_back(&mut world, 2, 600);
     let all = [Target::Stack(0), Target::Stack(1), Target::Stack(2)];
     let touch = listed(&world, &data, WIZARD, &spell("burning_hands"));
     assert_eq!(
         touch.iter().map(|r| r.target.clone()).collect::<Vec<_>>(),
         all
     );
-    assert_eq!(free(&touch), all[..2], "two stacks stand in front");
+    assert_eq!(free(&touch), all[..2], "two stacks are engaged");
     assert_eq!(touch[2].refusal, Some(Rejection::OutOfReach { stack: 2 }));
     for ranged in ["magic_missile", "fire_bolt"] {
         assert_eq!(

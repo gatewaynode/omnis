@@ -121,6 +121,13 @@ fn how_many_fit_a_square_is_the_size_unless_the_type_says() {
         (8, 2, 1, 0),
         "four squares each, and one always fits"
     );
+    // Across a line: the kobolds two a square, the ogre two squares wide.
+    assert_eq!(
+        (kobold.line(5), kobold.abreast(3), kobold.abreast(0)),
+        (3, 6, 0)
+    );
+    assert_eq!((human.line(5), human.abreast(3)), (5, 3));
+    assert_eq!((ogre.line(2), ogre.abreast(5), ogre.abreast(1)), (4, 2, 1));
     for (extra, why) in [
         (", size: Small, per_square: Some(0)", "none fit"),
         (", size: Small, per_square: Some(17)", "too many"),
