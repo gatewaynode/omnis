@@ -1,7 +1,11 @@
 # Calmer fight colours and one targeting flow: acceptance
 
 Built 2026-11-14 (`tasks/plans/targeting.md`, nine steps). You tried steps 1, 4 and 5 the same day
-("looking good so far"). Steps 6, 7 and 8 are **not tried by you yet**.
+("looking good so far"). **Accepted 2026-11-14**, after you went through this sheet: "everything seems
+to work." With it you named what comes next, recorded in `tasks/TODO.md` as "Combat: range, reach, the
+opening strike, and things that can be struck": the opening strike, range and reach in a fight, and
+harmful spells at objects (hit points and armour class for objects, possibly all terrain). The decisions
+below that touch those (1, 2, 4) pass to that plan; the others stay open.
 
 ## The flow, everywhere
 Open the menu, requirements are checked, the options are shown (a failed one dim, with the reason),

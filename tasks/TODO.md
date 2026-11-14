@@ -828,7 +828,21 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     ground shows through a darker channel. Not built: the minimap; the theme outside a fight; icons and
     the text cursor on the theme; the arena on the line material. Not seen by me: the fight screen (the
     dev socket did not answer); the factors are untuned by eye.
-- [ ] **Calmer fight colours, and one targeting flow for spells, items and actions** (owner, 2026-11-14;
+- [ ] **Combat: range, reach, the opening strike, and things that can be struck** (owner, 2026-11-14, on
+  accepting the targeting sheet: "We'll need to work on combat to fix the opening strike, lack of range
+  calculation, reach and such. One thing to note, the destructive spells like flame bolt need to be able
+  to target objects, and we'll need to add hit points and AC to objects (possibly all terrain)."). Not
+  planned yet; plan mode first. What the plan has to settle, as I read it (my reading, not the owner's
+  words): (a) distances in a fight, where today ranges collapse (PRD 8.3) and `Tiles(n)` means nothing
+  once a fight starts, and reach is only front row or back row; (b) the opening strike's rules (its
+  strength, which stack it lands on, whether the monsters lose the round; the targeting sheet's decisions
+  1 and 2; ranged weapons from the road, decision 4); (c) harmful spells at `Target::Door` and
+  `Target::Object` (today `WrongTarget`), with hit points and an armour class on objects, and whether
+  walls and other terrain carry them too (SRD: object AC by material, hit points by size, damage
+  threshold); what a destroyed door, chest or wall becomes in the map, the automap and the save. PRD 8.2,
+  8.3 and ARCHITECTURE 4.5 will move; asked in that plan.
+- [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the
+  owner 2026-11-14**: "I went through the targeting acceptance doc, everything seems to work."; owner, 2026-11-14;
   `tasks/plans/targeting.md`, approved in plan mode the same day; PRD §7.3, §8.2, §8.3 and ARCHITECTURE
   §4.5 amended by that approval). From the owner's try of the fight on the palette: the colours are too
   saturated (answer: less glow and paler, the fight only); and on the road a spell for one individual

@@ -1,7 +1,13 @@
 # Continuity notes
 
-Written 2026-11-14, late. **Calmer fight colours and one targeting flow: all nine steps built and committed
-(not pushed); steps 6 to 8 not tried by the owner** (`tasks/plans/targeting.md`; the owner's sheet
+Written 2026-11-14, late. **Targeting is accepted by the owner (2026-11-14: "I went through the targeting
+acceptance doc, everything seems to work.").** With it they named the next work: "We'll need to work on
+combat to fix the opening strike, lack of range calculation, reach and such. One thing to note, the
+destructive spells like flame bolt need to be able to target objects, and we'll need to add hit points
+and AC to objects (possibly all terrain)." It is the first open item of W2 in `tasks/TODO.md` ("Combat:
+range, reach, the opening strike, and things that can be struck"); **not planned, plan mode first**, and
+it moves PRD 8.2/8.3 and ARCHITECTURE 4.5. The notes below were written before the acceptance.
+**Calmer fight colours and one targeting flow: all nine steps built and committed (not pushed)** (`tasks/plans/targeting.md`; the owner's sheet
 `tasks/acceptance/targeting.md`, which ends with eight decisions; the TODO item of that name in W2 has each
 step's notes and the review).
 - **The owner's rule**: open menu, check requirements, show options, select option, select from possible
@@ -23,7 +29,8 @@ step's notes and the review).
   targeting; a link names a thing by its name in the party's map; `Target` is not `Copy`.
 - **Open with the owner**: this sheet's eight decisions; the fight-on-the-palette sheet's five; part 3's
   five (`tasks/acceptance/rendering-size-2-palette.md`); their try of loot everywhere.
-- **Next, in the owner's order**: the HUD's plan or the minimap's, then parts 4 to 6 of rendering size 2.
+- **Next, in the owner's order**: the combat plan above (the owner raised it last), or the HUD's plan or
+  the minimap's, then parts 4 to 6 of rendering size 2. Ask which first.
 - **Process notes**: the mutation runner is `mut-sim.py <spec>` in the scratchpad (integration tests only;
   a mutant that does not compile proves nothing); MCP pinned counts live in `tests/api_doc.rs`,
   `tests/schema_proof.rs` (136 commands, 194 branches) and `src/schema.rs`'s unit test.
