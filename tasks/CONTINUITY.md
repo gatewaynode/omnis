@@ -1,12 +1,57 @@
 # Continuity notes
 
-Written 2026-11-14, late. **Targeting is accepted by the owner (2026-11-14: "I went through the targeting
-acceptance doc, everything seems to work.").** With it they named the next work: "We'll need to work on
-combat to fix the opening strike, lack of range calculation, reach and such. One thing to note, the
-destructive spells like flame bolt need to be able to target objects, and we'll need to add hit points
-and AC to objects (possibly all terrain)." It is the first open item of W2 in `tasks/TODO.md` ("Combat:
-range, reach, the opening strike, and things that can be struck"); **not planned, plan mode first**, and
-it moves PRD 8.2/8.3 and ARCHITECTURE 4.5. The notes below were written before the acceptance.
+Written 2026-11-14, night. **In progress: "Combat in feet, and things that break"** (`tasks/plans/combat-in-feet.md`,
+approved in plan mode 2026-11-14; the TODO item of that name in W2 has the fourteen steps ticked as they land).
+Targeting is accepted by the owner (same day).
+
+- **The owner's decisions** (asked, do not re-ask): one distance per stack, no grid, no cover; combat on the
+  SRD's 5 ft square ("Combat should try to stay consistent with the SRD rules"; I had recommended 15 ft tiles
+  and was corrected, lesson in `tasks/LESSONS.md`); maps outside combat will need other scales, so a map states
+  `tile_feet`; a per-type number that fit a square (1 human, 2 kobolds, 3 rats) that limits melee attackers,
+  sizes area spells and caps a group on a tile; opening strike rolls surprise (Stealth against passive
+  Perception); objects **and doors** breakable (SRD AC by material, HP by size), terrain not; a broken
+  container spills and fragile items can be lost; repair by mending, by tools with time and supplies, and by a
+  town service.
+- **Done and committed (not pushed)**: `acce0ed7` (0, documents), `cbf253e9` (1, data; base resealed 0.1.4,
+  goldens rebaselined), `279296fc` (2, `Stack.distance`), `f32384ed` (3, monsters in feet). Gate 1414.
+- **Found in step 1, fixed there**: new base items renumber every item; a save older than name tables is read
+  on the table without them (`NameTable::before_names`, the list `ITEMS_SINCE_NAMES` in `save/names.rs`;
+  **any definition added to a shipped pack goes in that list in the same change**), before its migrations.
+- **Departures from the plan's wording, all said in commits**: the mending spell file and the fixture's
+  durable kinds wait for steps 10 and 8; step 2 kept "front stacks" and step 3 replaced it with engaged;
+  `monster_front_stacks` is still written in base's `combat.ron` and asserted in `load_base_pack.rs` (remove
+  both at the next base reseal, step 10); monster spells' own ranges moved from step 3 to step 4.
+- **Next: step 4, members in feet.** Design I had settled on:
+  - `omnis_rules::Weapon` gains `reach` and `range` from `Item::span()` (unarmed 5).
+  - `CombatState` gains `advanced: u16` and `dashes: u8` (serde default, reset in `turn::end_of_round`). The
+    line's allowance a round is the slowest standing front-row member's race speed x (1 + dashes).
+  - `combat::weapon_for` decides in this order: melee in reach without moving (the back row stands 5 ft
+    further, so it needs a 10 ft weapon for an engaged stack); else a ranged weapon within its long range
+    (disadvantage past normal, or for a front-row member with any stack engaged); else, for a front-row
+    member, melee with an automatic advance if the allowance covers the gap; else `OutOfReach`,
+    `BeyondRange` or `NeedsRangedWeapon`. `Plan::Attack` carries the advance and the hindrance.
+  - Advancing by d takes d off every stack (never under 5): `Event::PartyAdvanced { feet }` (76 events).
+  - `CombatCommand::Advance`: an action (the Dash), `dashes += 1`, then the line moves as far as the allowance
+    goes toward engaging the nearest stack; a new rejection when every living stack is engaged.
+  - Spells in a fight (`targets::in_range`): Touch is a reach of 5 with the same automatic advance (so
+    `CastPlan` carries an advance; a back-row caster cannot touch); `Tiles(n)` is n x the map's `tile_feet`
+    against the stack's distance, else `BeyondRange`; Sight anything. A member's ranged spell attack is
+    hindered when engaged, as the monsters' is (`resolve::hindered`).
+  - Monster casters: filter the spells offered in `monster_cast::act` by the same ranges.
+  - `TargetView.distance` in a fight becomes the stack's feet (the road's is tiles; say so in `docs/api.md`).
+    `CombatView` gains what is left of the advance.
+  - Tests go in `crates/omnis-sim/tests/feet.rs` (helper `play` builds a fight with distances; `common::stand_back`
+    places a stack). Expect the golden fight to move here, and several fight tests that attack a stack 15 ft off.
+- **Then**: 5 area by squares (`cast_save` and `monster_cast` treat `Reach::Area` as the whole stack today, with
+  a comment); 6 opening strike (group Stealth check, advantage, road `Command::Attack`); 7 client (distance by
+  each stack, Advance button, road Attack, `rolllog` line for `StackMoved`, the tile cap in loader and editor),
+  then report "built, please try"; 8 to 13 things that break (see the plan).
+- **Said plainly**: no balance pass; fights are harder to read without the client showing distance (step 7);
+  nothing seen on screen by me; opportunity attacks still come only from engaged stacks, not from a 10 ft reach.
+- **Mutation runner**: `mut-sim.py <spec.py>` in the scratchpad; specs `mut-feet2.py`, `mut-feet3.py` show the form.
+
+The notes below were written before this plan.
+
 **Calmer fight colours and one targeting flow: all nine steps built and committed (not pushed)** (`tasks/plans/targeting.md`; the owner's sheet
 `tasks/acceptance/targeting.md`, which ends with eight decisions; the TODO item of that name in W2 has each
 step's notes and the review).
