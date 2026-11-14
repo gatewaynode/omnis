@@ -254,7 +254,13 @@ fn cast(
                 Reach::One => reached(world, data, false, &mut roller.rng)
                     .into_iter()
                     .collect(),
-                Reach::Stack | Reach::AllStacks | Reach::Area { .. } => front_or_all(world, data),
+                Reach::Stack | Reach::AllStacks => front_or_all(world, data),
+                // A member fills a square: an area catches as many as it has squares.
+                Reach::Area { squares } => {
+                    let mut caught = front_or_all(world, data);
+                    caught.truncate(usize::from(squares));
+                    caught
+                }
             };
             let dice = scale(dice, roller)?;
             let damage = damage_roll(

@@ -518,3 +518,110 @@ fn casts(spells: &[&str], feet: u16) -> Vec<String> {
         cast.collect()
     }
 }
+
+/// The saving throws a cast at stack 0 asks of the monsters: one for each individual caught.
+fn caught(data: &Data, monster: &str, count: u8, spell: &str) -> usize {
+    let mut world = world(data);
+    party_of(&mut world, data, 6);
+    fight(&mut world, data, &[(monster, count)], WIZARD);
+    common::stand_back(&mut world, 0, 5);
+    let events = apply(&mut world, data, Command::Combat(cast(spell, 0))).unwrap();
+    let saves = events.iter().filter(|e| {
+        matches!(
+            e,
+            Event::Check {
+                actor: ActorRef::Monster { .. },
+                ..
+            }
+        )
+    });
+    saves.count()
+}
+
+/// An area catches as many of a stack as fit its squares (owner, 2026-11-14: one human a
+/// square, two kobolds, three rats): burning hands, six squares, catches eighteen giant rats or
+/// twelve goblins, and never more than stand there. A spell that takes the whole stack still
+/// does.
+#[test]
+fn an_area_catches_what_fits_its_squares() {
+    let mut data = data();
+    assert_eq!(caught(&data, "giant_rat", 20, "burning_hands"), 18);
+    assert_eq!(caught(&data, "goblin", 20, "burning_hands"), 12);
+    assert_eq!(caught(&data, "giant_rat", 4, "burning_hands"), 4);
+    let rat = data
+        .registry
+        .monsters
+        .get("base:monster:giant_rat")
+        .unwrap();
+    data.monsters.get_mut(&rat).unwrap().per_square = Some(1);
+    assert_eq!(caught(&data, "giant_rat", 20, "burning_hands"), 6);
+    let hands = data
+        .registry
+        .spells
+        .get("base:spell:burning_hands")
+        .unwrap();
+    data.spells.get_mut(&hands).unwrap().reach = omnis_data::Reach::Stack;
+    assert_eq!(caught(&data, "giant_rat", 20, "burning_hands"), 20);
+}
+
+/// A monster's area catches a member a square: two squares, two members of the front row.
+#[test]
+fn a_monster_s_area_catches_a_member_a_square() {
+    let saves = |squares: u8| {
+        let mut data = data();
+        let wave = data.registry.spells.get("base:spell:thunderwave").unwrap();
+        data.spells.get_mut(&wave).unwrap().reach = omnis_data::Reach::Area { squares };
+        let bob = data
+            .registry
+            .monsters
+            .get("test:monster:bob_the_rat_king")
+            .unwrap();
+        let m = data.monsters.get_mut(&bob).unwrap();
+        m.casting.as_mut().unwrap().spells = vec!["base:spell:thunderwave".into()];
+        m.attacks.clear();
+        let mut world = common::new_world(&data, 7, Settings::default());
+        party_of(&mut world, &data, 6);
+        for member in &mut world.party.members {
+            member.hp = 500;
+        }
+        let encounter = EncounterState {
+            source: EncounterSource::Random,
+            stacks: vec![Stack {
+                monster: bob,
+                initial: 1,
+                hp: vec![60],
+                spent: Vec::new(),
+                distance: 5,
+            }],
+            disposition: Disposition::Hostile,
+            retreat: world.position,
+        };
+        let mut events = Vec::new();
+        combat::start(&mut world, &data, encounter, Surprise::None, &mut events).unwrap();
+        for _ in 0..8 {
+            let end = Command::Combat(CombatCommand::EndTurn);
+            events.extend(apply(&mut world, &data, end).unwrap());
+        }
+        // The saves each cast asked for.
+        let mut per_cast: Vec<usize> = Vec::new();
+        for event in &events {
+            match event {
+                Event::MonsterCast { .. } => per_cast.push(0),
+                Event::Check {
+                    actor: ActorRef::Member(_),
+                    kind: omnis_sim::CheckKind::Save(_),
+                    ..
+                } => *per_cast.last_mut().expect("a cast before a save") += 1,
+                _ => {}
+            }
+        }
+        assert!(!per_cast.is_empty(), "Bob cast");
+        per_cast
+    };
+    assert!(saves(2).iter().all(|n| *n == 2), "{:?}", saves(2));
+    assert!(
+        saves(9).iter().all(|n| *n == 3),
+        "the front row: {:?}",
+        saves(9)
+    );
+}

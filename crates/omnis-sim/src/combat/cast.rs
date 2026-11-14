@@ -600,9 +600,12 @@ fn cast_save(
         let count = state.encounter.stacks[usize::from(stack)].hp.len();
         let individuals: Vec<usize> = match save.reach {
             Reach::One => alloc::vec![0],
-            // An area still catches its whole stack; the squares count from step 5 of
-            // `tasks/plans/combat-in-feet.md`.
-            Reach::Stack | Reach::AllStacks | Reach::Area { .. } => (0..count).rev().collect(),
+            Reach::Stack | Reach::AllStacks => (0..count).rev().collect(),
+            // An area catches as many of the stack as fit its squares, the nearest first.
+            Reach::Area { squares } => {
+                let fit = usize::from(monster.fitting(squares.into()));
+                (0..count.min(fit)).rev().collect()
+            }
         };
         for index in individuals {
             let actor = ActorRef::Monster {

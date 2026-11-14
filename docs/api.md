@@ -1313,6 +1313,11 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (**behaviour**; combat in feet, step 5: areas by squares). A spell whose `reach` is
+  `Area { squares }` no longer catches its whole stack: cast by a member it catches as many of the stack as
+  fit those squares (`per_square` a square, or one for each `space` of a Large or bigger monster; at least
+  one), the nearest first; cast by a monster it catches a member a square, the front row first. In base,
+  burning hands (6 squares) catches up to 18 giant rats or 12 goblins. No wire shape changed.
 - 2026-11-14 (**behaviour** and additions; combat in feet, step 4: the members fight in feet).
   `CombatCommand::Attack` picks, in this order: the melee weapon when its `reach` covers the stack's distance
   (the back row stands 5 ft further off); else the ranged weapon within its long range, at disadvantage past

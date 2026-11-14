@@ -855,7 +855,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         is the slowest standing front-row member's race speed (25 ft with the fixture's dwarf in front);
         a front-row caster's ranged spell attacks have disadvantage with a stack engaged; the back row
         cannot touch a stack; the golden replays did not move; no client entry until step 7.
-  - [ ] 5. Area by squares.
+  - [x] 5. Area by squares. A member's `Reach::Area { squares }` catches the nearest
+        `Monster::fitting(squares)` individuals of the stack (burning hands, 6 squares: 18 giant rats, 12
+        goblins, 6 of anything a square each); a monster's catches a member a square, the front row first.
+        Four mutations caught. Said plainly: thunderwave (9) and shatter (12) rarely fall short of a whole
+        stack; a base monster's area caught the front row before and still does unless its squares are
+        fewer than the row.
   - [x] 6. Opening strike: surprise roll, advantage, real distance, road `Command::Attack` at a group.
         **Built ahead of steps 4 and 5 at the owner's word ("jump into step 6", 2026-11-14).** The party's
         group Stealth check (`combat::unseen`: everyone who can act, half or more passing) against the
