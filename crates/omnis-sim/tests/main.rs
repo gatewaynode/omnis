@@ -22,6 +22,7 @@ mod history;
 mod items;
 mod journal;
 mod levels;
+mod links;
 mod loot;
 mod map_targets;
 mod migrations;

@@ -84,6 +84,16 @@ pub enum DevCommand {
         /// On or off.
         applied: bool,
     },
+    /// Forge or unforge a member's link to a target (owner, 2026-11-14): what an option whose
+    /// range is `Link` reaches for them. No spell forges one yet.
+    Link {
+        /// The member who holds the link.
+        member: CharacterId,
+        /// What they are linked to; a door by either tile of its edge.
+        target: crate::combat::Target,
+        /// Whether the link holds after the command.
+        linked: bool,
+    },
     /// A world flag by registry id.
     SetFlag {
         /// `pack:flag:name`.
@@ -192,6 +202,23 @@ pub(crate) fn apply(
                         id: condition.clone(),
                     })?;
             set_condition_id(member_mut(world, *member)?, data, id, *applied, &mut caused);
+        }
+        DevCommand::Link {
+            member,
+            target,
+            linked,
+        } => {
+            world.party.slot_of(*member)?;
+            let target = crate::targets::map::canonical(target.clone());
+            let held = world.links.entry(*member).or_default();
+            if *linked {
+                held.insert(target);
+            } else {
+                held.remove(&target);
+            }
+            if held.is_empty() {
+                world.links.remove(member);
+            }
         }
         DevCommand::SetFlag { flag, value } => {
             let id = data

@@ -52,6 +52,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         automap: old.automap,
         known: crate::objects::Knowledge::default(),
         quiet: 0,
+        links: crate::world::Links::new(),
         mode: old.mode,
         flags: old.flags,
         settings: Settings {

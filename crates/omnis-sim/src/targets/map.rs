@@ -85,6 +85,67 @@ pub(crate) fn door(world: &World, data: &Data, x: u16, y: u16, facing: Facing) -
     })
 }
 
+/// The object `id` of the party's level, when it stands there still: found or not, seen or not.
+pub(crate) fn placed<'d>(world: &World, data: &'d Data, id: &str) -> Option<&'d ResolvedPlacement> {
+    let pos = world.position;
+    let objects = data.maps.get(&pos.map)?.objects.iter();
+    objects
+        .into_iter()
+        .find(|p| p.id == id && p.level == pos.level)
+        .filter(|p| !removed_in(world.maps.get(&pos.map), p))
+}
+
+/// A target as a link keeps it: a door by its canonical edge, so either tile's name is one link.
+pub(crate) fn canonical(target: Target) -> Target {
+    match target {
+        Target::Door { x, y, facing } => {
+            let (x, y, facing) = door_key(x, y, facing);
+            Target::Door { x, y, facing }
+        }
+        other => other,
+    }
+}
+
+/// A linked target as it stands now, seen or not, known or not: how far and whether seen, or
+/// why it is no longer there (the door's edge has none, the object is gone, the group has left).
+/// A member or a combatant has no distance.
+pub(crate) fn linked(
+    world: &World,
+    data: &Data,
+    target: &Target,
+) -> Result<(u16, Sight), Rejection> {
+    let pos = world.position;
+    let tile = match target {
+        Target::Member(_) | Target::Stack(_) => return Ok((0, Sight::Clear)),
+        Target::Door { x, y, facing } => {
+            let cell = data
+                .maps
+                .get(&pos.map)
+                .and_then(|m| m.cell(pos.level, *x, *y));
+            if !cell.is_some_and(|c| c.doors.has(*facing)) {
+                return Err(Rejection::NoDoor);
+            }
+            (*x, *y)
+        }
+        Target::Object { object } => {
+            let placement = placed(world, data, object).ok_or_else(|| Rejection::NoSuchObject {
+                object: object.clone(),
+            })?;
+            (placement.x, placement.y)
+        }
+        Target::Being { being } => {
+            let stood = crate::beings::stood(world, data);
+            let found = stood.into_iter().find(|(id, _)| id == being);
+            found
+                .map(|(_, tile)| tile)
+                .ok_or_else(|| Rejection::NoSuchBeing {
+                    being: being.clone(),
+                })?
+        }
+    };
+    Ok((distance(world, tile), sight(sees(world, data, tile))))
+}
+
 /// The object `id` of the party's level, when it stands there still, is not hidden from the
 /// party, and the party sees it or has its tile on its map.
 pub(crate) fn object<'d>(
@@ -93,14 +154,8 @@ pub(crate) fn object<'d>(
     id: &str,
 ) -> Option<(&'d ResolvedPlacement, Spot)> {
     let pos = world.position;
-    let map = data.maps.get(&pos.map)?;
-    let placement = map
-        .objects
-        .iter()
-        .find(|p| p.id == id && p.level == pos.level)?;
-    if removed_in(world.maps.get(&pos.map), placement)
-        || !found_in(&world.known, pos.map, placement)
-    {
+    let placement = placed(world, data, id)?;
+    if !found_in(&world.known, pos.map, placement) {
         return None;
     }
     let tile = (placement.x, placement.y);

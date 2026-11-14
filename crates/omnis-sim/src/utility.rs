@@ -54,7 +54,7 @@ pub(crate) fn check<'d>(
             let gone = || Rejection::NoSuchObject {
                 object: object.clone(),
             };
-            let (placement, _) = map::object(world, data, object).ok_or_else(gone)?;
+            let placement = map::placed(world, data, object).ok_or_else(gone)?;
             let (index, interaction) = objects::pick(world, data, placement, &HAND)?;
             Ok(Hand::Object {
                 placement,

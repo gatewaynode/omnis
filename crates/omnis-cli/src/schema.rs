@@ -378,6 +378,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
     // world's base with the changes each made, and the bases it names in its world folder.
     // Written as one line; shown pretty here.
     let checkpoint = Checkpoint {
+        links: Default::default(),
         party: Default::default(),
         party_time: Default::default(),
         flags: BTreeMap::new(),

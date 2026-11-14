@@ -91,12 +91,22 @@ pub(crate) fn in_range(
     target: &Target,
 ) -> Result<(), Rejection> {
     let actor = world.party.members.get(own).map(|m| m.id);
-    match (targeting.range, target) {
-        (_, Target::Door { .. } | Target::Object { .. } | Target::Being { .. })
-            if fight.is_some() =>
-        {
-            Err(Rejection::WrongTarget)
+    let of_the_map = matches!(
+        target,
+        Target::Door { .. } | Target::Object { .. } | Target::Being { .. }
+    );
+    if of_the_map && fight.is_some() {
+        return Err(Rejection::WrongTarget);
+    }
+    if targeting.range == Range::Link {
+        // A link reaches what its holder is linked to, wherever it is, and nothing else.
+        let held = actor.and_then(|id| world.links.get(&id));
+        if !held.is_some_and(|l| l.contains(&map::canonical(target.clone()))) {
+            return Err(Rejection::BeyondRange);
         }
+        return map::linked(world, data, target).map(|_| ());
+    }
+    match (targeting.range, target) {
         (_, Target::Door { x, y, facing }) => {
             let spot = map::door(world, data, *x, *y, *facing).ok_or(Rejection::NoDoor)?;
             map::within(world, data, targeting, spot)
@@ -174,6 +184,20 @@ fn stacks(state: &CombatState) -> Vec<Target> {
         .collect()
 }
 
+/// The actor's links that an option of this kind may be sent at and that are still there.
+fn link_rows(world: &World, data: &Data, own: &Target, fits: impl Fn(&Target) -> bool) -> Vec<Row> {
+    let Target::Member(actor) = own else {
+        return Vec::new();
+    };
+    let held = world.links.get(actor).into_iter().flatten();
+    held.filter(|target| fits(target))
+        .filter_map(|target| {
+            let (distance, sight) = map::linked(world, data, target).ok()?;
+            Some((target.clone(), distance, sight))
+        })
+        .collect()
+}
+
 /// What a spell's rows are: the caster alone when it is the caster's own or lands on the whole
 /// party, the members when it helps one, the standing stacks when it harms one, and for a hand
 /// on the road the things of the map.
@@ -185,6 +209,15 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
         return Vec::new();
     };
     let hand = matches!(effect, SpellEffect::Utility(Utility::OpenDoor { .. }));
+    if def.targeting().range == Range::Link {
+        let road = matches!(world.mode, Mode::Explore);
+        return link_rows(world, data, &own, |target| match target {
+            Target::Member(_) => effect.targets_members(),
+            Target::Stack(_) => effect.strikes() && !road,
+            Target::Door { .. } | Target::Object { .. } => hand && road,
+            Target::Being { .. } => effect.strikes() && road,
+        });
+    }
     if hand && matches!(world.mode, Mode::Explore) {
         return hand_rows(world, data, def.targeting());
     }

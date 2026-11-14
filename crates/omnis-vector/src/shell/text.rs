@@ -438,6 +438,10 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
             }
         }
         DevCommand::SetHp { member, hp } => format!("dev: {} hp {hp}", who(member)),
+        DevCommand::Link { member, linked, .. } => {
+            let done = if *linked { "forged" } else { "unforged" };
+            format!("dev: {} link {done}", who(member))
+        }
         DevCommand::SetSpellPoints { member, points } => {
             format!("dev: {} sp {points}", who(member))
         }

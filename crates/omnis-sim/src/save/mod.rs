@@ -154,6 +154,12 @@ pub struct Checkpoint {
     /// The steps left with no roll on a map's random table.
     #[serde(default, skip_serializing_if = "crate::world::is_zero")]
     pub quiet: u16,
+    /// What each member is linked to.
+    #[serde(
+        default,
+        skip_serializing_if = "alloc::collections::BTreeMap::is_empty"
+    )]
+    pub links: crate::world::Links,
     /// What the party is doing.
     pub mode: Mode,
     /// The difficulty options.

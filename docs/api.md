@@ -644,6 +644,15 @@ party's level that the party sees and the spell's `targeting` reaches, nearest f
 it is seen: out of sight it is not listed and is refused `NoSuchBeing`, known of or not;
 beyond the range, `BeyondRange`. With no group in sight the list is empty.
 
+An option whose range is `Link` reaches exactly what its user is linked to (`World.links`, a
+set of `Target` per member, saved with the party) and nothing else: the list is the user's
+links of the kind the option takes (a member for a heal or a buff; a door or an object for a
+spell on the world; a group for a harmful spell on the road, a stack in a fight), wherever
+they are, seen or not, found or not, with `distance` and `sight` as they stand. Anything not
+linked is `BeyondRange`. A linked thing that is no longer there is not listed and is refused
+as such (`NoDoor`, `NoSuchObject`, `NoSuchBeing`). A link to a thing of a map is by the
+thing's name in the map the party is on. No spell forges a link yet; `DevCommand::Link` does.
+
 ### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
 
 What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
@@ -913,7 +922,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 `MemberTwice`; the dice are rolled in marching order), `Long` (the night; eats food; once per
 24 hours).
 
-`DevCommand` (15 variants; every one is raised back as `Event::Dev`):
+`DevCommand` (16 variants; every one is raised back as `Event::Dev`):
 
 | Variant | Fields | Meaning |
 |---|---|---|
@@ -926,6 +935,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 | `SetScore` | `member`, `ability`, `score` | One ability score, any `u8` (Con and mental scores recompute their pools). |
 | `SetCondition` | `member`, `condition` (id), `applied` | A condition on or off, raw. |
 | `SetFlag` | `flag` (id), `value` | A world flag. |
+| `Link` | `member`, `target` (`Target`), `linked` | Forge (`true`) or unforge (`false`) the member's link to a target: what an option whose `targeting` range is `Link` reaches for them. A door is kept by its canonical edge. No spell forges a link yet. |
 | `Teleport` | `map` (id), `level` (optional, 0 when absent), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
 | `SetMonsterHp` | `stack`, `index` (among the stack's living, as in `ActorRef::Monster`), `hp` | Fights only; 0 removes it without gold. |
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
@@ -1296,6 +1306,11 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (targeting, step 8: links): `World` and `Checkpoint` gain `links` (a map from `CharacterId` to
+  a set of `Target`; left out when empty, so `SAVE_SCHEMA` stays 9 and an older save reads as none).
+  `Range::Link`, refused `BeyondRange` for everything until now, reaches what its user is linked to.
+  `DevCommand::Link { member, target, linked }` forges or unforges one (16 dev commands). No pack writes a
+  `Link` range and no spell forges a link, so no game changes.
 - 2026-11-14 (targeting, step 7: the opening strike; PRD §8.2): `Command::Cast` of an attack, auto-hit or
   save spell at `Target::Being` starts a fight with the spell already landed (see `Cast`). **Changes of
   behaviour**: such a spell on the road was `NotCastable` and is now castable (at a stack or a member it is

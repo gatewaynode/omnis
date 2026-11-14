@@ -258,6 +258,9 @@ pub(crate) const fn is_zero(n: &u16) -> bool {
     *n == 0
 }
 
+/// What each member is linked to: the targets a `Link` range reaches for them.
+pub type Links = BTreeMap<omnis_core::CharacterId, BTreeSet<crate::combat::Target>>;
+
 /// The world.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct World {
@@ -294,6 +297,11 @@ pub struct World {
     /// the rules value `encounter_quiet_steps`, one less each step after (owner, 2026-11-12).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub quiet: u16,
+    /// What each member is linked to (owner, 2026-11-14): the targets an option whose range is
+    /// `Link` reaches for them, wherever they are. A door is kept by its canonical edge.
+    /// Unwritten when none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub links: Links,
     /// What the party is doing.
     pub mode: Mode,
     /// Named integer flags.
@@ -444,6 +452,7 @@ impl World {
             automap: Automap::default(),
             known: Knowledge::default(),
             quiet: 0,
+            links: Links::new(),
             mode: Mode::Explore,
             flags: BTreeMap::new(),
             settings,

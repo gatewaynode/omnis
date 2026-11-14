@@ -120,6 +120,7 @@ pub fn split(world: &World, data: &Data) -> Split {
             automap: world.automap.clone(),
             known: world.known.clone(),
             quiet: world.quiet,
+            links: world.links.clone(),
             mode: world.mode.clone(),
             settings: world.settings,
             turn: world.turn,

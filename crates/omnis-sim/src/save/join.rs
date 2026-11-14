@@ -83,6 +83,7 @@ pub(crate) fn assemble(split: Split) -> Result<World, JoinError> {
         automap: checkpoint.automap,
         known: checkpoint.known,
         quiet: checkpoint.quiet,
+        links: checkpoint.links,
         mode: checkpoint.mode,
         flags: checkpoint.flags,
         settings: checkpoint.settings,

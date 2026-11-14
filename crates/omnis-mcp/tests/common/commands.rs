@@ -250,6 +250,14 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
     })
 }
 
+fn link(target: Target) -> DevCommand {
+    DevCommand::Link {
+        member: CharacterId(0),
+        target,
+        linked: true,
+    }
+}
+
 fn next_facing(facing: Facing) -> Option<Facing> {
     match facing {
         Facing::North => Some(Facing::East),
@@ -324,7 +332,30 @@ fn next_dev(command: &DevCommand) -> Option<DevCommand> {
         },
         DevCommand::Reconcile { .. } => DevCommand::Fold,
         DevCommand::Fold => DevCommand::Pass { minutes: 90 },
-        DevCommand::Pass { .. } => return None,
+        DevCommand::Pass { .. } => link(Target::Stack(0)),
+        // A link to each shape of target, a door on each edge.
+        DevCommand::Link { target, .. } => link(match target {
+            Target::Stack(_) => Target::Member(CharacterId(1)),
+            Target::Member(_) => Target::Door {
+                x: 9,
+                y: 5,
+                facing: Facing::North,
+            },
+            Target::Door { x, y, facing } => match next_facing(*facing) {
+                Some(facing) => Target::Door {
+                    x: *x,
+                    y: *y,
+                    facing,
+                },
+                None => Target::Object {
+                    object: "chest_1".into(),
+                },
+            },
+            Target::Object { .. } => Target::Being {
+                being: "rat".into(),
+            },
+            Target::Being { .. } => return None,
+        }),
     })
 }
 
