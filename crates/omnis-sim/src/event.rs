@@ -366,6 +366,11 @@ pub enum Event {
         /// Which.
         actor: ActorRef,
     },
+    /// The party's line advanced: every stack is `feet` nearer, none nearer than engaged.
+    PartyAdvanced {
+        /// Feet advanced.
+        feet: u16,
+    },
     /// A stack closed on the party: its distance in feet before and after.
     StackMoved {
         /// Which.

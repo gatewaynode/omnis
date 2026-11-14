@@ -60,6 +60,14 @@ pub struct CombatState {
     /// none, so a save of a fight that began any other way reads as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub struck: Option<CharacterId>,
+    /// Feet the party's line has advanced this round, dashes included. Unwritten when none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub advanced: u16,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_zero(n: &u16) -> bool {
+    *n == 0
 }
 
 /// The actions and bonus actions left in the current turn.
@@ -158,6 +166,42 @@ impl CombatState {
         0
     }
 
+    /// Whether a foe is upon the member in slot `own`: they stand in the front row and a stack
+    /// is engaged. Their ranged attacks have disadvantage (the SRD's rule for a hostile within
+    /// five feet).
+    #[must_use]
+    pub fn presses(&self, own: usize, data: &Data) -> bool {
+        own < crate::party::front_row(data) && !self.engaged_stacks().is_empty()
+    }
+
+    /// Feet to the nearest stack that stands.
+    #[must_use]
+    pub fn nearest(&self) -> Option<u16> {
+        let standing = self.encounter.stacks.iter().filter(|s| s.alive());
+        standing.map(|s| s.distance).min()
+    }
+
+    /// Feet the party's line may still advance without a dash: what is left of its pace this
+    /// round, and never past the nearest stack, which stops it once engaged.
+    #[must_use]
+    pub fn room(&self, party: &Party, data: &Data) -> u16 {
+        let allowed = pace(party, data);
+        let gap = self.nearest().map_or(0, |d| d.saturating_sub(ENGAGED_FEET));
+        allowed.saturating_sub(self.advanced).min(gap)
+    }
+
+    /// The line advances: every stack is that much nearer, none nearer than engaged.
+    pub(crate) fn advance(&mut self, feet: u16, events: &mut Vec<crate::event::Event>) {
+        if feet == 0 {
+            return;
+        }
+        for stack in &mut self.encounter.stacks {
+            stack.distance = stack.distance.saturating_sub(feet).max(ENGAGED_FEET);
+        }
+        self.advanced = self.advanced.saturating_add(feet);
+        events.push(crate::event::Event::PartyAdvanced { feet });
+    }
+
     /// The actor whose turn it is.
     #[must_use]
     pub fn current_actor(&self) -> Option<ActorRef> {
@@ -187,6 +231,23 @@ pub fn is_dead(member: &Character, data: &Data) -> bool {
 #[must_use]
 pub fn can_fight(member: &Character, data: &Data) -> bool {
     !member.is_down() && !is_dead(member, data) && !flags(&member.conditions, data).incapacitated
+}
+
+/// The party's pace in feet a round: its line moves as one, at the speed of the slowest member
+/// standing in the front row (of the rest once the front row has fallen).
+#[must_use]
+pub fn pace(party: &Party, data: &Data) -> u16 {
+    let front_row = crate::party::front_row(data);
+    let split = front_row.min(party.members.len());
+    let (front, back) = party.members.split_at(split);
+    let slowest = |row: &[Character]| {
+        let standing = row.iter().filter(|m| !m.is_down());
+        standing
+            .filter_map(|m| data.races.get(&m.race))
+            .map(|r| u16::from(r.speed))
+            .min()
+    };
+    slowest(front).or_else(|| slowest(back)).unwrap_or(30)
 }
 
 /// The five-foot squares the party's front presents: one for each member of the front row still

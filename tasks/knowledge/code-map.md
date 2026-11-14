@@ -574,6 +574,7 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
   `combat/cast.rs` (`Stack`, `Member`, `Door`, `Object`, `Being`; not `Copy`). Each row is judged by the
   command's own validation: `combat::refusal`, `casting::validate`, `items::use_refusal`.
 - Mage hand: `utility.rs` (`check`, `carry_out`, `HAND` verbs) over `objects::pick` and `perform`.
+- Members in feet (combat in feet, step 4): `combat::strike_for` and `Strike`, `advance_for`, `CombatCommand::Advance`; `CombatState::{room, nearest, presses, advance}`, `state::pace`; a touch's advance in `cast::validate` (`CastPlan.advance`), the range rule in `targets::in_range`; `monster_cast::reaches`; tests `tests/feet_members.rs`.
 - The opening strike by a weapon: `assault.rs` (`validate`, `apply`), `Command::Attack`, `combat::Opening`, the surprise roll `combat::unseen` (tests `tests/road_attack.rs`).
 - The opening strike: `casting::apply` (a `Being` and `strikes()`), `encounter::struck`, `combat::start_struck`,
   `turn::strike`, `CombatState.struck`; rules value `opening_strike_surprise` (read with a default of on).

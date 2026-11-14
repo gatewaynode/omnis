@@ -125,7 +125,8 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
             receiver: None,
         },
         CombatCommand::Use { receiver: None, .. } => CombatCommand::Dodge,
-        CombatCommand::Dodge => CombatCommand::Exchange {
+        CombatCommand::Dodge => CombatCommand::Advance,
+        CombatCommand::Advance => CombatCommand::Exchange {
             with: CharacterId(5),
         },
         CombatCommand::Exchange { .. } => CombatCommand::Run,

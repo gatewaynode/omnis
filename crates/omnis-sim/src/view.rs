@@ -3,7 +3,7 @@
 use crate::combat::feature::refusal;
 use crate::combat::{
     Budget, CombatState, FeatureChoice, Pay, Roller, affordable, cast, payable, points_of,
-    weapon_for,
+    strike_for,
 };
 use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack, bribe_cost};
@@ -168,6 +168,10 @@ pub struct CombatView {
     /// What the acting member's turn has left to pay with.
     #[serde(default)]
     pub budget: Budget,
+    /// Feet the party's line may still advance this round without a dash (`Advance`); 0 when a
+    /// stack is engaged or the round's pace is used up.
+    #[serde(default)]
+    pub advance: u16,
     /// Reactions left this round, by combatant.
     #[serde(default)]
     pub reactions: Vec<(ActorRef, u8)>,
@@ -205,7 +209,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             let index = u8::try_from(i).unwrap_or(u8::MAX);
             let front = stack.alive() && stack.distance <= crate::encounter::ENGAGED_FEET;
             let refusal = match (fight, acting) {
-                (Some(c), Some(own)) => weapon_for(c, world, data, own, index).err(),
+                (Some(c), Some(own)) => strike_for(c, world, data, own, index).err(),
                 _ => None,
             };
             let reachable = fight.is_some() && acting.is_some() && refusal.is_none();
@@ -243,6 +247,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             _ => Vec::new(),
         },
         budget: fight.map_or_else(Budget::default, |c| c.budget),
+        advance: fight.map_or(0, |c| c.room(&world.party, data)),
         reactions: fight.map_or_else(Vec::new, |c| c.reactions.clone()),
         hidden: fight.map_or_else(Vec::new, |c| c.hidden.clone()),
         members: fight.map_or_else(Vec::new, |c| {

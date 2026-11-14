@@ -17,7 +17,7 @@ pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{Budget, CombatState, Initiative, frontage};
+pub use state::{Budget, CombatState, Initiative, frontage, pace};
 pub use turn::run_dc;
 
 pub(crate) use budget::affordable;
@@ -65,6 +65,10 @@ pub enum CombatCommand {
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
+    /// Advance the party's line on the nearest stack (the fight is counted in feet, owner
+    /// 2026-11-14): free while the round's pace lasts, then the SRD's Dash, the action for one
+    /// more pace. The line moves as one and stops when a stack is engaged.
+    Advance,
     /// Swap marching-order slots with another member.
     Exchange {
         /// The other member.
@@ -150,12 +154,17 @@ impl Roller {
 
 /// What a validated command resolves to.
 pub(crate) enum Plan {
-    /// An attack with the weapon the reach allows.
+    /// An attack with the weapon the distance allows.
     Attack {
         /// The stack.
         stack: u8,
-        /// The weapon.
-        weapon: Weapon,
+        /// The weapon, and what goes with it.
+        strike: Strike,
+    },
+    /// The line advances.
+    Advance {
+        /// By how many feet.
+        feet: u16,
     },
     /// A cast that passed every check.
     Cast(cast::CastPlan),
@@ -381,24 +390,84 @@ fn acting_member(state: &CombatState, world: &World) -> Result<(CharacterId, usi
     Ok((id, own))
 }
 
-/// The weapon a member in slot `own` attacks a stack with: melee between the front lines,
-/// a ranged weapon anywhere else, or why nothing reaches.
-pub fn weapon_for(
+/// How a member attacks a stack: with what, after how long an advance, and how well.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Strike {
+    /// The weapon that reaches.
+    pub weapon: Weapon,
+    /// Feet the party's line advances first.
+    pub advance: u16,
+    /// The attack has disadvantage: a shot past normal range, or with a foe upon the shooter.
+    pub hindered: bool,
+}
+
+/// How the member in slot `own` attacks a stack, in feet (owner, 2026-11-14), or why nothing
+/// reaches. In this order: the melee weapon when its reach covers the distance (the back row
+/// stands five feet further off); else the ranged weapon within its long range, hindered past
+/// its normal range or with a stack upon a front-row shooter; else, for the front row, the
+/// melee weapon after the line advances, when the round's pace and the nearest stack leave
+/// room for it.
+pub fn strike_for(
     state: &CombatState,
     world: &World,
     data: &Data,
     own: usize,
     stack: u8,
-) -> Result<Weapon, Rejection> {
+) -> Result<Strike, Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
-    let front_member = own < party::front_row(data);
-    if front_member && state.is_engaged(stack) {
-        return Ok(best_weapon(member, data, false).unwrap_or_else(Weapon::unarmed));
+    let stacks = &state.encounter.stacks;
+    let distance = stacks
+        .get(usize::from(stack))
+        .ok_or(Rejection::NoSuchStack { stack })?
+        .distance;
+    let front = own < party::front_row(data);
+    let behind = if front { 0 } else { omnis_data::SQUARE_FEET };
+    let melee = best_weapon(member, data, false).unwrap_or_else(Weapon::unarmed);
+    let reach = u16::from(melee.reach);
+    if distance.saturating_add(behind) <= reach {
+        return Ok(Strike {
+            weapon: melee,
+            advance: 0,
+            hindered: false,
+        });
     }
-    match best_weapon(member, data, true) {
-        Some(weapon) => Ok(weapon),
-        None if front_member => Err(Rejection::OutOfReach { stack }),
-        None => Err(Rejection::NeedsRangedWeapon),
+    let ranged = best_weapon(member, data, true);
+    if let Some(weapon) = &ranged {
+        let (normal, long) = weapon.range.unwrap_or(omnis_data::DEFAULT_RANGE);
+        if distance <= long {
+            return Ok(Strike {
+                weapon: weapon.clone(),
+                advance: 0,
+                hindered: distance > normal || state.presses(own, data),
+            });
+        }
+    }
+    let advance = distance.saturating_sub(reach);
+    if front && advance <= state.room(&world.party, data) {
+        return Ok(Strike {
+            weapon: melee,
+            advance,
+            hindered: false,
+        });
+    }
+    Err(match (ranged, front) {
+        (Some(_), _) => Rejection::BeyondRange,
+        (None, true) => Rejection::OutOfReach { stack },
+        (None, false) => Rejection::NeedsRangedWeapon,
+    })
+}
+
+/// What an advance would be now: how far, and whether it takes a dash.
+fn advance_for(state: &CombatState, world: &World, data: &Data) -> Result<(u16, bool), Rejection> {
+    let gap = state
+        .nearest()
+        .map_or(0, |d| d.saturating_sub(crate::encounter::ENGAGED_FEET));
+    if gap == 0 {
+        return Err(Rejection::AlreadyEngaged);
+    }
+    match state.room(&world.party, data) {
+        0 => Ok((state::pace(&world.party, data).min(gap), true)),
+        room => Ok((room, false)),
     }
 }
 
@@ -464,8 +533,15 @@ fn validate(
             }
             Plan::Attack {
                 stack,
-                weapon: weapon_for(state, world, data, own, stack)?,
+                strike: strike_for(state, world, data, own, stack)?,
             }
+        }
+        CombatCommand::Advance => {
+            let (feet, dash) = advance_for(state, world, data)?;
+            if !dash {
+                cost = Cost::Free;
+            }
+            Plan::Advance { feet }
         }
         CombatCommand::Use { item, receiver } => Plan::Use(items::validate_use(
             world, data, own, &item, receiver, true,

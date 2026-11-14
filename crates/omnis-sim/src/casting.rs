@@ -96,6 +96,7 @@ pub(crate) fn validate<'a>(
         spell: id,
         cost,
         target: aim,
+        advance: 0,
     };
     Ok(Checked {
         own,

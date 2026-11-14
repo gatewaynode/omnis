@@ -319,6 +319,7 @@ fn react(
         spell,
         cost,
         target: Aim::Member(subject),
+        advance: 0,
     };
     cast::pay(world, data, &plan, events)?;
     match (effect, probe) {

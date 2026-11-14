@@ -12,7 +12,7 @@ use crate::world::World;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
-use omnis_data::{Data, Item, SQUARE_FEET};
+use omnis_data::{Data, SQUARE_FEET};
 use omnis_rules::{Weapon, best_weapon};
 
 /// A road attack that passed every check.
@@ -22,16 +22,6 @@ pub(crate) struct Checked {
     /// Past the weapon's normal range: the attack has disadvantage.
     hindered: bool,
     being: String,
-}
-
-/// A weapon's reach in feet and, when it is ranged, its normal and long range; bare hands
-/// reach the next square.
-fn span(data: &Data, weapon: &Weapon) -> (u16, Option<(u16, u16)>) {
-    let written = weapon.item.and_then(|id| data.items.get(&id));
-    let (reach, range) = written
-        .and_then(Item::span)
-        .unwrap_or((5, weapon.ranged.then_some(omnis_data::DEFAULT_RANGE)));
-    (u16::from(reach), range)
 }
 
 /// Every check of a road attack: a member who can act, a group the party sees, and a weapon
@@ -66,11 +56,11 @@ pub(crate) fn validate(
         SQUARE_FEET
     };
     let melee = best_weapon(actor, data, false).unwrap_or_else(Weapon::unarmed);
-    let (weapon, hindered) = if feet.saturating_add(behind) <= span(data, &melee).0 {
+    let (weapon, hindered) = if feet.saturating_add(behind) <= u16::from(melee.reach) {
         (melee, false)
     } else {
         let ranged = best_weapon(actor, data, true).ok_or(Rejection::NeedsRangedWeapon)?;
-        let (normal, long) = span(data, &ranged).1.unwrap_or(omnis_data::DEFAULT_RANGE);
+        let (normal, long) = ranged.range.unwrap_or(omnis_data::DEFAULT_RANGE);
         if feet > long {
             return Err(Rejection::BeyondRange);
         }

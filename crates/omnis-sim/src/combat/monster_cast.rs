@@ -56,7 +56,7 @@ pub(crate) fn act(
             let Some((spell, cost)) = turn_spell(data, id, roller)? else {
                 continue;
             };
-            if cost <= left {
+            if cost <= left && reaches(world, data, id, s.distance) {
                 options.push(Choice::Cast(spell));
             }
         }
@@ -71,6 +71,22 @@ pub(crate) fn act(
         }
         (Choice::Cast(spell), _) => cast(world, data, state, (stack, index), spell, roller, events),
         (Choice::Weapon, None) => Ok(()),
+    }
+}
+
+/// Whether the spell `id` cast by a monster reaches the party from `distance` feet: a touch
+/// when engaged, a range in tiles as that many of the map's tiles in feet, else anywhere.
+pub(crate) fn reaches(world: &crate::world::World, data: &Data, id: &str, distance: u16) -> bool {
+    let spell = data.registry.spells.get(id);
+    let Some(def) = spell.and_then(|s| data.spells.get(&s)) else {
+        return false;
+    };
+    match def.targeting().range {
+        omnis_data::Range::Touch => distance <= crate::encounter::ENGAGED_FEET,
+        omnis_data::Range::Tiles(n) => {
+            distance <= crate::encounter::feet_off(world, data, n.into())
+        }
+        _ => true,
     }
 }
 

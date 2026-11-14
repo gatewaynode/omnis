@@ -27,6 +27,10 @@ pub struct Weapon {
     pub ability: Ability,
     /// Whether the member's class is proficient with it.
     pub proficient: bool,
+    /// How far it reaches in melee, in feet.
+    pub reach: u8,
+    /// A ranged weapon's normal and long range, in feet.
+    pub range: Option<(u16, u16)>,
 }
 
 impl Weapon {
@@ -40,6 +44,8 @@ impl Weapon {
             ranged: false,
             ability: Ability::Strength,
             proficient: true,
+            reach: 5,
+            range: None,
         }
     }
 
@@ -69,6 +75,7 @@ pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
                 ranged,
                 ..
             } => {
+                let (reach, range) = item.span().unwrap_or((5, None));
                 let proficient = class.is_some_and(|c| {
                     c.weapons.contains(kind)
                         || data
@@ -88,6 +95,8 @@ pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
                         Ability::Strength
                     },
                     proficient,
+                    reach,
+                    range,
                 })
             }
             _ => None,

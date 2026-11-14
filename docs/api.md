@@ -514,6 +514,7 @@ answer).
 | `front_row` | Members in the front row. |
 | `spells` | The acting member's `[SpellView]`; empty when no member acts. |
 | `budget` | `{"actions", "bonus_actions"}` the acting member's turn has left. |
+| `advance` | Feet the party's line may still advance this round without a dash (`Advance`); 0 when a stack is engaged or the round's pace is used up. |
 | `reactions` | `[[ActorRef, left]]` reactions left this round. |
 | `members` | `[FighterView]` in marching order; empty before the fight. |
 | `bribe` | Copper a bribe would cost, before the fight, when the monsters take one. |
@@ -874,7 +875,8 @@ Dexterity).
 `CombatCommand`: `Attack { stack }` (the best weapon that reaches it),
 `Cast { spell, target, pay }` (`spell` a known spell's id; `pay` defaults to `Action`),
 `Use { item, receiver }` (an item id in the acting member's kit, a potion; `receiver` a
-`CharacterId`, or null for the user), `Dodge`, `Exchange { with }` (swap marching places with
+`CharacterId`, or null for the user), `Dodge`, `Advance` (the party's line closes on the nearest
+stack: free within the round's pace, `CombatView.advance`, then the action for one more pace), `Exchange { with }` (swap marching places with
 member `with`), `Run` (the whole party tries to flee), `Feature { feature, choice }` (`feature`
 the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn`.
 
@@ -969,7 +971,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 75 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 76 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1007,6 +1009,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Turn` | `actor` | A turn began; on a member's turn the engine waits for a command. |
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
 | `StackMoved` | `stack`, `from`, `to` | A stack closed on the party: its distance in feet before and after. |
+| `PartyAdvanced` | `feet` | The party's line advanced (`Advance`, or a melee attack or touch at a stack just out of reach): every stack is `feet` nearer, none nearer than 5. |
 | `Dodging` | `actor` | A member dodges until the round ends. |
 | `Exchanged` | `member`, `with` (`CharacterId`s) | The acting member and `with` swapped marching places. |
 | `AttackResolved` | `attacker`, `target` (`ActorRef`), `roll` (`Roll`), `ac`, `hit`, `crit` | An attack roll. |
@@ -1090,7 +1093,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (74 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (75 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1105,8 +1108,9 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NotYourTurn` | | The fight is not waiting on a (living) member. |
 | `NoSuchStack` | `stack` | No stack has that number. |
 | `StackDead` | `stack` | Nobody in that stack still stands. |
-| `OutOfReach` | `stack` | A front-row member without a ranged weapon cannot reach a stack behind the front. |
+| `OutOfReach` | `stack` | Nothing the member has reaches the stack: no ranged weapon, and the line cannot advance far enough this round (its pace is used up, or a nearer stack stops it); or a touch from the back row. |
 | `NeedsRangedWeapon` | | A back-row member needs a ranged weapon to attack. |
+| `AlreadyEngaged` | | `Advance`: a stack is five feet off already, so the line has nowhere to advance to. |
 | `NoSuchMember` | `member` | No member has that identity. |
 | `SameMember` | | A member cannot exchange with themselves. |
 | `MemberTwice` | `member` | A list names the same member twice (a short rest's hit dice). |
@@ -1309,6 +1313,22 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (**behaviour** and additions; combat in feet, step 4: the members fight in feet).
+  `CombatCommand::Attack` picks, in this order: the melee weapon when its `reach` covers the stack's distance
+  (the back row stands 5 ft further off); else the ranged weapon within its long range, at disadvantage past
+  its normal range or, for a front-row member, with any stack engaged; else, for the front row, the melee
+  weapon after the party's line advances, when the room for it is there (`PartyAdvanced { feet }`, 76
+  events). The line moves as one: its pace a round is the speed of the slowest standing front-row member's
+  race, and it stops when a stack is engaged, so a stack behind an engaged one is reached only by a ranged
+  weapon, a spell or a longer reach. `CombatCommand::Advance` moves the line on the nearest stack: free
+  while the round's pace lasts, then the SRD's Dash (the action, one more pace); refused `AlreadyEngaged`
+  (75 rejections). `CombatView.advance` is the free feet left. A spell at a stack: `Touch` is a reach of 5
+  ft from the front row with the same automatic advance (the back row is refused `OutOfReach`);
+  `Tiles(n)` reaches `n` of the map's tiles in feet (`BeyondRange` past it); `Sight` any stack. A ranged
+  spell attack by a front-row caster with a stack engaged has disadvantage. A casting monster offers only
+  the spells that reach from where its stack stands. `TargetView.distance` for a stack is its feet from
+  the party's front line (it was 0). `omnis_sim::combat::weapon_for` is `strike_for` and returns a
+  `Strike { weapon, advance, hindered }`. Script word `advance`.
 - 2026-11-14 (**behaviour** and an addition; combat in feet, step 6: the opening strike): the strike no longer
   surprises by itself. With the rules value `opening_strike_surprise` on (the default), every member who can
   act rolls Stealth (`Check` events of kind `Hide`, between `EncounterStarted` and `CombatStarted`) against

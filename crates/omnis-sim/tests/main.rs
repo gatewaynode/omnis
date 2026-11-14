@@ -17,6 +17,7 @@ mod effects;
 mod elevation;
 mod encounter;
 mod feet;
+mod feet_members;
 mod fold;
 mod ground;
 mod history;

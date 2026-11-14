@@ -50,6 +50,7 @@ pub(crate) fn start(
         hidden: Vec::new(),
         monster_shields: Vec::new(),
         struck: None,
+        advanced: 0,
     };
     // Every combatant may react from the start, except the side that is surprised, which gets
     // its reactions at its first turn.
@@ -210,12 +211,16 @@ fn act_inner(
     events: &mut Vec<Event>,
 ) -> Result<bool, RuleError> {
     match plan {
-        Plan::Attack { stack, weapon } => {
-            let at = (stack, false);
-            resolve::member_attacks(world, data, state, actor, at, &weapon, roller, events)?;
+        Plan::Attack { stack, strike } => {
+            state.advance(strike.advance, events);
+            let at = (stack, strike.hindered);
+            let weapon = &strike.weapon;
+            resolve::member_attacks(world, data, state, actor, at, weapon, roller, events)?;
         }
+        Plan::Advance { feet } => state.advance(feet, events),
         Plan::Cast(plan) => {
             cast::pay(world, data, &plan, events)?;
+            state.advance(plan.advance, events);
             cast::resolve(world, data, state, &plan, roller, events)?;
             reaction::on_cast(world, data, state, plan.own, roller, events)?;
         }
@@ -450,6 +455,7 @@ fn end_of_round(
         }
     }
     state.dodging.clear();
+    state.advanced = 0;
     let minutes = data
         .rules
         .value("combat_round_minutes")

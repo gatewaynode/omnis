@@ -112,6 +112,7 @@ impl Command {
             Command::Combat(CombatCommand::Cast { .. }) => "cast",
             Command::Combat(CombatCommand::Use { .. }) => "use-item",
             Command::Combat(CombatCommand::Dodge) => "dodge",
+            Command::Combat(CombatCommand::Advance) => "advance",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
             Command::Combat(CombatCommand::Feature { .. }) => "feature",
@@ -172,6 +173,8 @@ pub enum Rejection {
     },
     /// A back-row member needs a ranged weapon to attack at all.
     NeedsRangedWeapon,
+    /// The party's line cannot advance: a stack is engaged already.
+    AlreadyEngaged,
     /// No member has that identity.
     NoSuchMember {
         /// The member asked for.
@@ -483,6 +486,7 @@ impl Rejection {
             Rejection::NeedsRangedWeapon => {
                 f.write_str("a back-row member needs a ranged weapon to attack")
             }
+            Rejection::AlreadyEngaged => f.write_str("the party is engaged already"),
             Rejection::NoSuchMember {
                 member: CharacterId(member),
             } => write!(f, "there is no member {member}"),

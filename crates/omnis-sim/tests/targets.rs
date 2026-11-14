@@ -30,7 +30,7 @@ fn six(data: &Data) -> World {
     world
 }
 
-fn fight(world: &mut World, data: &Data, stacks: &[(&str, u8)], slot: usize) {
+pub(crate) fn fight(world: &mut World, data: &Data, stacks: &[(&str, u8)], slot: usize) {
     let here = world.position;
     let encounter = encounter(data, stacks, Disposition::Hostile, here);
     combat::start(world, data, encounter, Surprise::None, &mut Vec::new()).unwrap();
@@ -86,7 +86,12 @@ fn command(world: &World, member: usize, chosen: &Chosen, target: Target) -> Com
 /// The list for `chosen`, each row checked against the command itself on a copy of the world:
 /// a row with no refusal is accepted, a row with one is rejected with exactly it and changes
 /// nothing.
-fn listed(world: &World, data: &Data, member: usize, chosen: &Chosen) -> Vec<TargetView> {
+pub(crate) fn listed(
+    world: &World,
+    data: &Data,
+    member: usize,
+    chosen: &Chosen,
+) -> Vec<TargetView> {
     let id = world.party.members[member].id;
     let rows = targets(world, data, id, chosen).expect("a list");
     for row in &rows {
@@ -104,7 +109,14 @@ fn listed(world: &World, data: &Data, member: usize, chosen: &Chosen) -> Vec<Tar
         if row.refusal.is_some() {
             assert_eq!(&copy, world, "a refusal changes nothing: {row:?}");
         }
-        assert_eq!((row.distance, row.sight), (0, Sight::Clear));
+        // A stack's row carries its feet from the party's front line; a member's nothing.
+        let feet = match (&row.target, &world.mode) {
+            (Target::Stack(stack), Mode::Combat(state)) => {
+                state.encounter.stacks[usize::from(*stack)].distance
+            }
+            _ => 0,
+        };
+        assert_eq!((row.distance, row.sight), (feet, Sight::Clear));
     }
     rows
 }
@@ -182,8 +194,8 @@ fn a_heal_written_as_the_caster_s_own_refuses_everyone_else() {
     }
 }
 
-/// In a fight a touch reaches the stacks in front; a spell with a range in tiles reaches every
-/// stack, since a fight has no distances.
+/// In a fight a touch reaches the engaged stack; a spell with a range in tiles reaches every
+/// stack within that many tiles in feet.
 #[test]
 fn in_a_fight_a_touch_reaches_the_front_stacks_and_a_range_every_stack() {
     let data = data();
@@ -194,14 +206,17 @@ fn in_a_fight_a_touch_reaches_the_front_stacks_and_a_range_every_stack() {
         &[("giant_rat", 2), ("giant_rat", 2), ("giant_rat", 2)],
         WIZARD,
     );
-    common::stand_back(&mut world, 2, 600);
+    common::stand_back(&mut world, 0, 5);
+    common::stand_back(&mut world, 1, 15);
+    common::stand_back(&mut world, 2, 100);
     let all = [Target::Stack(0), Target::Stack(1), Target::Stack(2)];
     let touch = listed(&world, &data, WIZARD, &spell("burning_hands"));
     assert_eq!(
         touch.iter().map(|r| r.target.clone()).collect::<Vec<_>>(),
         all
     );
-    assert_eq!(free(&touch), all[..2], "two stacks are engaged");
+    assert_eq!(free(&touch), all[..1], "one stack is engaged");
+    assert_eq!(touch[1].refusal, Some(Rejection::OutOfReach { stack: 1 }));
     assert_eq!(touch[2].refusal, Some(Rejection::OutOfReach { stack: 2 }));
     for ranged in ["magic_missile", "fire_bolt"] {
         assert_eq!(

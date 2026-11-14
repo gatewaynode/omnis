@@ -840,7 +840,21 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         durability, door_make, mending, tools and supplies; base resealed, goldens rebaselined.
   - [x] 2. Distance in the state: `Stack.distance`, starting distances, the view; engaged replaces front.
   - [x] 3. Monsters in feet: move, dash, reach, range, disadvantage, frontage.
-  - [ ] 4. Members in feet: reach, range, the line's advance, `Advance`, spell range, real distances.
+  - [x] 4. Members in feet: reach, range, the line's advance, `Advance`, spell range, real distances.
+        Built after step 6. `combat::strike_for` (was `weapon_for`) returns `Strike { weapon, advance,
+        hindered }`; `CombatState.advanced`, `room`, `nearest`, `presses`, `advance`, free fn `pace`;
+        `CombatCommand::Advance`, `Event::PartyAdvanced` (76), `Rejection::AlreadyEngaged` (75);
+        `CastPlan.advance`; `monster_cast::reaches`; `CombatView.advance`; `TargetView.distance` in feet
+        for a stack. Thirty-six mutations: thirty-two caught at once, two caught after tests were added (the
+        attack's own roll at long range; a caster choosing among two spells), two showed a redundant dash
+        counter, which is removed. **Departures from the plan's wording, toward the SRD**: Advance is free
+        while the round's pace lasts and the action (Dash) only after, since SRD movement costs no action;
+        a member with a ranged weapon in range shoots, and the automatic advance is for one who has none
+        (Advance then Attack is the player's way to choose the sword); an engaged stack stops the line, so
+        a stack behind it is reached by a ranged weapon, a spell or a longer reach. Said plainly: the pace
+        is the slowest standing front-row member's race speed (25 ft with the fixture's dwarf in front);
+        a front-row caster's ranged spell attacks have disadvantage with a stack engaged; the back row
+        cannot touch a stack; the golden replays did not move; no client entry until step 7.
   - [ ] 5. Area by squares.
   - [x] 6. Opening strike: surprise roll, advantage, real distance, road `Command::Attack` at a group.
         **Built ahead of steps 4 and 5 at the owner's word ("jump into step 6", 2026-11-14).** The party's

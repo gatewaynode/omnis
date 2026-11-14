@@ -321,7 +321,7 @@ impl Schema for Command {
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
                     {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": String::schema(), "target": json!({"oneOf": combatant()}), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
                     variant("Use", &[("item", String::schema()), ("receiver", member_or_null())]),
-                    {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
+                    {"type": "string", "enum": ["Dodge", "Advance", "Run", "EndTurn"]},
                     {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
                     {"type": "object", "properties": {"Feature": {"type": "object", "properties": {"feature": String::schema(), "choice": {"oneOf": [
                         {"type": "string", "enum": ["None", "Hide"]},

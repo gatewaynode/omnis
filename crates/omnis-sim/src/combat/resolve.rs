@@ -195,7 +195,7 @@ pub(crate) fn monster_turn(
     let m = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let melee = m.attacks.iter().find(|a| !a.ranged);
     let shot = m.attacks.iter().find(|a| a.ranged);
-    let casts = m.casting.is_some();
+    let casting = m.casting.as_ref();
     let speed = u16::from(m.speed);
     let in_range = |state: &CombatState, attack: &Attack| {
         let distance = state.encounter.stacks[usize::from(stack)].distance;
@@ -207,6 +207,7 @@ pub(crate) fn monster_turn(
     if let Some(melee) = melee {
         let stop = u16::from(melee.reach).max(ENGAGED_FEET);
         close(state, stack, speed, stop, events);
+        let casts = spells_reach(world, data, casting, state, stack);
         let idle = !in_range(state, melee) && !shot.is_some_and(|a| in_range(state, a)) && !casts;
         if idle {
             // The Dash: its action is its speed again.
@@ -220,6 +221,7 @@ pub(crate) fn monster_turn(
     }
     let melee = melee.filter(|a| in_range(state, a));
     let shot = shot.filter(|a| in_range(state, a));
+    let casts = spells_reach(world, data, casting, state, stack);
     if melee.is_none() && shot.is_none() && !casts {
         events.push(Event::Waited {
             actor: ActorRef::Stack(stack),
@@ -240,6 +242,21 @@ pub(crate) fn monster_turn(
         }
     }
     Ok(())
+}
+
+/// Whether any spell a casting monster knows reaches the party from where its stack stands.
+fn spells_reach(
+    world: &World,
+    data: &Data,
+    casting: Option<&omnis_data::MonsterCasting>,
+    state: &CombatState,
+    stack: u8,
+) -> bool {
+    let distance = state.encounter.stacks[usize::from(stack)].distance;
+    casting.is_some_and(|c| {
+        let mut spells = c.spells.iter();
+        spells.any(|id| monster_cast::reaches(world, data, id, distance))
+    })
 }
 
 /// Whether a ranged attack from `distance` feet is hindered (the SRD's disadvantage): past its

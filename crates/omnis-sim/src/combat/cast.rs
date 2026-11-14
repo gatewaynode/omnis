@@ -75,6 +75,8 @@ pub(crate) struct CastPlan {
     pub cost: u32,
     /// Whom it goes to.
     pub target: Aim,
+    /// Feet the party's line advances first, for a touch at a stack just out of reach.
+    pub advance: u16,
 }
 
 /// The spell a command names by its string id, refused as `UnknownSpell` with the id as asked
@@ -194,8 +196,10 @@ pub(crate) fn validate(
             spell,
             cost,
             target: Aim::Party,
+            advance: 0,
         });
     }
+    let mut advance = 0;
     let aim = match (effect.targets_members(), target.clone()) {
         (true, Target::Member(id)) => {
             let slot = usize::from(world.party.slot_of(id)?);
@@ -215,6 +219,9 @@ pub(crate) fn validate(
                 return Err(Rejection::StackDead { stack });
             }
             crate::targets::in_range(world, data, Some(state), own, def.targeting(), &target)?;
+            if def.targeting().range == omnis_data::Range::Touch {
+                advance = s.distance.saturating_sub(crate::encounter::ENGAGED_FEET);
+            }
             Aim::Stack(stack)
         }
         _ => return Err(Rejection::WrongTarget),
@@ -224,6 +231,7 @@ pub(crate) fn validate(
         spell,
         cost,
         target: aim,
+        advance,
     })
 }
 
@@ -493,9 +501,15 @@ fn cast_attack(
     let caster = &world.party.members[plan.own];
     let target = ActorRef::Monster { stack, index: 0 };
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
+    // A ranged spell attack with a foe upon the caster has disadvantage, as a bow's has.
+    let ranged = data
+        .spells
+        .get(&plan.spell)
+        .is_some_and(|def| def.targeting().range != omnis_data::Range::Touch);
+    let pressed = ranged && state.presses(plan.own, data);
     let mode = RollMode::combine(
         state.reveal(caster.id),
-        flags(&caster.conditions, data).own_attacks_disadvantage,
+        pressed || flags(&caster.conditions, data).own_attacks_disadvantage,
     );
     let ac = i64::from(monster.ac) + super::monster_cast::shield_bonus(state, data, stack, 0);
     let extra = roll_bonus(

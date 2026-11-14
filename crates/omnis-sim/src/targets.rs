@@ -68,8 +68,8 @@ pub enum Sight {
 pub struct TargetView {
     /// What would be aimed at, as the command takes it.
     pub target: Target,
-    /// Tiles from the party, as a king moves; 0 for a member and for a combatant in a fight,
-    /// which has no distances.
+    /// On the road, tiles from the party as a king moves; for a stack in a fight, its feet
+    /// from the party's front line; 0 for a member.
     pub distance: u16,
     /// Whether the line to it is clear.
     pub sight: Sight,
@@ -79,9 +79,10 @@ pub struct TargetView {
 
 /// The range rule: whether `target` is within what `targeting` reaches for the member in slot
 /// `own`. `fight` is the fight when one is on. Members share the party's tile, so every member
-/// is within touch, range and sight of every other; a fight has no distances, so there touch
-/// is the front stacks and every other range every combatant. A door or an object is reached
-/// on the road only, by where it stands (`map`).
+/// is within touch, range and sight of every other. A stack stands at its distance in feet: a
+/// touch reaches five feet from the front row (the line advancing to it when it can), a range
+/// in tiles is that many of the map's tiles in feet, and sight reaches every stack. A door or
+/// an object is reached on the road only, by where it stands (`map`).
 pub(crate) fn in_range(
     world: &World,
     data: &Data,
@@ -127,11 +128,29 @@ pub(crate) fn in_range(
         (Range::Own, Target::Member(id)) if Some(*id) == actor => Ok(()),
         (Range::Own | Range::Link, _) => Err(Rejection::BeyondRange),
         (Range::Touch | Range::Tiles(_) | Range::Sight, Target::Member(_)) => Ok(()),
-        (Range::Touch, Target::Stack(stack)) => match fight {
-            Some(state) if state.is_engaged(*stack) => Ok(()),
-            _ => Err(Rejection::OutOfReach { stack: *stack }),
-        },
-        (Range::Tiles(_) | Range::Sight, Target::Stack(_)) => Ok(()),
+        (range, Target::Stack(stack)) => {
+            let standing = fight.and_then(|s| s.encounter.stacks.get(usize::from(*stack)));
+            let (Some(state), Some(distance)) = (fight, standing.map(|s| s.distance)) else {
+                return Err(Rejection::OutOfReach { stack: *stack });
+            };
+            match range {
+                // A touch is a reach of five feet from the front row, the line advancing to it
+                // when the round's pace and the nearest stack leave room.
+                Range::Touch => {
+                    let gap = distance.saturating_sub(crate::encounter::ENGAGED_FEET);
+                    let front = own < crate::party::front_row(data);
+                    if front && gap <= state.room(&world.party, data) {
+                        Ok(())
+                    } else {
+                        Err(Rejection::OutOfReach { stack: *stack })
+                    }
+                }
+                Range::Tiles(n) if distance > crate::encounter::feet_off(world, data, n.into()) => {
+                    Err(Rejection::BeyondRange)
+                }
+                _ => Ok(()),
+            }
+        }
     }
 }
 
@@ -182,13 +201,13 @@ fn members(world: &World) -> Vec<Target> {
     ids.map(Target::Member).collect()
 }
 
-/// Every stack still standing in the fight.
-fn stacks(state: &CombatState) -> Vec<Target> {
+/// Every stack still standing in the fight, with its feet from the party's front line.
+fn stacks(state: &CombatState) -> Vec<Row> {
     let stacks = state.encounter.stacks.iter().enumerate();
     stacks
         .filter(|(_, stack)| stack.alive())
-        .filter_map(|(index, _)| u8::try_from(index).ok())
-        .map(Target::Stack)
+        .filter_map(|(index, stack)| Some((u8::try_from(index).ok()?, stack.distance)))
+        .map(|(index, feet)| (Target::Stack(index), feet, Sight::Clear))
         .collect()
 }
 
@@ -239,11 +258,11 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
     if on_the_party || def.targeting().range == Range::Own {
         return near(alloc::vec![own]);
     }
-    near(match &world.mode {
-        _ if effect.targets_members() => members(world),
+    match &world.mode {
+        _ if effect.targets_members() => near(members(world)),
         Mode::Combat(state) => stacks(state),
         _ => Vec::new(),
-    })
+    }
 }
 
 /// What an item's rows are: its user alone when the use is their own, else the members.
@@ -330,7 +349,7 @@ pub fn targets(
                 Chosen::Item { item } => item_rows(item),
                 Chosen::Feature { exchange: true, .. } | Chosen::Exchange => others(),
                 Chosen::Feature { .. } => near(alloc::vec![own.clone()]),
-                Chosen::Attack => near(stacks(state)),
+                Chosen::Attack => stacks(state),
             };
             (rows, &|target| {
                 let command = fight_command(world, data, slot, chosen, target);

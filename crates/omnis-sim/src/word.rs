@@ -203,6 +203,7 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
         "run" => Command::Encounter(EncounterChoice::Run),
         "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
         "dodge" => Command::Combat(CombatCommand::Dodge),
+        "advance" => Command::Combat(CombatCommand::Advance),
         "flee" => Command::Combat(CombatCommand::Run),
         "leave" => Command::Service(ServiceCommand::Leave),
         "room" => Command::Service(ServiceCommand::Room),

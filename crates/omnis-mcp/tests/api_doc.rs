@@ -39,7 +39,7 @@ variants!(DevCommand, DEV_COMMANDS, dev_name:
 variants!(Event, EVENTS, event_name:
     Moved Blocked Reconciled SignalsDropped TimeAdvanced Visible Door Message PartyChanged
     EncounterCheck EncounterStarted Check Bribed CombatStarted Initiative RoundStarted Turn Waited StackMoved
-    Dodging FeatureUsed OpportunityAttack Exchanged AttackResolved Damage MonsterCast ShieldStops
+    PartyAdvanced     Dodging FeatureUsed OpportunityAttack Exchanged AttackResolved Damage MonsterCast ShieldStops
     SpellCast EffectApplied EffectEnded Concentration ReactionsSwitched TacticsChanged Reaction
     Equipped Unequipped ItemMoved ItemDestroyed ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
@@ -49,7 +49,7 @@ variants!(Event, EVENTS, event_name:
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
-    NeedsRangedWeapon NoSuchMember SameMember MemberTwice CannotAfford UnknownSpell NotCastable
+    NeedsRangedWeapon AlreadyEngaged NoSuchMember SameMember MemberTwice CannotAfford UnknownSpell NotCastable
     NotEnoughPoints MissingComponents WrongTarget MemberDead MemberDown NotEnough UnknownItem
     NotInStores NotCarried NotEquippable HandsFull SlotEmpty NotUsable NotUsableHere BeyondRange
     OutOfSight TargetDead
@@ -336,8 +336,8 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     for (count, what) in [
         (COMMANDS.len(), "`Command` (17 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (16 variants"),
-        (EVENTS.len(), "`Event` has 75 variants"),
-        (REJECTIONS.len(), "`Rejection` (74 variants)"),
+        (EVENTS.len(), "`Event` has 76 variants"),
+        (REJECTIONS.len(), "`Rejection` (75 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
         (OPS.len(), "49 ops."),
     ] {
@@ -394,13 +394,13 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             EVENTS.len(),
-            "pub enum Event {                    // 75 variants",
+            "pub enum Event {                    // 76 variants",
         ),
         (
             &architecture,
             "ARCHITECTURE.md",
             REJECTIONS.len(),
-            "A `Rejection` (74 variants",
+            "A `Rejection` (75 variants",
         ),
         (
             &readme,

@@ -165,6 +165,16 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
 - The owner's pack is not touched. Its monsters get `per_square` from size and its weapons 5 ft
   reach and 80/320 by default.
 
+## As built, where it departs (said in the commits)
+- Step 6 was built before steps 4 and 5 at the owner's word.
+- **Advance** is free while the round's pace lasts and costs the action (the Dash) only after; the plan
+  said "an action". SRD movement costs no action.
+- **A member with a ranged weapon in range shoots**; the automatic advance is for a front-row member who
+  has none. Advance, then Attack, is how the player chooses the sword.
+- **An engaged stack stops the line**: a stack behind it is reached by a ranged weapon, a spell or a
+  longer reach.
+- No dash counter is kept: the feet advanced this round say everything.
+
 ## Not in this plan
 A fight grid, member positions, cover, flanking, retreating or kiting monsters, thrown weapons and
 ammunition, choosing the stack an opening strike lands on, attacking things during a fight,
