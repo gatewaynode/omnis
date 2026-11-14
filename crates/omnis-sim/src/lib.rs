@@ -51,6 +51,7 @@ pub mod service;
 mod service_level;
 pub mod service_view;
 pub mod tactics;
+pub mod targets;
 pub mod time;
 pub mod time_view;
 mod utility;
@@ -94,6 +95,7 @@ pub use rest::RestCommand;
 pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
+pub use targets::{Chosen, Sight, TargetView, targets};
 pub use view::{
     ChoiceKind, CombatView, FeatureView, FightItemView, FighterView, SpellView, StackView,
     combat_view,

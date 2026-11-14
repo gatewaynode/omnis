@@ -25,6 +25,7 @@ pub use crate::rules_ops::{
 };
 use crate::save::{SaveCheck, examine_running, restore};
 use crate::service_view::{ServiceView, service_view};
+use crate::targets::{Chosen, TargetView, targets};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, Settings, World};
@@ -33,7 +34,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{EraId, Level, MapId};
+use omnis_core::{CharacterId, EraId, Level, MapId};
 use omnis_data::edit::{Brush, Edit, EditorStatus, MapEntry, NewMap, Place as EditPlace};
 use omnis_data::limits::{MAX_FILE_BYTES, check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
@@ -250,6 +251,15 @@ pub enum Op {
     /// The spells each member may cast outside a fight, with cost and refusal (M8 step 8).
     #[serde(rename = "cast.get")]
     CastGet,
+    /// What an option a member has chosen may be aimed at, each target with why the rules
+    /// would refuse it now (owner, 2026-11-14: the target is chosen after the option).
+    #[serde(rename = "targets.get")]
+    TargetsGet {
+        /// The member acting.
+        member: CharacterId,
+        /// The option chosen: a spell, an item's use, a feature, an attack or an exchange.
+        option: Chosen,
+    },
     /// What a party member's draft may be: point buy, races, classes, backgrounds (parity P3).
     #[serde(rename = "creation.get")]
     CreationGet,
@@ -558,6 +568,11 @@ pub enum Reply {
         /// Every member's spells castable outside a fight.
         casts: Vec<CastView>,
     },
+    /// `targets.get`.
+    Targets {
+        /// The option's possible targets.
+        targets: Vec<TargetView>,
+    },
     /// `objects.get`.
     Objects {
         /// The objects in reach, the party's cell first.
@@ -844,6 +859,9 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::CastGet => Ok(Reply::Casts {
             casts: cast_view(world, data),
         }),
+        Op::TargetsGet { member, option } => targets(world, data, *member, option)
+            .map(|targets| Reply::Targets { targets })
+            .map_err(|rejection| OpError::Rejected { rejection }),
         Op::ObjectsGet => {
             let ObjectsView {
                 objects,

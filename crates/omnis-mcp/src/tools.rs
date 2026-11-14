@@ -467,6 +467,25 @@ fn party_tools() -> Vec<Tool> {
             &[],
         ),
         tool(
+            "targets_get",
+            "targets.get",
+            "What an option a member has chosen may be aimed at, asked after the option is chosen and before the command is sent: each possible `target` as the command takes it (a member by id, or in a fight a stack by index), its `distance` in tiles, whether its line of `sight` is Clear or Obscured, and the `refusal` the rules would give for that target now (null when it would be accepted). The option is a spell (`{\"Spell\": {\"spell\": id}}`, in a fight with `pay`), an item's use (`{\"Item\": {\"item\": id}}`), a class feature, `\"Attack\"` or `\"Exchange\"`. A spell or item of the member's own lists the member alone; a touch reaches every member and, in a fight, the front stacks. In a fight only the member whose turn it is may ask. Looking changes nothing.",
+            &[
+                Field {
+                    name: "member",
+                    schema: json!({"type": "integer", "minimum": 0}),
+                    required: true,
+                    description: "The acting member's id (party_get's `id`).",
+                },
+                Field {
+                    name: "option",
+                    schema: crate::schema::chosen(),
+                    required: true,
+                    description: "The option chosen.",
+                },
+            ],
+        ),
+        tool(
             "objects_get",
             "objects.get",
             "The objects the party reaches (its own cell, and the one it faces across an open edge), each with its id (the `object` an Act command takes), kind, name key, state, capacity and, when it is an open container, its contents; and every interaction its kind offers in that state as the `verb` and `option` Act takes, with its label key, the checks it rolls (skill or ability and difficulty), the minutes an attempt takes and the refusal the rules would give now (a spent one-time interaction stays listed, refused). Also the items on the ground within the same reach (the party's cell first, then the one it faces), what PickUp takes from. Hidden objects appear once found. Looking changes nothing.",
@@ -582,6 +601,10 @@ mod tests {
             ("service_get", json!({})),
             ("rest_get", json!({})),
             ("cast_get", json!({})),
+            (
+                "targets_get",
+                json!({"member": 0, "option": {"Spell": {"spell": "base:spell:cure_wounds"}}}),
+            ),
             ("objects_get", json!({})),
             ("creation_get", json!({})),
             ("time_clocks", json!({})),
@@ -672,6 +695,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 48);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 49);
     }
 }

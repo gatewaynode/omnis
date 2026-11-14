@@ -213,6 +213,22 @@ pub(crate) fn apply(
     Ok(())
 }
 
+/// Why a member command would be refused now, if it would: the command's own validation and
+/// the turn's budget, on a copy of the dice, with nothing changed. The list of possible
+/// targets ([`crate::targets`]) judges each of its rows here, so it cannot disagree with
+/// [`apply`].
+pub(crate) fn refusal(world: &World, data: &Data, command: CombatCommand) -> Option<Rejection> {
+    let Mode::Combat(state) = &world.mode else {
+        return Some(Rejection::WrongMode);
+    };
+    let mut roller = Roller::take(world);
+    let (_, _, cost) = match validate(state, world, data, command, &mut roller.rng) {
+        Ok(checked) => checked,
+        Err(rejection) => return Some(rejection),
+    };
+    budget::affordable(state.budget, cost).err()
+}
+
 /// After a dev edit in a fight: run the loop if the fight no longer waits on a member who can
 /// act (monster turns, the round's end, or the finish), so the state a save checks holds.
 pub(crate) fn resume(

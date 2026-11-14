@@ -62,6 +62,7 @@ pub use crate::party_view::{
     AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
     TacticsView, party_view,
 };
+pub use crate::targets::{Chosen, Sight, TargetView, targets};
 // Objects in cells (M8.5 step 2): whether a footprint blocks a step, for a client's mirror.
 pub use crate::objects::{ObjectState, blocks_step as object_blocks};
 // What a client reads of objects: `objects.get`'s view, and what it draws of a whole level.

@@ -10,23 +10,32 @@ use crate::party;
 use crate::utility::open_door_ahead;
 use crate::world::World;
 use alloc::vec::Vec;
-use omnis_core::CharacterId;
-use omnis_data::{Data, SpellEffect, Utility};
+use omnis_core::{CharacterId, Pcg32};
+use omnis_data::{Data, Spell, SpellEffect, Utility};
 use omnis_rules::{EffectKind, heal_roll};
 
 /// Minutes a cast costs when the rules do not say.
 const DEFAULT_CAST_MINUTES: u32 = 1;
 
-/// Apply an explore-mode cast: validation on a copy of the `cast` stream, then payment,
-/// the effect, and the minutes.
-pub(crate) fn apply(
-    world: &mut World,
-    data: &Data,
+/// A cast outside a fight that passed every check: who, what, and on whom.
+pub(crate) struct Checked<'a> {
+    own: usize,
+    def: &'a Spell,
+    effect: SpellEffect,
+    plan: CastPlan,
+}
+
+/// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
+/// spell they know that is castable here and affordable, and a target its effect and its
+/// `targeting` reach. `rng` is the `cast` stream or a copy of it (a pack's cost may roll).
+pub(crate) fn validate<'a>(
+    world: &World,
+    data: &'a Data,
     caster: CharacterId,
     spell: &str,
     target: Target,
-    events: &mut Vec<Event>,
-) -> Result<(), Rejection> {
+    rng: &mut Pcg32,
+) -> Result<Checked<'a>, Rejection> {
     let own = usize::from(world.party.slot_of(caster)?);
     let member = &world.party.members[own];
     if state::is_dead(member, data) {
@@ -36,8 +45,7 @@ pub(crate) fn apply(
         return Err(Rejection::MemberDown { member: caster });
     }
     let spell = cast::spell_id(data, spell)?;
-    let mut roller = Roller::take_stream(world, "cast");
-    let (id, def, cost) = cast::check(world, data, own, spell, false, &mut roller.rng)?;
+    let (id, def, cost) = cast::check(world, data, own, spell, false, rng)?;
     let effect = def.effect.clone().ok_or_else(|| Rejection::NotCastable {
         spell: cast::spell_name(data, id),
     })?;
@@ -49,6 +57,7 @@ pub(crate) fn apply(
         if state::is_dead(member, data) {
             return Err(Rejection::MemberDead { member: id });
         }
+        crate::targets::in_range(world, data, None, own, def.targeting(), target)?;
     }
     let aim = match target {
         Target::Member(id) => Aim::Member(usize::from(world.party.slot_of(id)?)),
@@ -60,6 +69,31 @@ pub(crate) fn apply(
         cost,
         target: aim,
     };
+    Ok(Checked {
+        own,
+        def,
+        effect,
+        plan,
+    })
+}
+
+/// Apply an explore-mode cast: validation on a copy of the `cast` stream, then payment,
+/// the effect, and the minutes.
+pub(crate) fn apply(
+    world: &mut World,
+    data: &Data,
+    caster: CharacterId,
+    spell: &str,
+    target: Target,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let mut roller = Roller::take_stream(world, "cast");
+    let Checked {
+        own,
+        def,
+        effect,
+        plan,
+    } = validate(world, data, caster, spell, target, &mut roller.rng)?;
     cast::pay(world, data, &plan, events).map_err(Rejection::Rule)?;
     match (effect, plan.target) {
         (SpellEffect::Heal { dice, add_mod }, Aim::Member(slot)) => {

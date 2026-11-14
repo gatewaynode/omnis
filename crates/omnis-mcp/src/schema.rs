@@ -116,6 +116,20 @@ fn target() -> Value {
     ]})
 }
 
+/// The option whose targets are asked for (`targets.get`).
+#[must_use]
+pub fn chosen() -> Value {
+    let text = || json!({"type": "string"});
+    // `pay` and `exchange` may be left out: an action, and the feature's own use.
+    let optional = |name: &str, key: &str, extra: &str, schema: Value| json!({"type": "object", "properties": {name: {"type": "object", "properties": {key: text(), extra: schema}, "required": [key], "additionalProperties": false}}, "required": [name], "additionalProperties": false});
+    json!({"oneOf": [
+        {"type": "string", "enum": ["Attack", "Exchange"]},
+        optional("Spell", "spell", "pay", json!({"type": "string", "enum": ["Action", "BonusAction"]})),
+        variant("Item", &[("item", text())]),
+        optional("Feature", "feature", "exchange", json!({"type": "boolean"}))
+    ]})
+}
+
 /// One `{Variant: {fields}}` object.
 fn variant(name: &str, fields: &[(&str, Value)]) -> Value {
     let properties: serde_json::Map<String, Value> = fields

@@ -51,7 +51,8 @@ variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
     NeedsRangedWeapon NoSuchMember SameMember MemberTwice CannotAfford UnknownSpell NotCastable
     NotEnoughPoints MissingComponents WrongTarget MemberDead MemberDown NotEnough UnknownItem
-    NotInStores NotCarried NotEquippable HandsFull SlotEmpty NotUsable NotUsableHere TargetDead
+    NotInStores NotCarried NotEquippable HandsFull SlotEmpty NotUsable NotUsableHere BeyondRange
+    OutOfSight TargetDead
     ZeroCount DevOnly UnknownId OutOfRange OffMap NotOffered NothingToTreat NotDead BankShort
     RestTooSoon NoFood NoHitDice NotReady MaxLevel NoPicks NoSuchSpell NotOnList
     CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
@@ -65,7 +66,7 @@ variants!(OpError, ERROR_KINDS, error_kind:
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Objects Creation Value Done Check Editor Maps Files File Checked Note Notes Kinds
+    Casts Targets Objects Creation Value Done Check Editor Maps Files File Checked Note Notes Kinds
     Definitions Definition Words);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
@@ -89,7 +90,8 @@ ops! {
     ScreenText => "screen.text", PartyGet => "party.get", PartyCreate => "party.create",
     CombatGet => "combat.get", ServiceGet => "service.get", RulesList => "rules.list",
     RulesGet => "rules.get", TimeClocks => "time.clocks", TimeReconcile => "time.reconcile",
-    RestGet => "rest.get", CastGet => "cast.get", CreationGet => "creation.get",
+    RestGet => "rest.get", CastGet => "cast.get", TargetsGet => "targets.get",
+    CreationGet => "creation.get",
     RulesSet => "rules.set", ObjectsGet => "objects.get",
     EditorStatus => "editor.status", EditorMaps => "editor.maps", EditorOpen => "editor.open",
     EditorNew => "editor.new", EditorPaint => "editor.paint", EditorPlace => "editor.place",
@@ -176,6 +178,10 @@ fn every_op() -> Vec<Op> {
         Op::TimeReconcile { region: text() },
         Op::RestGet,
         Op::CastGet,
+        Op::TargetsGet {
+            member: omnis_cli::omnis_sim::omnis_core::CharacterId(0),
+            option: omnis_cli::omnis_sim::api::Chosen::Attack,
+        },
         Op::ObjectsGet,
         Op::CreationGet,
         Op::RulesSet {
@@ -331,9 +337,9 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (COMMANDS.len(), "`Command` (16 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (15 variants"),
         (EVENTS.len(), "`Event` has 74 variants"),
-        (REJECTIONS.len(), "`Rejection` (72 variants)"),
+        (REJECTIONS.len(), "`Rejection` (74 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
-        (OPS.len(), "48 ops."),
+        (OPS.len(), "49 ops."),
     ] {
         assert_eq!(
             count,
@@ -394,15 +400,15 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             REJECTIONS.len(),
-            "A `Rejection` (72 variants",
+            "A `Rejection` (74 variants",
         ),
         (
             &readme,
             "README.md",
             tools.len(),
-            "The bridge exposes 48 tools",
+            "The bridge exposes 49 tools",
         ),
-        (&map, "code-map.md", tools.len(), "48 tools"),
+        (&map, "code-map.md", tools.len(), "49 tools"),
         (
             &map,
             "code-map.md",

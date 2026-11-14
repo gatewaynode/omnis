@@ -184,7 +184,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-48 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+49 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`, `examine`) and the
 rest in `ops.rs` (`reload`, `rules_set`); the editor's (M5.3) over an `omnis_data::edit::Session` the host owns, through
 `Op::editor()` and `edit::answer` (`editor_ops.rs`). `BadRequest` can answer any op on the
@@ -206,6 +206,7 @@ socket and the bridge (malformed request).
 | `service.get` | none | `service` | `NoService` | |
 | `rest.get` | none | `rest` | | |
 | `cast.get` | none | `casts` | | |
+| `targets.get` | `member` (`CharacterId`), `option` (`Chosen`) | `targets` | `Rejected` (`NoSuchMember`; in a fight `NotYourTurn` for anyone but the member acting) | |
 | `objects.get` | none | `objects` | | |
 | `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
@@ -273,6 +274,7 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
+| `targets` | `Reply::Targets` | `targets` (`[TargetView]`) | `targets.get` |
 | `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`), `beings` (`[BeingView]`, left out when none) | `objects.get` |
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
@@ -312,6 +314,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
+| `targets(&World, &Data, CharacterId, &Chosen)` | `Result<Vec<TargetView>, Rejection>` | `targets.get` |
 | `objects_view` | `ObjectsView` (`objects`, `ground`, `beings`) | `objects.get` |
 | `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
@@ -595,6 +598,27 @@ member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spel
 id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast charges: the
 spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
 0 for a cantrip), `targets_members`, `refusal` (`Rejection` or null).
+
+### 7.8b `TargetView`, `Chosen`, `Sight`
+
+The flow for every spell, item and action is: choose the option, choose from its possible
+targets, then send the command (PRD §7.3). `targets.get` is the second step. `Chosen` names
+the option: `{"Spell": {"spell": id, "pay": "Action" | "BonusAction"}}` (`pay` may be left out
+and matters only in a fight), `{"Item": {"item": id}}`, `{"Feature": {"feature": key,
+"exchange": bool}}` (`exchange` for a feature that offers one, Cunning Action), `"Attack"`,
+`"Exchange"`. One `TargetView` per possible target: `target` (`Target`, as the command takes
+it), `distance` (tiles from the party as a king moves; 0 for a member and in a fight),
+`sight` (`Clear` or `Obscured`), `refusal` (`Rejection` or null).
+
+Which targets are listed follows the option's `targeting` in pack data (`Own`, `Touch`,
+`Tiles(n)`, `Sight`, `Link`): a spell or item of the actor's own, or one that lands on the
+whole party (light, detect magic), lists the actor alone; a heal or a buff lists every
+member; a harmful spell and `Attack` list every standing stack in a fight; `Exchange` lists
+the other members. A listed target out of reach is still listed, with its refusal: in a
+fight a touch reaches only the stacks in front (`OutOfReach`). Each row is judged by the
+validation of the very command a client would send, so a row with a null `refusal` is
+accepted by that command and a row with one is rejected with it. Outside a fight and the
+road nothing is listed. Options with no one to choose (dodge, run, end turn) are not asked.
 
 ### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
 
@@ -1023,7 +1047,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (72 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (74 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1060,6 +1084,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `SlotEmpty` | `slot` | Nothing is in that slot. |
 | `NotUsable` | | The item does nothing when used. |
 | `NotUsableHere` | | The item is not used from a fight. |
+| `BeyondRange` | | The target is further than the spell's, item's or feature's `targeting` reaches: anyone but the actor for `Own`. (`OutOfRange` is a number out of range, not this.) |
+| `OutOfSight` | | The target is not in a clear line of sight, which the option's `targeting` needs. Not produced until map targets are built. |
 | `TargetDead` | `member` | The member the item goes to is dead. |
 | `ZeroCount` | | A count of zero moves nothing. |
 | `DevOnly` | | A `Dev` command in a world whose settings do not allow them. |
@@ -1240,6 +1266,14 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (targeting, step 3): the op `targets.get` (`Reply::Targets`, `[TargetView]`; Tier 1 `targets`,
+  `Chosen`, `Sight`), 49 ops. `Rejection` gains `BeyondRange` and `OutOfSight` (74). A spell's and an item's
+  `targeting` is now enforced by `Command::Cast`, `CombatCommand::Cast`, `ItemCommand::Use` and
+  `CombatCommand::Use`, before anything is paid: `Own` reaches the actor only (`BeyondRange` otherwise), and in
+  a fight `Touch` reaches the front stacks only (`OutOfReach`). **A change of behaviour for a pack that writes
+  `Touch` on a harmful spell, as `base` 0.1.3 does** (burning hands, thunderwave, inflict wounds): they no
+  longer reach a stack behind. A pack that writes no `targeting` is unchanged. Light, detect magic and mage
+  hand still ignore the target they are sent.
 - 2026-11-14 (data only; targeting, step 2 of `tasks/plans/targeting.md`): a spell, an item with a use and a
   class feature may write `targeting: Some((range: Own | Touch | Tiles(n) | Sight | Link, sees: bool))`
   (`omnis_data::Targeting`). Absent, it follows from the effect as the engine behaved before (a heal or a buff

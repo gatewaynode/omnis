@@ -249,6 +249,10 @@ pub enum Rejection {
     NotUsable,
     /// The item is not used from a fight.
     NotUsableHere,
+    /// The target is further than the spell, item or feature reaches (its `targeting`).
+    BeyondRange,
+    /// The target is not in a clear line of sight, which the spell, item or feature needs.
+    OutOfSight,
     /// The member the item goes to is dead.
     TargetDead {
         /// The member asked for.
@@ -527,6 +531,8 @@ impl Rejection {
             Rejection::SlotEmpty { slot } => write!(f, "nothing is in the {slot:?} slot"),
             Rejection::NotUsable => f.write_str("the item does nothing when used"),
             Rejection::NotUsableHere => f.write_str("the item is not used from a fight"),
+            Rejection::BeyondRange => f.write_str("the target is out of range"),
+            Rejection::OutOfSight => f.write_str("the target is out of sight"),
             Rejection::TargetDead {
                 member: CharacterId(member),
             } => write!(f, "the member {member} is dead"),

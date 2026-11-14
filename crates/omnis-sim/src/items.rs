@@ -553,6 +553,22 @@ fn transfer(
     Ok(())
 }
 
+/// Why a use outside a fight would be refused now, if it would: a user who can act, then the
+/// use's own checks. The list of possible targets judges its rows here.
+pub(crate) fn use_refusal(
+    world: &World,
+    data: &Data,
+    member: CharacterId,
+    item: &str,
+    receiver: Option<CharacterId>,
+) -> Option<Rejection> {
+    let own = match actor(world, data, member) {
+        Ok(own) => own,
+        Err(rejection) => return Some(rejection),
+    };
+    validate_use(world, data, own, item, receiver, false).err()
+}
+
 /// The checks a use passes before any die: a carried item with a use, usable here (`fight`
 /// says whether a fight is on; a sense item is not used from one), and for a heal a living
 /// target. `own` is the user, already known to be able to act.
@@ -579,6 +595,14 @@ pub(crate) fn validate_use(
             let slot = member_index(world, member)?;
             if state::is_dead(&world.party.members[slot], data) {
                 return Err(Rejection::TargetDead { member });
+            }
+            if let Some(targeting) = def.targeting() {
+                let fight = match &world.mode {
+                    crate::world::Mode::Combat(state) => Some(state),
+                    _ => None,
+                };
+                let to = crate::combat::Target::Member(member);
+                crate::targets::in_range(world, data, fight, own, targeting, to)?;
             }
             slot
         }

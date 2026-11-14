@@ -180,6 +180,7 @@ pub(crate) fn validate(
             if super::state::is_dead(&world.party.members[slot], data) {
                 return Err(Rejection::MemberDead { member: id });
             }
+            crate::targets::in_range(world, data, Some(state), own, def.targeting(), target)?;
             Aim::Member(slot)
         }
         (false, Target::Stack(stack)) => {
@@ -191,6 +192,7 @@ pub(crate) fn validate(
             if !s.alive() {
                 return Err(Rejection::StackDead { stack });
             }
+            crate::targets::in_range(world, data, Some(state), own, def.targeting(), target)?;
             Aim::Stack(stack)
         }
         _ => return Err(Rejection::WrongTarget),

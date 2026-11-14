@@ -45,6 +45,7 @@ mod service_view;
 mod services;
 mod split;
 mod stash;
+mod targets;
 mod time;
 mod town;
 mod training;

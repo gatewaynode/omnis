@@ -51,6 +51,7 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Time { .. } => "time",
         Reply::Rest { .. } => "rest",
         Reply::Casts { .. } => "casts",
+        Reply::Targets { .. } => "targets",
         Reply::Objects { .. } => "objects",
         Reply::Creation { .. } => "creation",
         Reply::Value { .. } => "value",
