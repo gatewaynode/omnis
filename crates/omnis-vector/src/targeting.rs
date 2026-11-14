@@ -7,8 +7,9 @@ use crate::labels;
 use crate::screen::{Control, ControlId, Game, Panel, Row, Screen, ScreenId, Span};
 use crate::style::{Role, Size};
 use omnis_sim::api::{Chosen, Sight, TargetView};
-use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::omnis_core::{CharacterId, Facing};
 use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::placement::ResolvedPlacement;
 use omnis_sim::{Command, ItemCommand, Target};
 
 /// An option chosen on the road, waiting for its target.
@@ -100,7 +101,7 @@ impl Aim {
     pub fn chosen(&self, data: &Data, game: Game, at: u8) -> Option<Command> {
         let rows = self.targets(data, game);
         let row = rows.get(usize::from(at)).filter(|r| r.refusal.is_none())?;
-        self.command(row.target)
+        self.command(row.target.clone())
     }
 
     /// The command for `member`, when the list offers them free: a click on their entry in the
@@ -111,8 +112,61 @@ impl Aim {
         let rows = self.targets(data, game);
         rows.iter()
             .find(|r| r.target == target && r.refusal.is_none())
-            .and_then(|r| self.command(r.target))
+            .and_then(|r| self.command(r.target.clone()))
     }
+
+    /// The cell of the map the target at row `at` stands on, when it is a thing of the map:
+    /// what the 3D view marks while the pointer is on the row.
+    #[must_use]
+    pub fn marked(&self, data: &Data, game: Game, at: u8) -> Option<(u16, u16)> {
+        let rows = self.targets(data, game);
+        cell(data, game, &rows.get(usize::from(at))?.target)
+    }
+}
+
+/// The cell a thing of the map stands on; none for a member or a combatant.
+fn cell(data: &Data, game: Game, target: &Target) -> Option<(u16, u16)> {
+    match target {
+        Target::Door { x, y, .. } => Some((*x, *y)),
+        Target::Object { object } => placed(data, game, object).map(|p| (p.x, p.y)),
+        Target::Being { .. } | Target::Member(_) | Target::Stack(_) => None,
+    }
+}
+
+/// The placement `id` of the party's map and level.
+fn placed<'d>(data: &'d Data, game: Game, id: &str) -> Option<&'d ResolvedPlacement> {
+    let at = game.views.position;
+    let objects = data.maps.get(&at.map)?.objects.iter();
+    objects
+        .into_iter()
+        .find(|p| p.id == id && p.level == at.level)
+}
+
+/// Which way a point lies from the party, in half tiles east and south of it: one of the
+/// eight winds, a diagonal when neither axis is twice the other.
+fn bearing(east: i32, south: i32) -> &'static str {
+    let (wide, tall) = (east.abs() >= 2 * south.abs(), south.abs() >= 2 * east.abs());
+    match (east.signum(), south.signum()) {
+        (0, 0) => "here",
+        (1, _) if wide => "east",
+        (-1, _) if wide => "west",
+        (_, 1) if tall => "south",
+        (_, -1) if tall => "north",
+        (1, 1) => "south-east",
+        (1, _) => "north-east",
+        (_, 1) => "south-west",
+        _ => "north-west",
+    }
+}
+
+/// Which way the middle of a tile, or of one of its edges, lies from the party.
+fn toward(game: Game, (x, y): (u16, u16), edge: Option<Facing>) -> &'static str {
+    let at = game.views.position;
+    let (dx, dy) = edge.map_or((0, 0), Facing::delta);
+    bearing(
+        2 * (i32::from(x) - i32::from(at.x)) + dx,
+        2 * (i32::from(y) - i32::from(at.y)) + dy,
+    )
 }
 
 fn note(text: impl Into<String>) -> Span {
@@ -123,18 +177,33 @@ fn note(text: impl Into<String>) -> Span {
     }
 }
 
-/// A target in words: a member by name, the actor marked as such.
-fn label(game: Game, aim: &Aim, target: Target) -> (String, Option<&'static str>) {
+/// A target in words: a member by name, the actor marked as such; a door or an object by
+/// what it is and which way it lies.
+fn label(data: &Data, game: Game, aim: &Aim, target: &Target) -> (String, Option<&'static str>) {
     match target {
         Target::Member(id) => {
             let members = &game.views.party.members;
-            let name = members.iter().find(|m| m.member == id);
+            let name = members.iter().find(|m| m.member == *id);
             (
                 name.map_or_else(|| "someone".to_owned(), |m| m.name.clone()),
-                (id == aim.member).then_some("self"),
+                (*id == aim.member).then_some("self"),
             )
         }
-        Target::Stack(stack) => (format!("Stack {}", u16::from(stack) + 1), None),
+        Target::Stack(stack) => (format!("Stack {}", u16::from(*stack) + 1), None),
+        Target::Door { x, y, facing } => {
+            let way = toward(game, (*x, *y), Some(*facing));
+            (format!("Door, {way}"), None)
+        }
+        Target::Object { object } => {
+            let placement = placed(data, game, object);
+            let kind = placement.and_then(|p| data.objects.get(&p.kind));
+            let key = placement.and_then(|p| data.registry.text.name(p.name?));
+            let name = key.or(kind.map(|k| k.name.as_str()));
+            let name = name.map_or("Something", |key| labels::text(data, key));
+            let way = placement.map_or("here", |p| toward(game, (p.x, p.y), None));
+            (format!("{name}, {way}"), None)
+        }
+        Target::Being { .. } => ("A group".to_owned(), None),
     }
 }
 
@@ -142,7 +211,7 @@ fn label(game: Game, aim: &Aim, target: Target) -> (String, Option<&'static str>
 /// by whom, Back, then one row per possible target with its Choose button.
 #[must_use]
 pub fn content(data: &Data, game: Game, aim: &Aim, id: ScreenId) -> Screen {
-    let (actor, _) = label(game, aim, Target::Member(aim.member));
+    let (actor, _) = label(data, game, aim, &Target::Member(aim.member));
     let mut rows = vec![
         Row::controls(vec![Control::button(ControlId::Back, "Back")]),
         Row::text(Span::body(format!("{}, by {actor}", aim.named(data)))),
@@ -152,10 +221,11 @@ pub fn content(data: &Data, game: Game, aim: &Aim, id: ScreenId) -> Screen {
         let Ok(at) = u8::try_from(i) else {
             break;
         };
-        let (name, own) = label(game, aim, row.target);
+        let (name, own) = label(data, game, aim, &row.target);
         let mut marks: Vec<String> = own.map(str::to_owned).into_iter().collect();
         if row.distance > 0 {
-            marks.push(format!("{} tiles", row.distance));
+            let unit = if row.distance == 1 { "tile" } else { "tiles" };
+            marks.push(format!("{} {unit}", row.distance));
         }
         if row.sight == Sight::Obscured {
             marks.push("out of sight".to_owned());

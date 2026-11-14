@@ -60,7 +60,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
                 spell,
                 target,
             },
-        ) => casting::apply(world, data, *caster, spell, *target, &mut events)?,
+        ) => casting::apply(world, data, *caster, spell, target.clone(), &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Item(command)) => {
             items::apply(world, data, command, &mut events)?;
         }

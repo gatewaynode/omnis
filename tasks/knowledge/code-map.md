@@ -153,7 +153,7 @@ old saves only).
   points, shields, spell rows' `blocked` and `bonus`); `party_view.rs` (moved out of `ops.rs` in
   M7c step 6a; `MemberView.tactics`: the switch, the declared rows, `answers`).
 - Magic and effects: `casting.rs` (explore casting), `effects.rs`, `checks.rs::roll` (the one
-  check wrapper; guidance is spent here), `utility.rs` (`open_door_ahead`).
+  check wrapper; guidance is spent here), `utility.rs` (mage hand as a hand: `check`, `carry_out`, on the door or object chosen), `targets/map.rs` (a door or an object as the range rule sees it: `door`, `object`, `within`, `things`).
 - Items: `items.rs` (`ItemCommand`, `UsePlan`, `UseKind`, `validate_use`, `use_item`, `transfer`,
   `drop_worn`, stock helpers `add_to`/`take_from`/`count_of`/`consume`/`item_id`).
 - Sensing: `sense.rs` (`LAYERS`, `best_eyes`, `dc`, `reach_for_layer`, `resolve`).

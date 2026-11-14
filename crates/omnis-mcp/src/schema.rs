@@ -108,11 +108,27 @@ fn index_or_null() -> Value {
     json!({"type": ["integer", "null"], "minimum": 0})
 }
 
-/// A spell's target: a stack by index or a member by identity.
+/// A fight's target: a stack by index or a member by identity.
+fn combatant() -> [Value; 2] {
+    [
+        json!({"type": "object", "properties": {"Stack": index()}, "required": ["Stack"], "additionalProperties": false}),
+        json!({"type": "object", "properties": {"Member": member_id()}, "required": ["Member"], "additionalProperties": false}),
+    ]
+}
+
+/// The road's target: a member (or a stack, which the road refuses), a door by a tile and the
+/// edge of it the door stands on, an object by its placement's id, a group by its id.
 fn target() -> Value {
+    let cell = || json!({"type": "integer", "minimum": 0, "maximum": 65535});
+    let text = || json!({"type": "string"});
+    let facing = json!({"type": "string", "enum": ["North", "East", "South", "West"]});
+    let [stack, member] = combatant();
     json!({"oneOf": [
-        {"type": "object", "properties": {"Stack": index()}, "required": ["Stack"], "additionalProperties": false},
-        {"type": "object", "properties": {"Member": member_id()}, "required": ["Member"], "additionalProperties": false}
+        stack,
+        member,
+        variant("Door", &[("x", cell()), ("y", cell()), ("facing", facing)]),
+        variant("Object", &[("object", text())]),
+        variant("Being", &[("being", text())])
     ]})
 }
 
@@ -302,7 +318,7 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Encounter": {"type": "string", "enum": ["Attack", "Bribe", "Hide", "Run"]}}, "required": ["Encounter"], "additionalProperties": false},
                 {"type": "object", "properties": {"Combat": {"oneOf": [
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
-                    {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": String::schema(), "target": target(), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": String::schema(), "target": json!({"oneOf": combatant()}), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
                     variant("Use", &[("item", String::schema()), ("receiver", member_or_null())]),
                     {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
                     {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},

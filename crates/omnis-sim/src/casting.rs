@@ -7,7 +7,7 @@ use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::party;
-use crate::utility::open_door_ahead;
+use crate::utility::{self, Hand};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32};
@@ -23,6 +23,8 @@ pub(crate) struct Checked<'a> {
     def: &'a Spell,
     effect: SpellEffect,
     plan: CastPlan,
+    /// What a hand will do, when the spell is one.
+    hand: Option<Hand<'a>>,
 }
 
 /// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
@@ -57,11 +59,19 @@ pub(crate) fn validate<'a>(
         if state::is_dead(member, data) {
             return Err(Rejection::MemberDead { member: id });
         }
-        crate::targets::in_range(world, data, None, own, def.targeting(), target)?;
+        crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
     }
+    let hand = match effect {
+        SpellEffect::Utility(Utility::OpenDoor { .. }) => {
+            Some(utility::check(world, data, own, def.targeting(), &target)?)
+        }
+        _ => None,
+    };
     let aim = match target {
         Target::Member(id) => Aim::Member(usize::from(world.party.slot_of(id)?)),
         Target::Stack(stack) => Aim::Stack(stack),
+        _ if hand.is_some() => Aim::Party,
+        _ => return Err(Rejection::WrongTarget),
     };
     let plan = CastPlan {
         own,
@@ -74,6 +84,7 @@ pub(crate) fn validate<'a>(
         def,
         effect,
         plan,
+        hand,
     })
 }
 
@@ -93,6 +104,7 @@ pub(crate) fn apply(
         def,
         effect,
         plan,
+        hand,
     } = validate(world, data, caster, spell, target, &mut roller.rng)?;
     cast::pay(world, data, &plan, events).map_err(Rejection::Rule)?;
     match (effect, plan.target) {
@@ -109,8 +121,10 @@ pub(crate) fn apply(
             let light = EffectKind::Light { depth };
             cast::cast_lasting(world, data, &plan, def, light, minutes, events);
         }
-        (SpellEffect::Utility(Utility::OpenDoor { range_tiles }), _) => {
-            open_door_ahead(world, data, range_tiles, events);
+        (SpellEffect::Utility(Utility::OpenDoor { .. }), _) => {
+            if let Some(hand) = &hand {
+                utility::carry_out(world, data, hand, events)?;
+            }
         }
         (
             SpellEffect::Utility(Utility::Reveal {

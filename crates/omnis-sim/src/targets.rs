@@ -7,6 +7,8 @@
 //! validating the very command a client would send, so the list and the command cannot
 //! disagree: a row with no refusal is accepted, a row with one is rejected with it.
 
+pub(crate) mod map;
+
 use crate::casting;
 use crate::combat::cast::Target;
 use crate::combat::{self, CombatCommand, CombatState, FeatureChoice, Pay, Roller};
@@ -16,7 +18,7 @@ use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
-use omnis_data::{Data, FeatureEffect, Range, SpellEffect, Targeting, UseEffect};
+use omnis_data::{Data, FeatureEffect, Range, SpellEffect, Targeting, UseEffect, Utility};
 use serde::{Deserialize, Serialize};
 
 /// The option a member has chosen, whose targets are asked for.
@@ -78,26 +80,77 @@ pub struct TargetView {
 /// The range rule: whether `target` is within what `targeting` reaches for the member in slot
 /// `own`. `fight` is the fight when one is on. Members share the party's tile, so every member
 /// is within touch, range and sight of every other; a fight has no distances, so there touch
-/// is the front stacks and every other range every combatant.
+/// is the front stacks and every other range every combatant. A door or an object is reached
+/// on the road only, by where it stands (`map`).
 pub(crate) fn in_range(
     world: &World,
     data: &Data,
     fight: Option<&CombatState>,
     own: usize,
     targeting: Targeting,
-    target: Target,
+    target: &Target,
 ) -> Result<(), Rejection> {
     let actor = world.party.members.get(own).map(|m| m.id);
     match (targeting.range, target) {
-        (Range::Own, Target::Member(id)) if Some(id) == actor => Ok(()),
+        (_, Target::Door { .. } | Target::Object { .. } | Target::Being { .. })
+            if fight.is_some() =>
+        {
+            Err(Rejection::WrongTarget)
+        }
+        (_, Target::Door { x, y, facing }) => {
+            let spot = map::door(world, data, *x, *y, *facing).ok_or(Rejection::NoDoor)?;
+            map::within(world, data, targeting, spot)
+        }
+        (_, Target::Object { object }) => {
+            let (_, spot) =
+                map::object(world, data, object).ok_or_else(|| Rejection::NoSuchObject {
+                    object: object.clone(),
+                })?;
+            map::within(world, data, targeting, spot)
+        }
+        (_, Target::Being { .. }) => Err(Rejection::WrongTarget),
+        (Range::Own, Target::Member(id)) if Some(*id) == actor => Ok(()),
         (Range::Own | Range::Link, _) => Err(Rejection::BeyondRange),
         (Range::Touch | Range::Tiles(_) | Range::Sight, Target::Member(_)) => Ok(()),
         (Range::Touch, Target::Stack(stack)) => match fight {
-            Some(state) if state.is_front(data, stack) => Ok(()),
-            _ => Err(Rejection::OutOfReach { stack }),
+            Some(state) if state.is_front(data, *stack) => Ok(()),
+            _ => Err(Rejection::OutOfReach { stack: *stack }),
         },
         (Range::Tiles(_) | Range::Sight, Target::Stack(_)) => Ok(()),
     }
+}
+
+/// A row before it is judged: the target, how far, and whether seen.
+type Row = (Target, u16, Sight);
+
+/// Why the rules would refuse the option on a target now, if they would.
+type Judge<'a> = dyn Fn(&Target) -> Option<Rejection> + 'a;
+
+/// Rows with no distance: members, and the combatants of a fight.
+fn near(targets: Vec<Target>) -> Vec<Row> {
+    let rows = targets.into_iter();
+    rows.map(|target| (target, 0, Sight::Clear)).collect()
+}
+
+/// What a hand may be sent at on the road: the doors and objects its range reaches or would
+/// with a clear line, less the objects that offer a hand nothing.
+fn hand_rows(world: &World, data: &Data, targeting: Targeting) -> Vec<Row> {
+    let nothing = Rejection::VerbRefused {
+        reason: crate::objects::Refusal::NotOffered,
+    };
+    let things = map::things(world, data, targeting).into_iter();
+    things
+        .filter(|(target, _)| match target {
+            Target::Object { object } => map::object(world, data, object).is_some_and(|(p, _)| {
+                crate::objects::pick(world, data, p, &crate::utility::HAND)
+                    .err()
+                    .as_ref()
+                    != Some(&nothing)
+            }),
+            _ => true,
+        })
+        .map(|(target, spot)| (target, spot.distance, spot.sight))
+        .collect()
 }
 
 /// Every member, in marching order.
@@ -117,26 +170,31 @@ fn stacks(state: &CombatState) -> Vec<Target> {
 }
 
 /// What a spell's rows are: the caster alone when it is the caster's own or lands on the whole
-/// party, the members when it helps one, the standing stacks when it harms one.
-fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Target> {
+/// party, the members when it helps one, the standing stacks when it harms one, and for a hand
+/// on the road the things of the map.
+fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> {
     let def = combat::cast::spell_id(data, spell)
         .ok()
         .and_then(|id| data.spells.get(&id));
     let Some((def, effect)) = def.and_then(|d| d.effect.as_ref().map(|e| (d, e))) else {
         return Vec::new();
     };
+    let hand = matches!(effect, SpellEffect::Utility(Utility::OpenDoor { .. }));
+    if hand && matches!(world.mode, Mode::Explore) {
+        return hand_rows(world, data, def.targeting());
+    }
     let on_the_party = matches!(
         effect,
         SpellEffect::Light { .. } | SpellEffect::Reaction { .. } | SpellEffect::Utility(_)
     );
     if on_the_party || def.targeting().range == Range::Own {
-        return alloc::vec![own];
+        return near(alloc::vec![own]);
     }
-    match &world.mode {
+    near(match &world.mode {
         _ if effect.targets_members() => members(world),
         Mode::Combat(state) => stacks(state),
         _ => Vec::new(),
-    }
+    })
 }
 
 /// What an item's rows are: its user alone when the use is their own, else the members.
@@ -160,9 +218,9 @@ fn fight_command(
     data: &Data,
     slot: usize,
     chosen: &Chosen,
-    target: Target,
+    target: &Target,
 ) -> Option<CombatCommand> {
-    Some(match (chosen, target) {
+    Some(match (chosen, target.clone()) {
         (Chosen::Spell { spell, pay }, target) => CombatCommand::Cast {
             spell: spell.clone(),
             target,
@@ -210,19 +268,20 @@ pub fn targets(
     let own = Target::Member(member);
     let others = || {
         let all = members(world).into_iter();
-        all.filter(|t| *t != own).collect::<Vec<_>>()
+        near(all.filter(|t| *t != own).collect())
     };
-    let (rows, judge): (Vec<Target>, &dyn Fn(Target) -> Option<Rejection>) = match &world.mode {
+    let item_rows = |item: &str| near(item_rows(world, data, slot, own.clone(), item));
+    let (rows, judge): (Vec<Row>, &Judge<'_>) = match &world.mode {
         Mode::Combat(state) => {
             if state.current_actor() != Some(crate::event::ActorRef::Member(member)) {
                 return Err(Rejection::NotYourTurn);
             }
             let rows = match chosen {
-                Chosen::Spell { spell, .. } => spell_rows(world, data, own, spell),
-                Chosen::Item { item } => item_rows(world, data, slot, own, item),
+                Chosen::Spell { spell, .. } => spell_rows(world, data, own.clone(), spell),
+                Chosen::Item { item } => item_rows(item),
                 Chosen::Feature { exchange: true, .. } | Chosen::Exchange => others(),
-                Chosen::Feature { .. } => alloc::vec![own],
-                Chosen::Attack => stacks(state),
+                Chosen::Feature { .. } => near(alloc::vec![own.clone()]),
+                Chosen::Attack => near(stacks(state)),
             };
             (rows, &|target| {
                 let command = fight_command(world, data, slot, chosen, target);
@@ -233,17 +292,17 @@ pub fn targets(
         }
         Mode::Explore => {
             let rows = match chosen {
-                Chosen::Spell { spell, .. } => spell_rows(world, data, own, spell),
-                Chosen::Item { item } => item_rows(world, data, slot, own, item),
+                Chosen::Spell { spell, .. } => spell_rows(world, data, own.clone(), spell),
+                Chosen::Item { item } => item_rows(item),
                 Chosen::Feature { .. } | Chosen::Attack | Chosen::Exchange => Vec::new(),
             };
             (rows, &|target| match (chosen, target) {
                 (Chosen::Spell { spell, .. }, target) => {
                     let mut rng = Roller::take_stream(world, "cast").rng;
-                    casting::validate(world, data, member, spell, target, &mut rng).err()
+                    casting::validate(world, data, member, spell, target.clone(), &mut rng).err()
                 }
                 (Chosen::Item { item }, Target::Member(receiver)) => {
-                    items::use_refusal(world, data, member, item, Some(receiver))
+                    items::use_refusal(world, data, member, item, Some(*receiver))
                 }
                 _ => Some(Rejection::WrongTarget),
             })
@@ -252,11 +311,11 @@ pub fn targets(
     };
     Ok(rows
         .into_iter()
-        .map(|target| TargetView {
+        .map(|(target, distance, sight)| TargetView {
+            refusal: judge(&target),
             target,
-            distance: 0,
-            sight: Sight::Clear,
-            refusal: judge(target),
+            distance,
+            sight,
         })
         .collect())
 }

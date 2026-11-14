@@ -39,9 +39,52 @@ pub(crate) fn act(
         .filter(|(_, it)| it.verb == verb)
         .nth(usize::from(option))
         .ok_or(refused(Refusal::NotOffered))?;
+    perform(world, data, placement, index, interaction, events)
+}
+
+/// Try interaction `index` of the placement's kind, offered in the state it is in: admitted
+/// first, then resolved, on the `object` stream.
+pub(crate) fn perform(
+    world: &mut World,
+    data: &Data,
+    placement: &ResolvedPlacement,
+    index: u8,
+    interaction: &Interaction,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
     let mut roller = Roller::take_stream(world, "object");
     admit(world, data, placement, index, interaction, &mut roller)?;
     outcome::resolve(world, data, placement, index, interaction, roller, events)
+}
+
+/// The interaction among `verbs` that would be worked on the object now: the first it offers
+/// in its state that may be tried. When it offers some and none may be tried, the first one's
+/// refusal; when it offers none, `NotOffered`.
+pub(crate) fn pick<'d>(
+    world: &World,
+    data: &'d Data,
+    placement: &'d ResolvedPlacement,
+    verbs: &[Verb],
+) -> Result<(u8, &'d Interaction), Rejection> {
+    let not_offered = Rejection::VerbRefused {
+        reason: Refusal::NotOffered,
+    };
+    let Some(kind) = data.objects.get(&placement.kind) else {
+        return Err(not_offered);
+    };
+    let state = String::from(state_of(world, world.position.map, placement));
+    let mut refusal = None;
+    let here = |it: &Interaction| it.when_state.as_deref().is_none_or(|s| s == state);
+    let offered = kind.interactions.iter().enumerate();
+    let offered = offered.filter_map(|(i, it)| u8::try_from(i).ok().map(|i| (i, it)));
+    for (index, interaction) in offered.filter(|(_, it)| here(it) && verbs.contains(&it.verb)) {
+        let mut roller = Roller::take_stream(world, "object");
+        match admit(world, data, placement, index, interaction, &mut roller) {
+            Ok(()) => return Ok((index, interaction)),
+            Err(why) => refusal = refusal.or(Some(why)),
+        }
+    }
+    Err(refusal.unwrap_or(not_offered))
 }
 
 /// Whether an offered interaction may be tried now, before any die: not a `once` already spent,

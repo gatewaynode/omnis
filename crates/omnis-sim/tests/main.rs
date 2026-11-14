@@ -23,6 +23,7 @@ mod items;
 mod journal;
 mod levels;
 mod loot;
+mod map_targets;
 mod migrations;
 mod monster_cast;
 mod movement;

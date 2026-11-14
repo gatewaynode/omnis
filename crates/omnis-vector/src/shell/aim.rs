@@ -8,12 +8,13 @@ use super::controls::{Over, over_control};
 use super::editor::Editing;
 use super::movement::{Intent, View};
 use super::render::FOV;
-use super::screen::Screens;
+use super::screen::{Pressable, Screens};
 use super::session::Session;
 use super::{VectorSet, ViewState};
 use crate::aim::{Eye, pile_under};
 use crate::ground::{Ground, eye};
-use crate::screen::ScreenId;
+use crate::screen::{ControlId, ScreenId};
+use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use omnis_sim::ItemPlace;
@@ -23,6 +24,34 @@ use omnis_sim::omnis_core::{Level, MapId};
 /// the pile's, not the view's, and the cell's floor is outlined (`render::ViewAim`).
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Aimed(pub Option<(u16, u16)>);
+
+/// The cell of the thing of the map whose row of the target step the pointer is on (owner,
+/// 2026-11-14): the 3D view outlines its floor as it does a pile's, so a door or an object in a
+/// list is found in the view. Nothing is clicked there.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Marked(pub Option<(u16, u16)>);
+
+/// The mark follows the pointer over the target step's rows, a dim row too.
+fn mark(
+    screens: Option<Res<Screens>>,
+    session: Option<Res<Session>>,
+    rows: Query<(&Pressable, &Hovered)>,
+    mut marked: ResMut<Marked>,
+) {
+    let cell = || {
+        let (screens, session) = (screens.as_deref()?, session.as_deref()?);
+        let aim = screens.forms.aim.as_ref()?;
+        let at = rows.iter().find_map(|(row, over)| match row.0 {
+            ControlId::Target(at) if over.get() => Some(at),
+            _ => None,
+        })?;
+        aim.marked(&session.data, super::screen::ctx(session).game?, at)
+    };
+    let cell = cell();
+    if marked.0 != cell {
+        marked.0 = cell;
+    }
+}
 
 /// The floor of the party's level, kept until the map or the level changes.
 #[derive(Default)]
@@ -122,6 +151,7 @@ pub(super) fn aim(
 /// Registers the aim ahead of the mouse look's own click.
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<Aimed>()
-        .add_systems(Update, aim.before(VectorSet::Grab))
+        .init_resource::<Marked>()
+        .add_systems(Update, (aim.before(VectorSet::Grab), mark))
         .add_plugins(super::loot::plugin);
 }

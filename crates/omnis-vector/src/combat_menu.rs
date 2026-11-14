@@ -242,12 +242,14 @@ pub fn listed(world: &SimWorld, data: &Data, action: Action) -> Vec<(Pick, Optio
     world
         .targets(data, own, &resolved.chosen())
         .into_iter()
-        .map(|row| {
+        .filter_map(|row| {
+            // A fight's targets are its combatants; the things of the map are the road's.
             let pick = match row.target {
                 Target::Stack(stack) => Pick::Stack(stack),
                 Target::Member(member) => Pick::Member(member),
+                Target::Door { .. } | Target::Object { .. } | Target::Being { .. } => return None,
             };
-            (pick, row.refusal)
+            Some((pick, row.refusal))
         })
         .collect()
 }

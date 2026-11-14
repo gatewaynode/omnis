@@ -266,6 +266,10 @@ const LABELS: f32 = 158.0;
 /// The marker of `mark`'s router on a pressable node.
 pub(super) fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
     match mark {
+        // A target's row is pointed at even when dim: the view marks what it names.
+        Mark::Screen if matches!(id, ControlId::Target(_)) => {
+            entity.insert((Pressable(id), bevy::picking::hover::Hovered::default()))
+        }
         Mark::Screen => entity.insert(Pressable(id)),
         Mark::Side => entity.insert(Side(id)),
         Mark::Fight => entity.insert(FightPress(id)),

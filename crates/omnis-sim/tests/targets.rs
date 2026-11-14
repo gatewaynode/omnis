@@ -91,7 +91,11 @@ fn listed(world: &World, data: &Data, member: usize, chosen: &Chosen) -> Vec<Tar
     let rows = targets(world, data, id, chosen).expect("a list");
     for row in &rows {
         let mut copy = world.clone();
-        let result = apply(&mut copy, data, command(world, member, chosen, row.target));
+        let result = apply(
+            &mut copy,
+            data,
+            command(world, member, chosen, row.target.clone()),
+        );
         assert_eq!(
             result.as_ref().err(),
             row.refusal.as_ref(),
@@ -107,7 +111,7 @@ fn listed(world: &World, data: &Data, member: usize, chosen: &Chosen) -> Vec<Tar
 
 fn free(rows: &[TargetView]) -> Vec<Target> {
     let open = rows.iter().filter(|r| r.refusal.is_none());
-    open.map(|r| r.target).collect()
+    open.map(|r| r.target.clone()).collect()
 }
 
 /// The reported bug: on the road a heal could go to no one but its caster. The list is every
@@ -192,7 +196,10 @@ fn in_a_fight_a_touch_reaches_the_front_stacks_and_a_range_every_stack() {
     );
     let all = [Target::Stack(0), Target::Stack(1), Target::Stack(2)];
     let touch = listed(&world, &data, WIZARD, &spell("burning_hands"));
-    assert_eq!(touch.iter().map(|r| r.target).collect::<Vec<_>>(), all);
+    assert_eq!(
+        touch.iter().map(|r| r.target.clone()).collect::<Vec<_>>(),
+        all
+    );
     assert_eq!(free(&touch), all[..2], "two stacks stand in front");
     assert_eq!(touch[2].refusal, Some(Rejection::OutOfReach { stack: 2 }));
     for ranged in ["magic_missile", "fire_bolt"] {
@@ -279,7 +286,7 @@ fn an_item_s_use_lists_who_its_targeting_reaches() {
         "the user alone is listed, not the others refused"
     );
     let before = world.clone();
-    let other = command(&world, 0, &chosen, everyone[1]);
+    let other = command(&world, 0, &chosen, everyone[1].clone());
     assert_eq!(apply(&mut world, &data, other), Err(Rejection::BeyondRange));
     assert_eq!(world, before, "the potion is not spent");
 }

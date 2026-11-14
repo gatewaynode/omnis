@@ -602,7 +602,7 @@ pub(crate) fn validate_use(
                     _ => None,
                 };
                 let to = crate::combat::Target::Member(member);
-                crate::targets::in_range(world, data, fight, own, targeting, to)?;
+                crate::targets::in_range(world, data, fight, own, targeting, &to)?;
             }
             slot
         }

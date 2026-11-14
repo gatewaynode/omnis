@@ -112,7 +112,8 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
                 target: Target::Member(CharacterId(1)),
                 pay: Pay::BonusAction,
             },
-            Target::Member(_) => CombatCommand::Use {
+            // The things of the map are the road's targets; their shapes go with `Command::Cast`.
+            _ => CombatCommand::Use {
                 item: item(),
                 receiver: Some(CharacterId(4)),
             },
@@ -429,7 +430,24 @@ fn next(command: &Command) -> Option<Command> {
         }
         Command::Cast { target, .. } => match target {
             Target::Stack(_) => cast(Target::Member(CharacterId(3))),
-            Target::Member(_) => Command::Item(ItemCommand::Equip {
+            Target::Member(_) => cast(Target::Door {
+                x: 9,
+                y: 5,
+                facing: Facing::North,
+            }),
+            // One door per edge, then on to an object.
+            Target::Door { x, y, facing } if *facing != Facing::West => cast(Target::Door {
+                x: *x,
+                y: *y,
+                facing: facing.right(),
+            }),
+            Target::Door { .. } => cast(Target::Object {
+                object: "chest_1".into(),
+            }),
+            Target::Object { .. } => cast(Target::Being {
+                being: "rat".into(),
+            }),
+            Target::Being { .. } => Command::Item(ItemCommand::Equip {
                 member: CharacterId(0),
                 item: "base:item:dagger".into(),
             }),

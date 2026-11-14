@@ -584,17 +584,28 @@ fn light_lifts_the_dungeon_depth_until_it_fades() {
 }
 
 #[test]
-fn mage_hand_toggles_the_first_door_ahead() {
+fn mage_hand_works_the_door_it_is_sent_at() {
     let data = data();
     let mut world = dev_world(&data, 1);
     party_of(&mut world, &data, 6);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    let hand = |world: &mut World| {
-        let first = slot(world, 0);
-        explore_cast(world, &data, WIZARD, "mage_hand", first)
+    let door = |x, y| Target::Door {
+        x,
+        y,
+        facing: Facing::South,
+    };
+    let hand = |world: &mut World, target: Target| {
+        let spell = spell_index(world, &data, WIZARD, "mage_hand");
+        let caster = world.party.members[WIZARD].id;
+        let cast = Command::Cast {
+            caster,
+            spell,
+            target,
+        };
+        apply(world, &data, cast)
     };
     teleport(&mut world, &data, 9, 2, Facing::South);
-    let events = hand(&mut world);
+    let events = hand(&mut world, door(9, 5)).unwrap();
     assert!(
         events.iter().any(|e| matches!(
             e,
@@ -615,30 +626,41 @@ fn mage_hand_toggles_the_first_door_ahead() {
             .any(|e| matches!(e, Event::TimeAdvanced { minutes: 1, .. }))
     );
     teleport(&mut world, &data, 9, 0, Facing::South);
-    let events = hand(&mut world);
+    let events = hand(&mut world, door(9, 5)).unwrap();
     assert!(
         events
             .iter()
             .any(|e| matches!(e, Event::Door { open: false, .. })),
         "five tiles away, it closes again"
     );
-    let nothing = |events: &[Event]| {
-        events.iter().any(|e| {
-            matches!(
-                e,
-                Event::Message {
-                    key: omnis_sim::MessageKey::NothingHere
-                }
-            )
-        })
-    };
     teleport(&mut world, &data, 3, 2, Facing::South);
-    assert!(
-        nothing(&hand(&mut world)),
-        "the pillar at (3, 3) stops the hand"
+    assert_eq!(
+        hand(&mut world, door(3, 5)),
+        Err(Rejection::NoDoor),
+        "a door never seen is not there for the hand"
+    );
+    teleport(&mut world, &data, 3, 4, Facing::South);
+    teleport(&mut world, &data, 3, 2, Facing::South);
+    assert_eq!(
+        hand(&mut world, door(3, 5)),
+        Err(Rejection::OutOfSight),
+        "the pillar at (3, 3) hides the door from the hand"
     );
     teleport(&mut world, &data, 3, 0, Facing::North);
-    assert!(nothing(&hand(&mut world)), "a wall, then the map's edge");
+    assert_eq!(
+        hand(&mut world, door(3, 0)),
+        Err(Rejection::NoDoor),
+        "a wall is no door"
+    );
+    hand(
+        &mut world,
+        Target::Door {
+            x: 5,
+            y: 3,
+            facing: Facing::East,
+        },
+    )
+    .unwrap();
     assert!(world.rngs.contains_key(&StreamName::new("cast")));
     start_fight(&mut world, &data, &[("giant_rat", 1)]);
     assert!(until_turn_of(&mut world, &data, WIZARD));

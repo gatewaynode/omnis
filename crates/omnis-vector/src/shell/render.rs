@@ -5,7 +5,7 @@
 //! (rendering size 1).
 
 use super::VectorSet;
-use super::aim::Aimed;
+use super::aim::{Aimed, Marked};
 use super::capture::Offscreen;
 use super::lines::{self, LineMaterial};
 use super::movement::View;
@@ -237,11 +237,12 @@ fn crests(
     );
 }
 
-/// The outline of the floor the pointer is on a pile of, drawn again when the aim or the scene
-/// changes and taken away when the pointer is on none.
+/// The outline of the floor the pointer is on a pile of, or of the target whose row it is on,
+/// drawn again when either or the scene changes and taken away when the pointer is on none.
 fn aim_mark(
     mut commands: Commands,
     aimed: Option<Res<Aimed>>,
+    marked: Option<Res<Marked>>,
     lines: Res<Lines>,
     mut meshes: ResMut<Assets<Mesh>>,
     part: Query<(Entity, Option<&Mesh3d>), With<ViewAim>>,
@@ -249,11 +250,13 @@ fn aim_mark(
     let (Some(aimed), Ok(part)) = (aimed, part.single()) else {
         return;
     };
-    if !aimed.is_changed() && !lines.is_changed() {
+    let moved = marked.as_ref().is_some_and(|m| m.is_changed());
+    if !aimed.is_changed() && !lines.is_changed() && !moved {
         return;
     }
     let strokes = aimed
         .0
+        .or(marked.and_then(|m| m.0))
         .map(|cell| lines::aim_mark(&lines.scene.ground, cell))
         .unwrap_or_default();
     lines::hang(&mut commands, &mut meshes, part, &strokes);

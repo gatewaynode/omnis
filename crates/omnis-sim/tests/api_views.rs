@@ -333,10 +333,24 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
     let rngs = world.rngs.clone();
     for row in &rows {
         let mut after = world.clone();
+        // The row's refusal is the one that needs no target, so the command goes at a target
+        // the spell's own list offers (a hand's is a door or an object, not the caster).
+        let chosen = omnis_sim::Chosen::Spell {
+            spell: row.spell.clone(),
+            pay: omnis_sim::Pay::Action,
+        };
+        let listed = omnis_sim::targets(&world, &data, row.caster, &chosen).unwrap();
+        let free = listed.iter().find(|t| t.refusal.is_none());
+        let target = match (free, &row.refusal) {
+            (Some(view), _) => view.target.clone(),
+            (None, Some(_)) => Target::Member(row.caster),
+            // Free, and nothing here to send it at (a hand in an open meadow): no command.
+            (None, None) => continue,
+        };
         let command = Command::Cast {
             caster: row.caster,
             spell: row.spell.clone(),
-            target: Target::Member(row.caster),
+            target,
         };
         let result = apply(&mut after, &data, command);
         assert_eq!(result.as_ref().err(), row.refusal.as_ref(), "{row:?}");

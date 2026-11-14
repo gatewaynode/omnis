@@ -620,6 +620,23 @@ validation of the very command a client would send, so a row with a null `refusa
 accepted by that command and a row with one is rejected with it. Outside a fight and the
 road nothing is listed. Options with no one to choose (dodge, run, end turn) are not asked.
 
+On the road a spell that works on the world (mage hand) lists the things of the map its
+`targeting` reaches on the party's level, nearest first, doors before objects at one
+distance: `{"Door": ...}` and `{"Object": ...}` rows with their `distance` and `sight`.
+`Touch` is what `Interact` reaches (the faced door; an object in the party's cell or the one
+it faces); `Tiles(n)` is everything within `n` tiles as a king moves; `Sight` is everything
+within the party's sight depth. Sight is asked in every direction from the party's tile, not
+only the way it faces, and is `Clear` when the thing is within the sight depth by a clear
+line (for a door, to either tile of its edge). A thing the line does not reach is listed
+only if the party knows of it (its tile is on the automap; a door's edge is recorded there),
+with `sight: "Obscured"`, and with the refusal `OutOfSight` when the `targeting` asks a
+clear line. A thing the party neither sees nor knows of is not listed and is refused as if
+it were not there (`NoDoor`, `NoSuchObject`): a hidden object not found, an object of
+another level, a door behind a wall on an unexplored tile. A thing beyond the range is not
+listed and is refused `BeyondRange`. An object that offers a hand nothing (none of `Open`,
+`Close`, `Push`, `Pull`, `Use` in its state) is not listed and is refused `VerbRefused`
+(`NotOffered`).
+
 ### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
 
 What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
@@ -814,7 +831,7 @@ means the same thing after a reorder or a change to a list.
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
-| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast). `target` is ignored by light and mage hand. |
+| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. |
 | `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
@@ -843,7 +860,13 @@ Dexterity).
 member `with`), `Run` (the whole party tries to flee), `Feature { feature, choice }` (`feature`
 the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn`.
 
-`Target`: `{"Stack": n}` or `{"Member": CharacterId}`. `Pay`: `Action`, `BonusAction`.
+`Target`: `{"Stack": n}` or `{"Member": CharacterId}`; on the road also
+`{"Door": {"x", "y", "facing"}}` (a door of the party's level by a tile and the edge of it the
+door stands on; either tile of the edge names the same door, and the list gives the south or
+east edge's tile), `{"Object": {"object"}}` (a placement's id in the party's map, as `Act`
+takes it) and `{"Being": {"being"}}` (a standing group's id, as `Approach` takes it; refused
+`WrongTarget` until the opening strike is built). A fight's cast takes a stack or a member
+only. `Pay`: `Action`, `BonusAction`.
 `FeatureChoice`: `None`, `Exchange { with }` (Cunning Action's swap, `with` a `CharacterId`),
 `Hide`.
 
@@ -1072,7 +1095,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NotCastable` | `spell` | The spell has no effect the engine can cast here yet. |
 | `NotEnoughPoints` | `need`, `have` | The caster's pool is short. |
 | `MissingComponents` | `spell` | The components are not in the stores. |
-| `WrongTarget` | | A stack for a helping spell, or a member for a harmful one. |
+| `WrongTarget` | | A stack for a helping spell, or a member for a harmful one; a member or a stack for a spell that works on the world; a door, an object or a group for a spell that does not, or in a fight. |
 | `MemberDead` | `member` | The member is dead. |
 | `MemberDown` | `member` | The member is at 0 hit points and cannot act. |
 | `NotEnough` | `item`, `have` | Fewer of an item than needed. |
@@ -1085,7 +1108,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NotUsable` | | The item does nothing when used. |
 | `NotUsableHere` | | The item is not used from a fight. |
 | `BeyondRange` | | The target is further than the spell's, item's or feature's `targeting` reaches: anyone but the actor for `Own`. (`OutOfRange` is a number out of range, not this.) |
-| `OutOfSight` | | The target is not in a clear line of sight, which the option's `targeting` needs. Not produced until map targets are built. |
+| `OutOfSight` | | The target is not in a clear line of sight, which the option's `targeting` needs: a door or an object the party knows of and does not see. |
 | `TargetDead` | `member` | The member the item goes to is dead. |
 | `ZeroCount` | | A count of zero moves nothing. |
 | `DevOnly` | | A `Dev` command in a world whose settings do not allow them. |
@@ -1108,11 +1131,11 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `SpellTooHigh` | `level`, `max` | Above the highest level the member may learn. |
 | `AlreadyKnown` | `member` | The spell is already on the member's list. |
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
-| `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
+| `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). `Cast` at an `Object`: none of that id on the party's level that it sees or knows of (none in the map, hidden, taken away, or out of sight on a tile not on the automap). |
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
-| `NoDoor` | | `Door`: no door on the faced edge. |
+| `NoDoor` | | `Door`: no door on the faced edge. `Cast` at a `Door`: no door on that edge that the party sees or knows of. |
 | `NotOnGround` | `item` | `PickUp`: no pile within reach (the party's cell, the cell it faces across an open edge) holds any of it. |
 | `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
 | `PileFull` | | `Drop`: the cell's pile holds 32 kinds, none of them this one. |
@@ -1266,6 +1289,17 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (targeting, step 6: things of the map): `Target` gains `Door { x, y, facing }`,
+  `Object { object }` and `Being { being }`, so it is no longer `Copy` in Tier 1. On the road `targets.get`
+  lists the doors and objects a spell that works on the world reaches, with `distance` and `sight` filled in
+  (they were 0 and `Clear` for every row). `OutOfSight` is now produced; `NoDoor` and `NoSuchObject` are also
+  `Cast`'s. **A change of behaviour: mage hand no longer opens the first door straight ahead.** `Command::Cast`
+  of it takes a `Door` or an `Object` (a member or a stack is `WrongTarget`) and works that one: a door within
+  its `targeting` in any direction, or an object by the object's own interaction. `Utility::OpenDoor` loads as
+  before; its `range_tiles` is the range when no `targeting` is written. Light and detect magic refuse a thing
+  of the map (`WrongTarget`). A fight's cast is unchanged, and its schema in the MCP tools takes a stack or a
+  member only. `Being` is refused `WrongTarget` until the opening strike is built. No op or rejection is
+  added (49 ops, 74 rejections).
 - 2026-11-14 (targeting, step 3): the op `targets.get` (`Reply::Targets`, `[TargetView]`; Tier 1 `targets`,
   `Chosen`, `Sight`), 49 ops. `Rejection` gains `BeyondRange` and `OutOfSight` (74). A spell's and an item's
   `targeting` is now enforced by `Command::Cast`, `CombatCommand::Cast`, `ItemCommand::Use` and

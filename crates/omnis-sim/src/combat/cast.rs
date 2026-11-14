@@ -14,7 +14,7 @@ use crate::party;
 use crate::world::World;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, ItemId, Pcg32, SpellId};
+use omnis_core::{CharacterId, Facing, ItemId, Pcg32, SpellId};
 use omnis_data::{BuffOn, Cost, Data, Reach, Spell, SpellEffect};
 use omnis_rules::{
     ActiveEffect, EffectKind, Expiry, RollMode, RuleError, cantrip_dice, damage_roll, flags,
@@ -23,13 +23,34 @@ use omnis_rules::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Whom a spell goes to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Whom or what an option goes to. The things of the map (owner, 2026-11-14) are named as
+/// `objects::Choice` names them.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Target {
     /// A stack, by its index in the encounter; the whole stack under `Reach::Stack`.
     Stack(u8),
     /// A member, by identity.
     Member(CharacterId),
+    /// A door of the party's level, by a tile and the edge of it the door stands on; either
+    /// tile of the edge names the same door.
+    Door {
+        /// Column.
+        x: u16,
+        /// Row.
+        y: u16,
+        /// The edge of the tile.
+        facing: Facing,
+    },
+    /// An object of the party's map, by its placement's id.
+    Object {
+        /// The placement's id in the map (`chest_1`).
+        object: String,
+    },
+    /// A group standing in the party's map, by its id.
+    Being {
+        /// The group's id in the map (`rat`).
+        being: String,
+    },
 }
 
 /// A checked target: a member by slot once validation has found them.
@@ -174,13 +195,13 @@ pub(crate) fn validate(
             target: Aim::Party,
         });
     }
-    let aim = match (effect.targets_members(), target) {
+    let aim = match (effect.targets_members(), target.clone()) {
         (true, Target::Member(id)) => {
             let slot = usize::from(world.party.slot_of(id)?);
             if super::state::is_dead(&world.party.members[slot], data) {
                 return Err(Rejection::MemberDead { member: id });
             }
-            crate::targets::in_range(world, data, Some(state), own, def.targeting(), target)?;
+            crate::targets::in_range(world, data, Some(state), own, def.targeting(), &target)?;
             Aim::Member(slot)
         }
         (false, Target::Stack(stack)) => {
@@ -192,7 +213,7 @@ pub(crate) fn validate(
             if !s.alive() {
                 return Err(Rejection::StackDead { stack });
             }
-            crate::targets::in_range(world, data, Some(state), own, def.targeting(), target)?;
+            crate::targets::in_range(world, data, Some(state), own, def.targeting(), &target)?;
             Aim::Stack(stack)
         }
         _ => return Err(Rejection::WrongTarget),

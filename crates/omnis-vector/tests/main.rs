@@ -53,6 +53,7 @@ mod load_report;
 mod log;
 mod look;
 mod loot;
+mod map_targets;
 mod minimap;
 mod notice;
 mod object_lines;
