@@ -564,3 +564,22 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
 - Tests: `tests/fight_palette.rs` (the yard's fight through `common::app::met_in_the_yard`; every text,
   border and background of the world is read and none may keep the other theme's own colours),
   `tests/contrast.rs` (the two sides apart), unit tests in `tones.rs`, `cinema.rs`, `style.rs`.
+
+## Targeting (2026-11-14, `tasks/plans/targeting.md`; the owner's sheet is `tasks/acceptance/targeting.md`)
+- Data: `omnis-data/src/targeting.rs` (`Targeting { range, sees }`, `Range`), read through
+  `Spell::targeting()`, `Item::targeting()`, `ClassFeature::targeting()`; `SpellEffect::strikes()`.
+- Engine: `omnis-sim/src/targets.rs` (`targets`, `Chosen`, `TargetView`, `Sight`; the range rule `in_range`;
+  `spell_rows`, `hand_rows`, `link_rows`), `targets/map.rs` (`Spot`; `door`, `object`, `being` as the party
+  sees or knows them; `placed`, `linked`, `canonical` for links; `within`; `things`, `beings`). `Target` is in
+  `combat/cast.rs` (`Stack`, `Member`, `Door`, `Object`, `Being`; not `Copy`). Each row is judged by the
+  command's own validation: `combat::refusal`, `casting::validate`, `items::use_refusal`.
+- Mage hand: `utility.rs` (`check`, `carry_out`, `HAND` verbs) over `objects::pick` and `perform`.
+- The opening strike: `casting::apply` (a `Being` and `strikes()`), `encounter::struck`, `combat::start_struck`,
+  `turn::strike`, `CombatState.struck`; rules value `opening_strike_surprise` (read with a default of on).
+- Links: `World.links` / `Checkpoint.links` (`world::Links`), `DevCommand::Link`.
+- Client: `omnis-vector/src/targeting.rs` (`Aim`, `content`, `label`, `bearing`, `marked`), `Forms.aim`,
+  `ControlId::Target`, `screen/cast.rs` and `screen/inventory.rs` (`apply`), `combat_menu::listed`,
+  `shell/aim.rs` (`Marked`, `mark`), `shell/render.rs::aim_mark`; the calmer inks are `tones::calm`, `pale`.
+- Tests: sim `targets.rs`, `map_targets.rs`, `opening_strike.rs`, `links.rs`; client `cast.rs`,
+  `map_targets.rs`, `combat_menu.rs`, `contrast.rs`; MCP `schema_proof.rs` (a cast and a link at every
+  shape of target).

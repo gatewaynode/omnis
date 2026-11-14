@@ -1,35 +1,32 @@
 # Continuity notes
 
-Written 2026-11-14. **In progress: calmer fight colours and one targeting flow**
-(`tasks/plans/targeting.md`, approved in plan mode; the TODO item of that name in W2 lists the nine steps).
-The owner tried the fight on the palette and said: the colours are too saturated; and on the road a spell
-for one individual could be aimed at no one but the caster. Their rule: open menu, check requirements, show
-options, select option, select from possible targets, validate, pay, execute; kinds self, touch, range N,
-line of sight, link. Lesson in `tasks/LESSONS.md` (2026-11-14).
-- **Owner's choices**: less glow and paler, fight only; targeting in data plus one engine list, **map
-  targets now** (doors, objects, creatures; an attack spell at a standing group is an opening strike);
-  failed requirements dim with the reason; Dodge, Run, End turn keep one click.
-- **Done and committed (not pushed)**: step 0 `9b82129c` (plan, PRD 7.3/8.2/8.3, ARCHITECTURE 4.5);
-  step 1 `bdf4f387` (`tones::calm`/`pale`; glow cap 1.25, paleness 15%, held there by green-blind
-  contrast of the default inks, which fails at 20%); step 2 `e1aa1d13` (`omnis_data::Targeting`, base
-  0.1.3 hash 8477582243095538951, replays rebaselined); step 3 `4b715dd6` (`omnis_sim::targets`,
-  `targets.get`, 49 tools, `Rejection::BeyondRange`/`OutOfSight`, 74); step 4 `b02628b1`
-  (`omnis-vector/src/targeting.rs`, `Forms.aim`, `ControlId::Target`; Cast and Use open the target step).
-  Gate 1369, then 1370 after step 5.
-- **Reported to the owner as "built, please try"**: step 1 (the fight's colours), step 4 (the bug) and step 5 (the fight's targets). The session was paused there for a compact; steps 6 to 9 are not started. **The owner tried steps 1, 4 and 5 (2026-11-14): "Manually tested, looking good so far. Combat colors are less straining on the eyes. 'Option --> select' seems to work as described."** Not a final acceptance ("so far"); the sheet comes at step 9.
-- **Step 5 done** (the fight menu on the engine's list: `combat_menu::listed`, `Action::Own`; gate 1370).
-  **Next: step 6.** Then step 6 (doors and
-  objects: `Target::Door/Object/Being`, mage hand as a hand through `objects::act::admit`, `Sight`,
-  distance, the 3D `Aimed` mark), 7 (opening strike, `Surprise::Monsters`, rules value
-  `opening_strike_surprise`), 8 (`World.links`, a dev command), 9 (acceptance sheet walking the table arm
-  by arm, code-map, presentation-ARCHITECTURE 6.5, review).
-- **Said plainly so far**: light is Own, burning hands and thunderwave Touch (not the plan's list);
-  `BeyondRange` not `OutOfRange` (taken); `TargetView` has no name; light, detect magic and mage hand
-  still ignore the target sent; monsters' casting does not read targeting; Give still takes the column's
-  selection; nothing of this seen by me (no picture tried yet this session: try `mcp__omnis__screenshot`
-  with the game running before the final report).
-- **Also this session**: the owner's Parva map files under `docs/locations` committed twice, unedited
-  (`a604c193`, `5a3d9b21`).
+Written 2026-11-14, late. **Calmer fight colours and one targeting flow: all nine steps built and committed
+(not pushed); steps 6 to 8 not tried by the owner** (`tasks/plans/targeting.md`; the owner's sheet
+`tasks/acceptance/targeting.md`, which ends with eight decisions; the TODO item of that name in W2 has each
+step's notes and the review).
+- **The owner's rule**: open menu, check requirements, show options, select option, select from possible
+  targets, validate, pay, execute; kinds self, touch, range N, line of sight, link. Lesson in
+  `tasks/LESSONS.md` (2026-11-14).
+- **Commits**: `9b82129c` (0, documents), `bdf4f387` (1, colours), `e1aa1d13` (2, data), `4b715dd6` (3, the
+  list), `b02628b1` (4, road step), `053909ef` (5, fight menu), `478f68cc` (6, doors and objects, mage hand
+  as a hand, the 3D mark), `c156a83b` (7, the opening strike), `f27f2408` (8, links), then step 9's
+  documents. Gate 1387.
+- **Owner's try so far** (steps 1, 4, 5): "Manually tested, looking good so far. Combat colors are less
+  straining on the eyes. 'Option --> select' seems to work as described." Not a final acceptance.
+- **What changed in play since that try**: mage hand takes a chosen door or object (no longer the first door
+  ahead); harmful spells are on the road's Spells list and, sent at a group in sight, start the fight with
+  the monsters surprised and the caster's first action spent; links exist only through a dev command.
+- **Where things are**: the code-map's last section, "Targeting".
+- **Said plainly, still true**: nothing seen on screen by me (the dev socket did not answer; try
+  `mcp__omnis__screenshot` when the owner has the game up); a dim row's outline is untested; light and
+  detect magic accept any member; Give takes the column's selection; monsters' casting does not read
+  targeting; a link names a thing by its name in the party's map; `Target` is not `Copy`.
+- **Open with the owner**: this sheet's eight decisions; the fight-on-the-palette sheet's five; part 3's
+  five (`tasks/acceptance/rendering-size-2-palette.md`); their try of loot everywhere.
+- **Next, in the owner's order**: the HUD's plan or the minimap's, then parts 4 to 6 of rendering size 2.
+- **Process notes**: the mutation runner is `mut-sim.py <spec>` in the scratchpad (integration tests only;
+  a mutant that does not compile proves nothing); MCP pinned counts live in `tests/api_doc.rs`,
+  `tests/schema_proof.rs` (136 commands, 194 branches) and `src/schema.rs`'s unit test.
 
 **Before that** (written 2026-11-13, evening). **The fight screen and the picture window are on the palette: built, not
 yet tried by the owner** (`tasks/plans/fight-on-the-palette.md`, approved in plan mode;
