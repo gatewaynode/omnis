@@ -12,6 +12,7 @@ use crate::cinema::{self, Drawing, Scene};
 use crate::combat_menu::Pick;
 use crate::labels;
 use crate::sim::Views;
+pub use crate::tones::{Side, Tone};
 use omnis_sim::ActorRef;
 use omnis_sim::omnis_data::{Data, Size};
 
@@ -561,27 +562,6 @@ pub fn arena(
     })
 }
 
-/// What a line is, for its colour.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tone {
-    /// A figure on its feet.
-    Figure,
-    /// A figure that is down, and its mark.
-    Down,
-    /// A dead figure, and its mark.
-    Dead,
-    /// A health bar's frame.
-    Bar,
-    /// A health bar's fill.
-    Health,
-    /// The frame round whoever is acting.
-    Acting,
-    /// The frame round a valid target.
-    Target,
-    /// The frame round the target under the pointer.
-    Hover,
-}
-
 /// A line to draw.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Seg2 {
@@ -632,12 +612,12 @@ fn brackets(r: &Rect, tone: Tone, out: &mut Vec<Seg2>) {
     }
 }
 
-/// A figure's lines, its mark when down or dead, and its health bar.
-fn figure(f: &Figure, out: &mut Vec<Seg2>) {
+/// A figure of `side`: its lines, its mark when down or dead, and its health bar.
+fn figure(f: &Figure, side: Side, out: &mut Vec<Seg2>) {
     let tone = match f.state {
-        State::Standing => Tone::Figure,
-        State::Down => Tone::Down,
-        State::Dead => Tone::Dead,
+        State::Standing => Tone::Figure(side),
+        State::Down => Tone::Down(side),
+        State::Dead => Tone::Dead(side),
     };
     for line in &f.lines {
         for pair in line.windows(2) {
@@ -691,8 +671,9 @@ const TARGET_FRAME: f32 = 5.0;
 pub fn segments(arena: &Arena) -> Vec<Seg2> {
     let mut out = Vec::new();
     for group in arena.groups() {
+        let side = Side::of(group.pick);
         for f in &group.figures {
-            figure(f, &mut out);
+            figure(f, side, &mut out);
         }
         let Some(bounds) = group.bounds() else {
             continue;
@@ -701,7 +682,7 @@ pub fn segments(arena: &Arena) -> Vec<Seg2> {
         if marks.acting == Some(group.pick) {
             brackets(
                 &bounds.grown(ACTING_FRAME).within(&group.slot),
-                Tone::Acting,
+                Tone::Acting(side),
                 &mut out,
             );
         }
@@ -817,7 +798,7 @@ mod tests {
         };
         let reach = |health| {
             let mut out = Vec::new();
-            figure(&full(health), &mut out);
+            figure(&full(health), Side::Party, &mut out);
             out.iter()
                 .filter(|s| s.tone == Tone::Health)
                 .map(|s| s.b.0 - s.a.0)

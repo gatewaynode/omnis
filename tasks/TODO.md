@@ -816,7 +816,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   interface ink, other screens staying green until the HUD's plan. The fixture is the `objects` pack's
   yard (biosphere ember, an encounter at 5,1); no fixture changes.
   - [x] Step 0: the plan and this item.
-  - [ ] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette).
+  - [x] Step 1: the arena's inks (`Tone` with sides, `tones::ink`, `shell/combat.rs` reads the palette). Gate 1345. Four mutations caught. Found: the default party ink is the interface's hue, twice as bright, so party figures and bars differ by brightness and shape, not hue; the two sides are apart for every vision.
   - [ ] Step 2: the picture window in the hostile ink, repainted when the inks change.
   - [ ] Step 3: `style::Theme`, `shell/theme.rs`, every node of the fight on it.
   - [ ] Step 4: acceptance sheet, presentation-ARCHITECTURE 7 and 9, code-map, review, continuity.

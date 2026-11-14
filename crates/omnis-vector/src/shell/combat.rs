@@ -16,11 +16,13 @@ use super::screen::{Arrow, FightPress, Screens, ctx};
 use super::screen_draw::{Mark, build};
 use super::session::Session;
 use super::{VectorSet, ViewState};
-use crate::arena::{Arena, Rect, Tone, arena, pick, picker, zoom};
+use crate::arena::{Arena, Rect, arena, pick, picker, zoom};
 use crate::cinema::opening;
 use crate::combat_menu::{CombatMenu, Pick, Step};
 use crate::screen::fight::{self, Place};
 use crate::screen::{self, ControlId, Key, Payload, Screen as Controls, ScreenId, Span};
+use crate::style::Palette;
+use crate::tones::ink;
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -493,32 +495,24 @@ fn cameras<const FIGHT: bool>(
     commands.entity(on).insert(IsDefaultUiCamera);
 }
 
-/// The colour of each kind of line: figures bright green, the fallen dim, the dead red, the one
-/// acting amber, targets cyan, the hovered target white. Values above 1.0 bloom.
-fn colour(tone: Tone) -> LinearRgba {
-    let (r, g, b) = match tone {
-        Tone::Figure => (0.15, 3.0, 0.5),
-        Tone::Down => (0.05, 0.7, 0.15),
-        Tone::Dead => (2.6, 0.2, 0.15),
-        Tone::Bar => (0.08, 0.9, 0.25),
-        Tone::Health => (0.2, 2.2, 0.4),
-        Tone::Acting => (3.2, 1.6, 0.2),
-        Tone::Target => (0.2, 1.8, 3.0),
-        Tone::Hover => (3.0, 3.0, 3.0),
-    };
-    LinearRgba::rgb(r, g, b)
-}
-
 /// Draw the screen's lines. The layout's y runs down from the top left; the camera's runs up
 /// from the centre.
-fn draw(screen: Res<FightScreen>, mut gizmos: Gizmos<CombatGizmos>) {
+fn draw(screen: Res<FightScreen>, session: Res<Session>, mut gizmos: Gizmos<CombatGizmos>) {
     let Some(laid) = &screen.arena else {
         return;
     };
+    let palette = palette(&session);
     let (w, h) = (laid.layout.window.w, laid.layout.window.h);
     let z = screen.zoom;
     let to = |(x, y): (f32, f32)| Vec2::new(x - w / 2.0, h / 2.0 - y) * z;
     for s in crate::arena::segments(laid) {
-        gizmos.line_2d(to(s.a), to(s.b), colour(s.tone));
+        let [r, g, b] = ink(s.tone, &palette);
+        gizmos.line_2d(to(s.a), to(s.b), LinearRgba::rgb(r, g, b));
     }
+}
+
+/// The palette a fight is drawn in: that of the map the party stands on, as the 3D view's is.
+#[must_use]
+pub fn palette(session: &Session) -> Palette {
+    Palette::of(session.data.biosphere_of(session.views.position.map))
 }

@@ -9,7 +9,7 @@ use crate::common::views;
 use common::fight::{met, turn_of};
 use common::id;
 use omnis_sim::Mode;
-use omnis_vector::arena::{Arena, Group, Rect, State, Tone, arena, pick, segments};
+use omnis_vector::arena::{Arena, Group, Rect, Side, State, Tone, arena, pick, segments};
 use omnis_vector::combat_menu::{CombatMenu, Pick};
 use omnis_vector::shell::session::Session;
 use omnis_vector::sim::SimWorld;
@@ -251,8 +251,12 @@ fn the_marks_frame_whoever_acts_and_the_targets() {
             "Durin acts"
         );
         let durin = group(&plain, Pick::Member(id(world, 1))).slot;
-        let acting = tones(&plain, Tone::Acting);
+        let acting = tones(&plain, Tone::Acting(Side::Party));
         assert_eq!(acting.len(), 8, "four corner brackets");
+        assert!(
+            tones(&plain, Tone::Acting(Side::Monsters)).is_empty(),
+            "a member acts, so the brackets are the party's"
+        );
         assert!(
             acting
                 .iter()
@@ -297,12 +301,33 @@ fn a_member_at_zero_is_drawn_down_with_an_empty_bar() {
     let brenna = &group(&arena, Pick::Member(id(&world, 0))).figures[0];
     assert_eq!(brenna.state, State::Down);
     assert!(brenna.health == 0.0);
-    let down = tones(&arena, Tone::Down);
+    let down = tones(&arena, Tone::Down(Side::Party));
     assert!(!down.is_empty());
     assert!(
         down.iter()
             .all(|s| brenna.rect.contains(s.a) && brenna.rect.contains(s.b))
     );
+}
+
+/// The two sides are drawn apart (owner, 2026-11-13): every line of a member's figure is the
+/// party's and every line of a monster's the monsters', each inside its own group's slot.
+#[test]
+fn a_member_s_figure_is_the_party_s_and_a_monster_s_the_monsters() {
+    let session = met();
+    let arena = laid_out(&session, SIZES[0]);
+    for (side, other) in [(Side::Party, Side::Monsters), (Side::Monsters, Side::Party)] {
+        let lines = tones(&arena, Tone::Figure(side));
+        assert!(!lines.is_empty(), "{side:?} has figures");
+        for s in &lines {
+            let inside = arena
+                .groups()
+                .filter(|g| g.slot.contains(s.a) && g.slot.contains(s.b))
+                .map(|g| Side::of(g.pick))
+                .collect::<Vec<_>>();
+            assert!(inside.contains(&side), "{side:?} line in its own slot");
+            assert!(!inside.contains(&other), "and not in a slot of {other:?}");
+        }
+    }
 }
 
 /// The pickers' panel covers the picture, the action column and the title, stops above the roll

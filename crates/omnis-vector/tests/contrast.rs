@@ -132,3 +132,25 @@ fn a_distance_is_between_what_the_line_shows_as_the_vision_takes_it() {
     assert!(distance(blue, teal, Vision::Tritanopia) < distance(blue, teal, Vision::Full) * 0.75);
     assert_eq!(Vision::Full.sees([0.3, 0.2, 0.1]), [0.3, 0.2, 0.1]);
 }
+
+/// The fight draws the party's and the hostile ink side by side (owner, 2026-11-13): the two
+/// are apart for every kind of colour vision in the default palette and in the yard's. (The
+/// default's party ink is the interface's hue, twice as bright: the party's figures and the
+/// bars differ there by brightness and shape, not hue.)
+#[test]
+fn the_two_sides_of_a_fight_are_apart_for_every_vision() {
+    let objects = common::objects_data();
+    for (name, palette) in [
+        ("the default", Palette::default()),
+        ("ember", biosphere(&objects, "objects:biosphere:ember")),
+    ] {
+        for vision in Vision::ALL {
+            let d = distance(
+                palette.ink(ColourRole::Party),
+                palette.ink(ColourRole::Hostile),
+                vision,
+            );
+            assert!(d >= APART, "{name}: the sides to {vision:?}: {d}");
+        }
+    }
+}

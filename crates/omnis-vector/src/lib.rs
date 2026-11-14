@@ -44,4 +44,5 @@ pub mod shell;
 pub mod sim;
 pub mod strokes;
 pub mod style;
+pub mod tones;
 pub mod trial;

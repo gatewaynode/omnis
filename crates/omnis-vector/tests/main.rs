@@ -36,6 +36,7 @@ mod editor_select;
 mod editor_stamp;
 mod editor_start;
 mod fight;
+mod fight_palette;
 mod fight_screen;
 mod fill;
 mod found;

@@ -235,17 +235,32 @@ pub fn rest(app: &mut App) {
 /// An app with the party three cells north of the dungeon's placed group, walked into it with
 /// the Forward button, so the encounter is the simulation's own.
 pub fn met_with(seed: u64) -> App {
-    let mut app = app_with(PathBuf::from(".omnis/vector-session.ron"), seed);
+    let app = app_with(PathBuf::from(".omnis/vector-session.ron"), seed);
+    walked_into(app, "test:map:dungeon", (3, 6, Facing::South))
+}
+
+/// An app with the party beside the yard's two pack rats, walked into them: a fight on a map
+/// whose biosphere (ember) writes every role's ink.
+pub fn met_in_the_yard() -> App {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut packs = config().packs;
+    packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
+    let app = shell(Config { packs, ..config() }, true);
+    walked_into(app, "objects:map:yard", (3, 1, Facing::East))
+}
+
+/// Put the party at `(x, y, facing)` on `map` and hold Forward until an encounter is met.
+fn walked_into(mut app: App, map: &str, (x, y, facing): (u16, u16, Facing)) -> App {
     app.update();
     {
         let mut session = app.world_mut().resource_mut::<Session>();
-        let dungeon = super::map(&session.data, "test:map:dungeon");
+        let map = super::map(&session.data, map);
         session.world.position = Position {
-            map: dungeon,
+            map,
             level: omnis_sim::omnis_core::Level::GROUND,
-            x: 3,
-            y: 6,
-            facing: Facing::South,
+            x,
+            y,
+            facing,
         };
         session.pose = Pose::at(session.world.position);
         session.refresh();
