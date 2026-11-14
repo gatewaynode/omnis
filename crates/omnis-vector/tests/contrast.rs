@@ -6,6 +6,7 @@ use crate::common;
 use omnis_sim::omnis_data::{ColourRole, Data};
 use omnis_vector::contrast::{APART, Clash, DRAWN, FROM_DARK, Vision, clashes, distance, shown};
 use omnis_vector::style::Palette;
+use omnis_vector::tones::{Side, Tone, ink};
 
 fn biosphere(data: &Data, id: &str) -> Palette {
     Palette::of(Some(
@@ -145,9 +146,12 @@ fn the_two_sides_of_a_fight_are_apart_for_every_vision() {
         ("ember", biosphere(&objects, "objects:biosphere:ember")),
     ] {
         for vision in Vision::ALL {
+            // As the fight draws them: calmed (paler, less glow), which brings them closer. The
+            // default's two are 0.14 apart to a green-blind eye as written and 0.107 at
+            // `tones::PALE` 0.15; at 0.2 they fall under the line, which is what holds it there.
             let d = distance(
-                palette.ink(ColourRole::Party),
-                palette.ink(ColourRole::Hostile),
+                ink(Tone::Figure(Side::Party), &palette),
+                ink(Tone::Figure(Side::Monsters), &palette),
                 vision,
             );
             assert!(d >= APART, "{name}: the sides to {vision:?}: {d}");

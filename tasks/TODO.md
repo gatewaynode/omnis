@@ -838,7 +838,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   objects and creatures, an attack spell at a standing group being an opening strike); failed
   requirements dim with the reason; Dodge, Run and End turn keep one click.
   - [x] Step 0: the plan, this item, PRD and ARCHITECTURE lines, the lesson.
-  - [ ] Step 1: calmer fight colours (`tones.rs`, `cinema.rs`). Reported "built, please try" when it lands.
+  - [x] Step 1: calmer fight colours (`tones::calm`, `pale`; `cinema::Inks`). Gate 1354. Three mutations caught. A side's ink glows no further than 1.25 (the default's hostile ink was 3.0) and is mixed 15% toward white; the marks are the interface's ink without its glow at 0.9, 1.4 and 1.8, hover white at 2.2 (they were 0.9, 2.2, 3.0 and 3.0); the picture window's ink is paler by the same 15%. Departure from the plan's starting value, measured: 35% paleness put the default's two sides 0.073 apart to a green-blind eye, under the 0.1 line; 15% is 0.107 and 20% already fails, so more paleness needs the default party or hostile ink moved. Not seen by me.
   - [ ] Step 2: `Targeting` in data; base written out in SRD terms, resealed, replays rebaselined.
   - [ ] Step 3: the engine's list and shared check for members and stacks (`targets`, `targets.get`, MCP).
   - [ ] Step 4: the road's target step (cast and inventory Use). Closes the reported bug; "built, please try".

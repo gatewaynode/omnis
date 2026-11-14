@@ -8,6 +8,7 @@
 use crate::contrast::shown;
 use crate::raster::Raster;
 use crate::style::{Palette, Theme, srgb};
+use crate::tones::pale;
 use omnis_sim::CombatView;
 use omnis_sim::omnis_core::MonsterId;
 use omnis_sim::omnis_data::{ColourRole, Data};
@@ -42,10 +43,11 @@ pub struct Inks {
 
 impl Inks {
     /// The inks of `palette`: the hostile ink as the screen shows it, its glow taken out since
-    /// the picture is an image and does not bloom, and a quarter of that light for the halo.
+    /// the picture is an image and does not bloom, paler as the arena's figures are
+    /// ([`pale`]), and a quarter of that light for the halo.
     #[must_use]
     pub fn of(palette: &Palette) -> Inks {
-        let light = shown(palette.ink(ColourRole::Hostile));
+        let light = pale(shown(palette.ink(ColourRole::Hostile)));
         let bytes = |k: f32| {
             let [r, g, b] = light.map(|c| srgb(c * k));
             [r, g, b, 255]
@@ -187,6 +189,7 @@ pub fn paint(scene: Scene, width: u32, height: u32, inks: Inks) -> Raster {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tones::PALE;
 
     fn inks() -> Inks {
         Inks::of(&Palette::default())
@@ -203,8 +206,14 @@ mod tests {
         // (Every channel is over the ground's: strokes lighten, so a darker one would keep it.)
         palette.inks[ColourRole::Hostile.index()] = [2.0, 1.0, 0.2];
         let inks = Inks::of(&palette);
-        assert_eq!(inks.line, [255, srgb(0.5), srgb(0.1), 255]);
-        assert_eq!(inks.glow, [srgb(0.25), srgb(0.125), srgb(0.025), 255]);
+        // Paler, as the arena's figures are: each channel part-way to the brightest.
+        let [r, g, b] = pale([1.0, 0.5, 0.1]);
+        assert_eq!([r, g, b], [1.0, 0.5 + 0.5 * PALE, 0.1 + 0.9 * PALE]);
+        assert_eq!(inks.line, [255, srgb(g), srgb(b), 255]);
+        assert_eq!(
+            inks.glow,
+            [srgb(r * HALO), srgb(g * HALO), srgb(b * HALO), 255]
+        );
         assert_eq!(inks.ground, ground(&palette));
         assert_eq!(
             ground(&Palette::default()),

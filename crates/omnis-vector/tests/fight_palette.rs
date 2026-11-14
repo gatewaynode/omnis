@@ -12,7 +12,7 @@ use omnis_vector::shell::icons::NeedsIcon;
 use omnis_vector::shell::session::Session;
 use omnis_vector::shell::theme::Theme;
 use omnis_vector::style::{self, Palette, Role};
-use omnis_vector::tones::{Side, Tone, ink};
+use omnis_vector::tones::{Side, Tone, calm, ink};
 
 /// In the dungeon, which names no biosphere, the default; in the yard, its region's ember, so
 /// the two sides and the bars are drawn in ember's inks.
@@ -33,7 +33,9 @@ fn a_fight_is_drawn_in_the_palette_of_its_map() {
         (Tone::Figure(Side::Party), ColourRole::Party),
         (Tone::Figure(Side::Monsters), ColourRole::Hostile),
     ] {
-        assert_eq!(ink(tone, &drawn), ember.ink(role));
+        // The palette's ink, calmed for the fight (owner, 2026-11-14): never the raw glow.
+        assert_eq!(ink(tone, &drawn), calm(ember.ink(role)));
+        assert_ne!(ink(tone, &drawn), ember.ink(role));
         assert_ne!(ink(tone, &drawn), ink(tone, &Palette::default()));
     }
 }
@@ -78,8 +80,11 @@ fn the_picture_window_is_painted_in_the_fight_s_hostile_ink() {
         let (first, core) = picture(&mut app, inks.line);
         assert!(core > 100, "the enemy's lines in the fight's ink");
         if ember {
-            // Ember's hostile ink as written in the pack, its glow taken out.
-            assert_eq!(inks.line, [255, 77, 187, 255]);
+            // Ember's hostile ink as written in the pack is (255, 77, 187), its glow taken
+            // out; the picture's is that, paler (owner, 2026-11-14): green and blue lifted.
+            let [r, g, b, _] = inks.line;
+            assert_eq!(r, 255);
+            assert!((78..135).contains(&g) && (188..205).contains(&b), "{g} {b}");
             assert_eq!(
                 picture(&mut app, default.line).1,
                 0,
