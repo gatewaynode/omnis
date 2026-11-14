@@ -783,3 +783,14 @@
   screen, list the other screens that do the same kind of thing and say what each does.
 - **Rule** (tuning): brightness and saturation factors I could not see are reported as untuned, and the
   owner's first try will find them; get a picture before reporting where a picture can be had.
+
+## 2026-11-14: the fight's scale is the SRD's; a recommendation must not bend it to fit an abstraction
+- **What happened**: planning distances, I found that base's ranges were written at 5 ft a tile while a
+  whole party and whole groups stand on one tile, and recommended a 15 ft tile so a per-square cap would
+  fit. The owner: "Combat should try to stay consistent with the SRD rules, so 5x5' square", and maps
+  outside combat will need their own scales.
+- **Rule**: where the SRD gives a unit (the five-foot square, feet, rounds), the fight uses it as written.
+  When an abstraction of ours (the party on one tile) does not fit the unit, the abstraction is what gets
+  a seam (a map states its scale), not the unit. This is [[srd-is-the-default-direction]] applied to scale.
+- **Rule**: when offering options, do not mark as recommended one that departs from the SRD merely
+  because it makes our existing data consistent.
