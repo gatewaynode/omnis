@@ -498,11 +498,8 @@ pub fn arena(
             } else {
                 labels::text(data, &stack.name).to_owned()
             };
-            let text = if stack.in_front {
-                text
-            } else {
-                format!("{text}  {} ft", stack.distance)
-            };
+            // How far off it stands, always (owner, 2026-11-14): five feet is engaged.
+            let text = format!("{text}  {} ft", stack.distance);
             let kind = Kind {
                 drawing: cinema::drawing(Scene::Enemy(id)),
                 stature: stature(monster.size),

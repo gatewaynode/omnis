@@ -96,7 +96,7 @@ fn meeting_the_group_switches_to_the_fight_screen() {
     // A name label for the rats and each member.
     let mut texts = world.query::<&Text>();
     let texts: Vec<&str> = texts.iter(world).map(|t| t.0.as_str()).collect();
-    for name in ["Giant Rat", "Brenna", "Durin", "Ilvara", "Pip"] {
+    for name in ["Giant Rat  5 ft", "Brenna", "Durin", "Ilvara", "Pip"] {
         assert!(texts.contains(&name), "{name} labelled in {texts:?}");
     }
 }

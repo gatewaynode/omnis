@@ -24,11 +24,19 @@ pub enum Tool {
     Spells,
     /// The party's quests.
     Journal,
+    /// A weapon attack from the road at a group in sight (the opening strike).
+    Attack,
 }
 
 impl Tool {
     /// Every tool, in the order the row shows them.
-    pub const ALL: [Tool; 4] = [Tool::Sheet, Tool::Inventory, Tool::Spells, Tool::Journal];
+    pub const ALL: [Tool; 5] = [
+        Tool::Sheet,
+        Tool::Inventory,
+        Tool::Spells,
+        Tool::Attack,
+        Tool::Journal,
+    ];
 
     /// The button's word.
     #[must_use]
@@ -38,18 +46,31 @@ impl Tool {
             Tool::Inventory => "Inventory",
             Tool::Spells => "Spells",
             Tool::Journal => "Journal",
+            Tool::Attack => "Attack",
         }
     }
 
-    /// Why it cannot be opened for `member` now: the journal arrives with quests, and Spells
-    /// needs a spell for the road.
+    /// Why it cannot be opened for `member` now: the journal arrives with quests, Spells needs
+    /// a spell for the road, and Attack a group in sight that the member's weapon reaches (in
+    /// a fight the turn's menu attacks).
     #[must_use]
-    pub fn why_not(self, game: Game, member: CharacterId) -> Option<&'static str> {
+    pub fn why_not(self, data: &Data, game: Game, member: CharacterId) -> Option<String> {
         match self {
             Tool::Sheet | Tool::Inventory => None,
             Tool::Spells => (!game.views.casts.iter().any(|c| c.caster == member))
-                .then_some("No spells for the road"),
-            Tool::Journal => Some("No quests yet"),
+                .then(|| "No spells for the road".to_owned()),
+            Tool::Journal => Some("No quests yet".to_owned()),
+            Tool::Attack if game.views.combat.is_some() => {
+                Some("In a fight the turn's menu attacks".to_owned())
+            }
+            Tool::Attack => {
+                let aim = crate::targeting::Aim::attack(member);
+                let seen = !aim.targets(data, game).is_empty();
+                match aim.blocked(data, game) {
+                    Some(_) if !seen => Some("No one in sight".to_owned()),
+                    why => why,
+                }
+            }
         }
     }
 
@@ -60,6 +81,7 @@ impl Tool {
             Tool::Inventory => Some(super::ScreenId::Inventory),
             Tool::Spells => Some(super::ScreenId::Cast),
             Tool::Sheet => Some(super::ScreenId::Sheet),
+            Tool::Attack => Some(super::ScreenId::Actions),
             Tool::Journal => None,
         }
     }
@@ -175,7 +197,7 @@ pub fn content(data: &Data, game: Game, selected: Option<CharacterId>) -> Panel 
                 Tool::ALL
                     .iter()
                     .map(|t| Control {
-                        why_not: t.why_not(game, m.member).map(str::to_owned),
+                        why_not: t.why_not(data, game, m.member),
                         ..Control::button(ControlId::Open(*t), t.label())
                     })
                     .collect(),

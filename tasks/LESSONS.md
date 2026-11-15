@@ -806,3 +806,18 @@ reason of their own while Dodge beside them gave the engine's.
   kept only for the case with no rows at all.
 - When a new rule spends something before the player's turn (the strike's action), walk every entry of
   the menu in that state and read what each says.
+
+## 2026-11-14: what a member does is entered from the member; a number that matters is always on screen
+
+The owner tried combat in feet and wrote "There is no functionality to shoot a mundane weapon like Pip's
+shortbow from a range": the road's Attack was built, but only under the square's actions (Space), with the
+attacker chosen afterwards. And of the distances: "there is no UI for distance, like a small text indicator
+next to foes indicating how far away they are at any given time": the feet showed only on stacks that were
+not engaged, and in the yard the rats are engaged before the first turn.
+
+- An action one member takes gets its entry on that member (the party column's row, beside Spells), as
+  well as wherever else it fits. Ask "where will the owner look for this?" before choosing the screen.
+- A quantity the rules now turn on is shown always, not only when it is unusual. A label that appears in
+  one state reads as missing in the other.
+- A feature the fixture cannot show (Advance, in a yard where the rats close in one move) is said so in
+  the sheet, with a place where it can be seen, before the owner goes looking.

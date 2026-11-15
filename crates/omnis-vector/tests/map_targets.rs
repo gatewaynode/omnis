@@ -342,3 +342,97 @@ fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
     let any = list.panels[0].rows.iter().flat_map(|r| &r.controls);
     assert!(!any.into_iter().any(|c| c.label == "Attack..."));
 }
+
+/// The party column's Attack on a member's entry (the owner's QA note, 2026-11-14: "no
+/// functionality to shoot a mundane weapon like Pip's shortbow from a range"): it opens the
+/// square's actions on the attack's target step with that member the attacker, and the row
+/// starts the fight. Dim with the reason when no group is in sight or nothing of theirs reaches.
+#[test]
+fn a_member_s_attack_in_the_column_opens_the_target_step_and_the_fight() {
+    let mut app = common::app::in_the_yard((3, 1, Facing::East));
+    let (pip, ilvara) = {
+        let members = &app.world().resource::<Session>().views.party.members;
+        (members[3].member, members[2].member)
+    };
+    let press = |app: &mut App, side: Option<Side>, pressable: Option<Pressable>| {
+        if let Some(m) = side {
+            common::app::set(app, &m, Pointing::Press);
+        }
+        if let Some(m) = pressable {
+            common::app::set(app, &m, Pointing::Press);
+        }
+        app.update();
+        common::app::rest(app);
+        app.update();
+    };
+    press(&mut app, Some(Side(ControlId::Member(pip))), None);
+    press(&mut app, Some(Side(ControlId::Open(Tool::Attack))), None);
+    {
+        let session = app.world().resource::<Session>();
+        let screens = app.world().resource::<Screens>();
+        assert_eq!(
+            screens.nav.top(Some(&session.views)),
+            Some(ScreenId::Actions)
+        );
+        assert_eq!(screens.forms.aim, Some(Aim::attack(pip)), "Pip attacks");
+    }
+    press(&mut app, None, Some(Pressable(ControlId::Target(0))));
+    let session = app.world().resource::<Session>();
+    assert!(
+        session.views.combat.is_some(),
+        "the shortbow opened the fight"
+    );
+    assert!(
+        session.fight_log.iter().any(|l| l.starts_with("Pip ")),
+        "{:?}",
+        session.fight_log
+    );
+
+    // The reasons, as the column words them.
+    let data = common::objects_data();
+    let why = |x, y, facing, member| {
+        let world = crate::loot::yard(&data, x, y, facing);
+        let views = common::views(&world, &data);
+        let context = ctx(&data, &world, &views);
+        Tool::Attack.why_not(&data, context.game.unwrap(), member)
+    };
+    assert_eq!(why(3, 1, Facing::East, pip), None);
+    assert_eq!(
+        why(5, 4, Facing::North, pip).as_deref(),
+        Some("No one in sight")
+    );
+    assert!(
+        why(3, 1, Facing::East, ilvara).is_some(),
+        "no bow, two tiles off"
+    );
+    // In a fight the turn's menu attacks, not the column.
+    let mut world = crate::loot::yard(&data, 3, 1, Facing::East);
+    let strike = Command::Attack {
+        member: pip,
+        target: Target::Being {
+            being: "rat".into(),
+        },
+    };
+    world.apply(&data, strike).expect("the strike");
+    if world.combat(&data).is_some() {
+        let views = common::views(&world, &data);
+        let context = ctx(&data, &world, &views);
+        assert_eq!(
+            Tool::Attack
+                .why_not(&data, context.game.unwrap(), pip)
+                .as_deref(),
+            Some("In a fight the turn's menu attacks")
+        );
+    }
+    // The attacker handed over by the column is for the square's actions alone, and once.
+    let mut forms = Forms::default();
+    forms.attacker = Some(pip);
+    forms.shown(Some(ScreenId::Cast), None);
+    assert_eq!((forms.aim.clone(), forms.attacker), (None, None));
+    forms.shown(Some(ScreenId::Actions), None);
+    assert_eq!(forms.aim, None, "taken already");
+    forms.shown(Some(ScreenId::Cast), None);
+    forms.attacker = Some(pip);
+    forms.shown(Some(ScreenId::Actions), None);
+    assert_eq!(forms.aim, Some(Aim::attack(pip)));
+}

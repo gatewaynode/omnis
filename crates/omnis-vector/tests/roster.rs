@@ -154,7 +154,7 @@ fn an_entry_selects_its_member_and_the_screens_open_under_them() {
     let text = lines(&panel);
     let at = text
         .iter()
-        .position(|l| l == "Sheet | Inventory | Spells | Journal");
+        .position(|l| l == "Sheet | Inventory | Spells | Attack | Journal");
     let entry = text
         .iter()
         .position(|l| l.starts_with(&session.views.party.members[0].name));
@@ -196,6 +196,7 @@ fn each_screen_is_dim_with_its_reason_until_it_can_open() {
             ("Sheet".into(), None),
             ("Inventory".into(), None),
             ("Spells".into(), Some("No spells for the road".into())),
+            ("Attack".into(), Some("No one in sight".into())),
             ("Journal".into(), Some("No quests yet".into())),
         ]
     );

@@ -116,6 +116,11 @@ pub(super) fn route(
         Ok(RosterEffect::Open { tool, member, .. }) => {
             if let Some(screen) = tool.screen() {
                 screens.forms.owner = Some(member);
+                // The attack opens on its target step, with this member the attacker.
+                screens.forms.attacker = (tool == roster::Tool::Attack).then_some(member);
+                if tool == roster::Tool::Attack && screens.forms.seen_top() == Some(screen) {
+                    screens.forms.aim = Some(crate::targeting::Aim::attack(member));
+                }
                 screens.nav.show(screen, Some(&session.views));
             }
         }

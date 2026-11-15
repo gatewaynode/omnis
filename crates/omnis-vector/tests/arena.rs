@@ -65,7 +65,7 @@ fn the_rats_stand_above_the_party_in_its_two_rows() {
         let rats = &arena.stacks[0];
         assert_eq!(rats.pick, Pick::Stack(0));
         assert_eq!(rats.figures.len(), 2, "a figure per rat");
-        assert_eq!(rats.label.text, "Giant Rat");
+        assert_eq!(rats.label.text, "Giant Rat  5 ft", "its distance, always");
         let picks: Vec<Pick> = arena.members.iter().map(|g| g.pick).collect();
         let marching = session
             .world
@@ -147,10 +147,7 @@ fn a_stack_behind_stands_higher_and_smaller_and_a_crowd_shows_its_count() {
         );
         assert_eq!(back.figures.len(), 8, "no more than eight drawn");
         assert_eq!(back.label.text, "Giant Rat x12  15 ft", "and how far off");
-        assert_eq!(
-            front.label.text, "Giant Rat",
-            "an engaged stack says no distance"
-        );
+        assert_eq!(front.label.text, "Giant Rat  5 ft", "engaged is five feet");
         let (f, b) = (&front.figures[0].rect, &back.figures[0].rect);
         assert!(b.bottom() < f.y, "behind stands higher: {b:?} over {f:?}");
         assert!(b.h < f.h, "and smaller");

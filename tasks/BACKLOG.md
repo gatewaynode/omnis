@@ -9,6 +9,9 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
 `DevCommand::Pass`, the `data.*` ops, `scripts/mcp-probe.py`, the rhai Socket re-audit.
 
 ## Interface
+- **An initiative order widget on the fight screen** (owner's QA note on combat in feet, 2026-11-14: "Backlog a
+  future order UI widget"). Who acts next and after, read from `CombatView.order` and `current`; today the order
+  is one line of the log at the fight's start.
 - **The HUD clock line has lost the date** (found at P9).
   - The player sees "Day 40 14:20", counted from the party's age.
   - The retired client showed the date and the age: "Year 1 day 40 14:20 night  age 2y 40d", with narrower forms for

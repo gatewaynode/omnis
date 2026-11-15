@@ -754,6 +754,9 @@ pub struct Forms {
     /// The option chosen on the road whose target is being chosen (a spell, an item's use);
     /// cleared when the screen changes, on Back and once a target is chosen.
     pub aim: Option<crate::targeting::Aim>,
+    /// The member whose Attack in the party column opens the square's actions on the attack's
+    /// target step: taken when that screen is shown.
+    pub attacker: Option<omnis_sim::omnis_core::CharacterId>,
     /// The hit dice each member is to spend at camp, by index into the rest view's members;
     /// cleared when the screen changes and after a short rest.
     pub dice: Vec<u8>,
@@ -792,12 +795,25 @@ impl Forms {
         }
     }
 
+    /// The top screen the forms last saw.
+    #[must_use]
+    pub const fn seen_top(&self) -> Option<ScreenId> {
+        self.seen.0
+    }
+
     /// The screens now shown: a new top screen clears the last outcome, and entering a service
     /// clears the bank's amount.
     pub fn shown(&mut self, top: Option<ScreenId>, base: Option<ScreenId>) {
         if top != self.seen.0 {
             self.message = None;
             self.aim = None;
+            if let Some(member) = self
+                .attacker
+                .take()
+                .filter(|_| top == Some(ScreenId::Actions))
+            {
+                self.aim = Some(crate::targeting::Aim::attack(member));
+            }
             self.dice.clear();
             self.tactics = tactics::TacticsForm::default();
             self.settings = None;

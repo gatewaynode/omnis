@@ -249,6 +249,31 @@ pub fn met_in_the_yard() -> App {
     walked_into(app, "objects:map:yard", (3, 1, Facing::East))
 }
 
+/// A game on the road in the objects fixture's yard at `(x, y, facing)`: the two pack rats stand
+/// at (5, 1).
+pub fn in_the_yard((x, y, facing): (u16, u16, Facing)) -> App {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut packs = config().packs;
+    packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
+    let mut app = shell(Config { packs, ..config() }, true);
+    app.update();
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let map = super::map(&session.data, "objects:map:yard");
+        session.world.position = Position {
+            map,
+            level: omnis_sim::omnis_core::Level::GROUND,
+            x,
+            y,
+            facing,
+        };
+        session.pose = Pose::at(session.world.position);
+        session.refresh();
+    }
+    app.update();
+    app
+}
+
 /// Put the party at `(x, y, facing)` on `map` and hold Forward until an encounter is met.
 fn walked_into(mut app: App, map: &str, (x, y, facing): (u16, u16, Facing)) -> App {
     app.update();
