@@ -11,7 +11,13 @@ For step 9: `MapState.door_damage`/`broken_doors` and a new journal `Change`, `M
 broken door counts as open, `DoorMake::numbers()`, `breaking::strike` generalised from `Thing` (an object) to a door,
 `targets::durable` lists doors (a test in `breaking.rs` pins that it does not yet), `EdgeView::Door` gains damage and
 broken, events `DoorDamaged`/`DoorBroken`. The client already lists and strikes durable objects through `targets`;
-marks wait for step 12. Still open with the owner: the Resize form's try (`tasks/acceptance/editor-resize.md`),
+marks wait for step 12. **Then the owner's report** ("lists the objects ... but I can't seem to target the objects
+with spells or weapons"), fixed in `991831fd` (gate 1471): `targeting::Aim::command` builds `Attack` for an
+`Object` too, and `shell/text.rs::objects` words `ObjectDamaged`/`ObjectBroken` ("X hits Crate (17 against AC 15):
+6 fire, 12 HP left", "Crate breaks"). **The owner is trying that fix now** (said 2026-11-15, before the compact);
+wait for the result before step 9. Offered and unanswered: pull step 12's damaged and broken marks forward (a broken
+crate is still drawn whole). Lesson: an engine row the client lists must work in the client in the same commit.
+Nothing is pushed. Still open with the owner: the Resize form's try (`tasks/acceptance/editor-resize.md`),
 the six decisions in `combat-in-feet-part-1.md`, the minimap's start zoom, unsaved zoom and button place.
 
 **Built 2026-11-15, not yet tried by the owner: "Resize a map from the editor, on all four sides"** (`tasks/plans/editor-resize.md`,
