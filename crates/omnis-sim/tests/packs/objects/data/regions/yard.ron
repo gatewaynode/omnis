@@ -7,6 +7,6 @@
     stability: 800,
     rule: "time.wild",
     couplings: [],
-    maps: ["objects:map:yard"],
+    maps: ["objects:map:yard", "objects:map:hall"],
     biosphere: Some("objects:biosphere:ember"),
 )

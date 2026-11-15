@@ -190,6 +190,12 @@ fn a_map_without_levels_draws_its_extract_and_nothing_beside_it() {
             .iter()
             .cloned()
             .partition(|s| s.kind == SegKind::Activity);
+        // Every placed group stands in view (2026-11-14): its figure is drawn beside the
+        // extract, as an object's is.
+        let lines: Vec<Segment> = lines
+            .into_iter()
+            .filter(|s| s.kind != SegKind::Being)
+            .collect();
         assert_eq!(
             lines,
             extract(m, id, Level::GROUND, &world, &ground),

@@ -80,6 +80,9 @@ fn at_the_door() -> Session {
         .expect("a session");
     let dungeon = common::map(&session.data, "test:map:dungeon");
     session.pose = common::place(&mut session.world, dungeon, 3, 5, Facing::South);
+    // The rats beyond the door are another test's: the open door shows no one to attack.
+    let data = session.data.clone();
+    common::clear_groups(&mut session.world, &data, dungeon);
     session.refresh();
     session
 }
@@ -552,6 +555,8 @@ fn new_words_are_written_in_place() {
         let mut session = app.world_mut().resource_mut::<Session>();
         let dungeon = common::map(&session.data, "test:map:dungeon");
         session.pose = common::place(&mut session.world, dungeon, 3, 5, Facing::South);
+        let data = session.data.clone();
+        common::clear_groups(&mut session.world, &data, dungeon);
         session.refresh();
     }
     app.update();

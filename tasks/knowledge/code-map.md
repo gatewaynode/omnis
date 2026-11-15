@@ -574,6 +574,7 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
   `combat/cast.rs` (`Stack`, `Member`, `Door`, `Object`, `Being`; not `Copy`). Each row is judged by the
   command's own validation: `combat::refusal`, `casting::validate`, `items::use_refusal`.
 - Mage hand: `utility.rs` (`check`, `carry_out`, `HAND` verbs) over `objects::pick` and `perform`.
+- Every placed group is seen (2026-11-14): `omnis_data::encounter::Stand::CENTRE`, `ResolvedEncounter::stood`, read by `omnis-sim/src/beings.rs`. The QA hall: `crates/omnis-sim/tests/packs/objects/data/maps/hall.ron`, `monsters/shambler.ron`.
 - Combat in feet on the client (step 7): the stack's feet and order in `arena.rs`; Advance and a target's feet in `combat_menu.rs`; `StackMoved` and `PartyAdvanced` lines in `rolllog.rs`; the road's attack in `screen/actions.rs` (`Does::Attack`, the Attacker chooser) with `targeting::Aim::attack`. The tile cap: `omnis_data::encounter::check_fit`, called from `map_data.rs`.
 - Members in feet (combat in feet, step 4): `combat::strike_for` and `Strike`, `advance_for`, `CombatCommand::Advance`; `CombatState::{room, nearest, presses, advance}`, `state::pace`; a touch's advance in `cast::validate` (`CastPlan.advance`), the range rule in `targets::in_range`; `monster_cast::reaches`; tests `tests/feet_members.rs`.
 - The opening strike by a weapon: `assault.rs` (`validate`, `apply`), `Command::Attack`, `combat::Opening`, the surprise roll `combat::unseen` (tests `tests/road_attack.rs`).

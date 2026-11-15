@@ -86,6 +86,17 @@ pub fn levels_data() -> Data {
 }
 
 /// The member at marching-order `slot`, by identity.
+/// Clear every placed group of `map`: a test about something else has no one standing in sight
+/// (every placed group is seen since 2026-11-14).
+pub fn clear_groups(world: &mut SimWorld, data: &Data, map: MapId) {
+    let ids: Vec<String> = data.maps[&map]
+        .encounters
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
+    world.maps.entry(map).or_default().cleared.extend(ids);
+}
+
 pub fn id(world: &SimWorld, slot: u8) -> CharacterId {
     world.party.members[usize::from(slot)].id
 }

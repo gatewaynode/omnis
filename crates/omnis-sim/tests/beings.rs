@@ -274,3 +274,45 @@ fn objects_get_names_the_groups_standing_in_reach() {
         "two cells off"
     );
 }
+
+/// Every placed group is seen (owner, 2026-11-14: "make sure that place holder exists for all
+/// placed foes"): one whose placement says nothing of where it stands is drawn in the middle
+/// of its cell facing north, named by its id, and met by Approach like any other.
+#[test]
+fn a_group_placed_without_a_stand_is_seen_in_the_middle_of_its_cell() {
+    let data = crate::common::data();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    let placed = &data.maps[&dungeon].encounters;
+    assert!(
+        placed.iter().all(|e| e.stand.is_none()),
+        "none writes a stand"
+    );
+    let mut world = World::new(&data, 11, Settings::default()).expect("entry map");
+    party_of(&mut world, &data, 4);
+    let seen = beings_on_level(&world, &data, dungeon, Level::GROUND);
+    assert_eq!(seen.len(), placed.len(), "every one of them");
+    let rat = seen.iter().find(|b| b.being == "giant_rat_3_8").unwrap();
+    assert_eq!(
+        ((rat.x, rat.y), rat.pos, rat.facing),
+        ((3, 8), (0, 0), Facing::North)
+    );
+    // From the next cell it is in reach, and Approach meets it.
+    world.position = Position {
+        map: dungeon,
+        level: Level::GROUND,
+        x: 3,
+        y: 7,
+        facing: Facing::South,
+    };
+    let approach = Command::Approach {
+        being: "giant_rat_3_8".into(),
+    };
+    apply(&mut world, &data, approach).expect("in reach");
+    assert!(matches!(world.mode, Mode::Encounter(_)));
+    assert!(
+        !beings_on_level(&world, &data, dungeon, Level::GROUND)
+            .iter()
+            .any(|b| b.being == "giant_rat_3_8"),
+        "not drawn while it is met"
+    );
+}

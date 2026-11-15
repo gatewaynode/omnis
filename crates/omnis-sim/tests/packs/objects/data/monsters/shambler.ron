@@ -1,0 +1,18 @@
+// A slow brute for the hall (owner, 2026-11-14): it closes fifteen feet a turn, slams when it
+// arrives, and hurls a stone from as far as sixty feet. Omnis's own, not the SRD's.
+(
+    schema: 1,
+    id: "objects:monster:shambler",
+    name: "objects:text:monster.shambler.name",
+    size: Medium,
+    ac: 11,
+    hit_points: (count: 3, sides: 8, modifier: 3),
+    speed: 15,
+    abilities: (15, 6, 13, 3, 8, 5),
+    challenge: (1, 2),
+    xp: 100,
+    attacks: [
+        (name: "objects:text:monster.shambler.slam", to_hit: 4, damage: (count: 1, sides: 8, modifier: 2), damage_type: Bludgeoning),
+        (name: "objects:text:monster.shambler.stone", to_hit: 2, damage: (count: 1, sides: 4, modifier: 2), damage_type: Bludgeoning, ranged: true, range: Some((30, 60))),
+    ],
+)

@@ -23,7 +23,12 @@ Targeting is accepted by the owner (same day).
   **Part I (steps 0 to 7) is built, not yet tried by the owner**: `tasks/acceptance/combat-in-feet-part-1.md`
   ends with six decisions (Advance free within the pace; bow before charge; an engaged stack stops the
   line; ammunition; balance; no editor field for `tile_feet`). Pins now: 17 commands, 76 events, 75
-  rejections, `schema_proof.rs` 145 instances and 205 branches. **Next: step 8, objects take damage.**
+  rejections, `schema_proof.rs` 145 instances and 205 branches. The owner tried part I and left QA notes in
+  the sheet (answered there; fixed: Attack on a member's entry in the party column, a stack's feet always
+  shown; `33e87a5e`). Then, at the owner's word: `objects:map:hall` in the objects fixture (0.1.6, a new
+  monster `shambler`; `just qa objects:map:hall`) and **every fixed encounter is seen**
+  (`ResolvedEncounter::stood`; a client test that wants no one in sight uses `common::clear_groups`).
+  **Next: the owner's try of the hall, then step 8, objects take damage.**
 - **Found in step 1, fixed there**: new base items renumber every item; a save older than name tables is read
   on the table without them (`NameTable::before_names`, the list `ITEMS_SINCE_NAMES` in `save/names.rs`;
   **any definition added to a shipped pack goes in that list in the same change**), before its migrations.

@@ -100,7 +100,11 @@ fn space_opens_the_squares_actions_and_a_choice_runs_and_closes_it() {
     assert!(!open(&app), "choosing closes the menu");
     // Opened again, the same door offers to close.
     tap(&mut app, KeyCode::Space);
-    assert_eq!(labels(&app), ["Close the door", "Search here", "Close"]);
+    // Through the open door the rats beyond are seen, and may be attacked from here.
+    assert_eq!(
+        labels(&app),
+        ["Close the door", "Attack...", "Search here", "Close"]
+    );
     // Space again closes the menu without acting.
     tap(&mut app, KeyCode::Space);
     assert!(!open(&app));

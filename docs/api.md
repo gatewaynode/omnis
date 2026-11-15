@@ -1313,6 +1313,13 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-14 (**behaviour**; the owner's "place holder for all placed foes"): every fixed encounter stands
+  in view. One whose placement writes no `stand` is given the middle of its cell, facing north: it is in
+  `ViewportModel.beings`, `ObjectsView.beings` and `beings_on_level`, `Approach` and Use reach it, and a
+  spell or an attack from the road may be sent at it. No wire shape changed; the golden replays did not
+  move. The fixture pack `objects` is 0.1.6 (hash 1128255363030300120): a second map, `objects:map:hall`
+  (26 tiles of 10 ft in a row, four `objects:monster:shambler` at (20, 0)), for trying a fight at a
+  distance.
 - 2026-11-14 (a load check; combat in feet, step 7: the tile cap). On a map that writes `tile_feet`, a fixed
   encounter's stacks, and each row of the random table at its fullest roll, must fit the five-foot squares
   of one tile (`(tile_feet / 5)^2`), each monster taking what its type says (`per_square` to a square, a

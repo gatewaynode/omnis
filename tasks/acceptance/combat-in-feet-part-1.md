@@ -84,3 +84,28 @@ of them. Your own world works too: any group that stands in view.
   35 ft long, so they are upon the party before anyone acts. Advance matters against a group that
   holds off (archers) or starts far away. No fixture has one. Recommended: a small QA map (a long hall
   on 10 ft tiles with archers at the far end); say the word and I build it.
+
+## The long hall, and a figure for every foe (2026-11-14, after your QA notes)
+
+**The hall.** `just qa objects:map:hall`. I added it as a second map of the QA pack, not as a room of
+the yard: many tests stand on the yard's cells as they are. Say if you want a door from the yard
+into it.
+
+1. You start at the west end facing east. Four **shamblers** stand 200 ft down the hall and are
+   seen from the start.
+2. Select Brenna (or Pip) in the party column, **Attack**, Choose: the fight opens at 200 ft. A
+   crossbow or shortbow at that distance rolls two dice and keeps the lower (past 80 ft).
+3. The shamblers move 15 ft a turn and dash while they are out of range, so they need several
+   rounds. Their label counts down ("Shambler  170 ft"). From 60 ft they hurl stones.
+4. **Advance** is live here: "Advance 25 ft" costs nothing; pressed again in the same round it reads
+   "Advance (dash)" and costs the action. Each press brings every stack that much nearer.
+5. Fire bolt reaches 240 ft in this hall (24 tiles of 10 ft); the shortbow 320 ft.
+
+**A figure for every placed foe.** Every placed group is now drawn, in your dungeon and depths too:
+one whose placement does not say where it stands is put in the middle of its cell, facing north,
+with its monster's figure by size. What follows from being seen: it is listed under Use and Attack,
+can be approached from the next cell, and can be struck from the road with a spell or a weapon.
+
+- An unseen ambush can no longer be placed. If you want one, it needs a tick of its own in the
+  editor ("hidden"); say so.
+- The editor's "stands apart" tick now only moves the figure off the cell's middle or turns it.

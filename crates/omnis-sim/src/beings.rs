@@ -65,7 +65,7 @@ fn standing<'d>(
         .get(&map)
         .into_iter()
         .flat_map(|m| m.encounters.iter())
-        .filter_map(|e| Some((e, e.stand.as_ref()?)))
+        .map(|e| (e, e.stood()))
         .filter(move |(e, _)| !cleared.contains(&e.id) && met.as_ref() != Some(&e.id))
 }
 
@@ -122,7 +122,7 @@ pub fn standing_as_placed(data: &Data, map: &omnis_data::MapData, level: Level) 
     map.encounters
         .iter()
         .filter(|e| e.level == level)
-        .filter_map(|e| view(data, e, e.stand.as_ref()?))
+        .filter_map(|e| view(data, e, e.stood()))
         .collect()
 }
 

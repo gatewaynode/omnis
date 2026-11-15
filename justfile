@@ -6,6 +6,8 @@ run *args:
 # Start a game on one of the test fixtures' maps, in a window: what the checks and captures of the
 # 3D view are made on. `just qa` is the yard (objects, piles, a being); `just qa heights:map:hills`
 # (relief), `just qa levels:map:tower` (levels and joins), `just qa test:map:town` (doors, portals).
+# `just qa objects:map:hall` is a long hall (26 tiles of 10 ft) with four slow shamblers 200 ft off: a
+# fight at a distance, for Advance, long shots and watching a mob close.
 # More flags pass through: `just qa objects:map:yard --settings .omnis/test-saves/still-low.ron`.
 qa map="objects:map:yard" *args:
     cargo run -p omnis-vector -- --windowed --pack packs/base --pack crates/omnis-sim/tests/packs/test --pack crates/omnis-sim/tests/packs/heights --pack crates/omnis-sim/tests/packs/levels --pack crates/omnis-sim/tests/packs/objects --seed 1 --entry {{map}} {{args}}

@@ -62,6 +62,15 @@ pub struct Stand {
     pub facing: Facing,
 }
 
+impl Stand {
+    /// Where a group stands when its placement says nothing: the middle of its cell, facing
+    /// north.
+    pub const CENTRE: Stand = Stand {
+        pos: (0, 0),
+        facing: Facing::North,
+    };
+}
+
 /// A group placed on a tile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FixedEncounter {
@@ -137,12 +146,20 @@ impl ResolvedEncounter {
         self.stacks.first().map(|s| s.0)
     }
 
-    /// The room a look takes where the group stands, if it stands.
+    /// Where the group stands in view: where its placement says, else the middle of its cell
+    /// facing north. Every placed group is seen (owner, 2026-11-14).
+    #[must_use]
+    pub fn stood(&self) -> &Stand {
+        self.stand.as_ref().unwrap_or(&Stand::CENTRE)
+    }
+
+    /// The room a look takes where the group stands.
     #[must_use]
     pub fn footprint(&self, look: &Look) -> Option<Footprint> {
-        self.stand
-            .as_ref()
-            .map(|s| Footprint::of(self.x, self.y, s.pos, s.facing, look.width, look.depth))
+        let s = self.stood();
+        Some(Footprint::of(
+            self.x, self.y, s.pos, s.facing, look.width, look.depth,
+        ))
     }
 }
 

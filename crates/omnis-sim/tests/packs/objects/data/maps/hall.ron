@@ -1,0 +1,30 @@
+// A hall for trying a fight in feet (owner, 2026-11-14): one row of 26 tiles, each ten feet, so
+// the hall is 260 feet long and seen from end to end. The party starts at its west end facing
+// east; four shamblers stand at (20, 0), two hundred feet off. They are slow (15 ft a turn), slam
+// when they arrive and hurl stones from sixty feet, so there are rounds in which to shoot at
+// long range, to Advance, and to watch the distances close.
+(
+    schema: 1,
+    id: "objects:map:hall",
+    name: "objects:text:map.hall.name",
+    tile_feet: Some(10),
+    kind: Dungeon,
+    tileset: "test:tileset:outdoor",
+    width: 26,
+    height: 1,
+    start: (0, 0, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"),
+    door: "gate",
+    door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'h', name: "flagstones", floor: "road", ceiling: None, passable: true, visibility_depth: 26, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+        "|h h h h h h h h h h h h h h h h h h h h h h h h h h|",
+        "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+    ],
+    encounters: [
+        (id: "shamblers", x: 20, y: 0, stacks: [("objects:monster:shambler", 4)], once: false, stand: Some((pos: (0, 0), facing: West))),
+    ],
+)

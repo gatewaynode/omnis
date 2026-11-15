@@ -447,3 +447,57 @@ fn the_attack_lists_the_groups_in_sight() {
         assert_eq!(refused(&world, &data, FIGHTER, rat()), Rejection::WrongMode);
     }
 }
+
+/// The long hall of the fixtures (owner, 2026-11-14: "one long hall with a new monster mob"):
+/// from its west end the shamblers are in sight two hundred feet off; a crossbow opens the
+/// fight at that distance, the line may advance, and the mob closes fifteen feet a turn,
+/// dashing while it is out of its stones' range.
+#[test]
+fn the_long_hall_is_a_fight_at_a_distance() {
+    let mut data = objects();
+    data.rules.insert_value("opening_strike_surprise", 0);
+    let settings = omnis_sim::Settings {
+        devtools: true,
+        ..omnis_sim::Settings::default()
+    };
+    let mut world = crate::common::new_world(&data, 3, settings);
+    crate::common::party_of(&mut world, &data, 6);
+    let hall = DevCommand::Teleport {
+        map: "objects:map:hall".into(),
+        level: omnis_core::Level::GROUND,
+        x: 0,
+        y: 0,
+        facing: Facing::East,
+    };
+    apply(&mut world, &data, Command::Dev(hall)).expect("the hall's west end");
+    let mob = Target::Being {
+        being: "shamblers".into(),
+    };
+    let fighter = world.party.members[FIGHTER].id;
+    let rows = targets(&world, &data, fighter, &Chosen::Attack).unwrap();
+    assert_eq!(rows.len(), 1, "seen from end to end");
+    assert_eq!(
+        (rows[0].target.clone(), rows[0].distance),
+        (mob.clone(), 20)
+    );
+    assert_eq!(rows[0].refusal, None, "within the crossbow's long range");
+    let strike = Command::Attack {
+        member: fighter,
+        target: mob,
+    };
+    let events = apply(&mut world, &data, strike).unwrap();
+    assert_eq!(first_roll(&events, fighter).0, RollMode::Disadvantage);
+    let from = events.iter().find_map(|e| match e {
+        Event::StackMoved { stack: 0, from, to } => Some((*from, *to)),
+        _ => None,
+    });
+    let state = fight(&world);
+    match from {
+        // The mob acted already: out of range of its stones, it moved and dashed.
+        Some(moved) => assert_eq!(moved, (200, 185)),
+        None => assert_eq!(state.encounter.stacks[0].distance, 200),
+    }
+    assert_eq!(state.encounter.stacks[0].hp.len(), 4, "four of them");
+    let view = omnis_sim::combat_view(&world, &data).unwrap();
+    assert_eq!(view.advance, 25, "room to advance");
+}
