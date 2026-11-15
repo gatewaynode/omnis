@@ -821,3 +821,14 @@ not engaged, and in the yard the rats are engaged before the first turn.
   one state reads as missing in the other.
 - A feature the fixture cannot show (Advance, in a yard where the rats close in one move) is said so in
   the sheet, with a place where it can be seen, before the owner goes looking.
+
+## 2026-11-15: a fixture that grows is seen through everything that fits a map to a box
+
+I grew the QA yard from 7 to 37 cells wide and ran every test. The owner opened it and saw the minimap
+"squished": it fits the whole map to 192 pixels, so a long thin map became a strip of 5-pixel cells. No test
+failed, because the tests on the minimap stood on maps that fit.
+
+- When a fixture's size changes, list what scales to a map's size (the minimap, the editor's plan fit, the
+  fight's picture) and look at each on the new size before the report, in a capture if not in a window.
+- A view that fits content to a box needs a floor on the scale and a window for what does not fit; "never
+  below two pixels a cell" was a floor nobody could read.

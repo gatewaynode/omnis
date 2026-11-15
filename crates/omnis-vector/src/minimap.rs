@@ -14,8 +14,10 @@ use crate::raster::{EdgeKey, edge_key, edge_pixels, join_pixels, portal_pixels, 
 
 /// The longest side of the minimap, in pixels, before scaling to whole pixels a cell.
 pub const SIDE: u32 = 192;
-/// The fewest pixels a cell.
-pub const MIN_SCALE: u32 = 2;
+/// The fewest pixels a cell: what a map of 24 cells a side has. A bigger map keeps this size
+/// and the minimap shows the part of it round the party (owner, 2026-11-15: a map squeezed to
+/// fit reads as "squished").
+pub const MIN_SCALE: u32 = 8;
 
 /// Unknown ground.
 pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
@@ -41,6 +43,25 @@ pub const MARKER: [u8; 4] = [255, 255, 255, 255];
 #[must_use]
 pub fn scale_for(width: u16, height: u16) -> u32 {
     (SIDE / u32::from(width.max(height)).max(1)).max(MIN_SCALE)
+}
+
+/// The cells the minimap shows of a map of `size` with the party at `pose`: the first column
+/// and row, then how many of each. The whole map when it fits the box at its scale; else as
+/// many cells as fit, the party in the middle, stopping at the map's edges.
+#[must_use]
+pub fn window(size: (u16, u16), pose: Pose) -> (u16, u16, u16, u16) {
+    let fits = u16::try_from(SIDE / scale_for(size.0, size.1)).unwrap_or(u16::MAX);
+    let span = |cells: u16, at: f32| {
+        let shown = cells.min(fits).max(1);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let cell = at.max(0.0) as u16;
+        let first = cell
+            .saturating_sub(shown / 2)
+            .min(cells.saturating_sub(shown));
+        (first, shown)
+    };
+    let ((x, cols), (y, rows)) = (span(size.0, pose.x), span(size.1, pose.z));
+    (x, y, cols, rows)
 }
 
 fn shade(rgb: (u8, u8, u8), k: u16) -> [u8; 4] {
@@ -113,14 +134,25 @@ pub fn paint(
     known: Option<&BTreeMap<(u16, u16), Known>>,
     pose: Pose,
 ) -> Raster {
-    let scale = scale_for(map.def.width, map.def.height);
-    let mut out = Raster::filled(
-        u32::from(map.def.width) * scale,
-        u32::from(map.def.height) * scale,
+    let size = (map.def.width, map.def.height);
+    let scale = scale_for(size.0, size.1);
+    let (first_x, first_y, cols, rows) = window(size, pose);
+    let mut shown = Raster::filled(
+        u32::from(cols) * scale,
+        u32::from(rows) * scale,
         scale,
         BACKGROUND,
     );
     let s = i64::from(scale);
+    // Everything is placed by the map's own pixels; the window takes its corner off.
+    let corner = (i64::from(first_x) * s, i64::from(first_y) * s);
+    let whole = (u32::from(size.0) * scale, u32::from(size.1) * scale);
+    let mut out = Shifted {
+        raster: &mut shown,
+        corner,
+        width: whole.0,
+        height: whole.1,
+    };
     let empty = BTreeMap::new();
     let known = known.unwrap_or(&empty);
     for (&(x, y), tile) in known {
@@ -178,8 +210,30 @@ pub fn paint(
             out.put(px, py, colour);
         }
     }
-    marker(&mut out, pose);
-    out
+    let within = Pose {
+        x: pose.x - f32::from(first_x),
+        z: pose.z - f32::from(first_y),
+        ..pose
+    };
+    marker(&mut shown, within);
+    shown
+}
+
+/// The window's raster, written to by the whole map's pixel coordinates.
+struct Shifted<'a> {
+    raster: &'a mut Raster,
+    corner: (i64, i64),
+    /// The whole map's width in pixels, which the edges are clipped to.
+    width: u32,
+    /// And its height.
+    height: u32,
+}
+
+impl Shifted<'_> {
+    fn put(&mut self, x: i64, y: i64, colour: [u8; 4]) {
+        self.raster
+            .put(x - self.corner.0, y - self.corner.1, colour);
+    }
 }
 
 /// The party: a filled triangle a cell and a half long (never under nine pixels), its tip

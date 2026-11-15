@@ -20,8 +20,9 @@ fn painted(raster: &Raster) -> usize {
 #[test]
 fn cells_scale_to_whole_pixels_within_the_side() {
     assert_eq!(scale_for(24, 24), 8);
-    assert_eq!(scale_for(32, 20), 6);
-    assert_eq!(scale_for(500, 10), 2, "never below two pixels a cell");
+    assert_eq!(scale_for(12, 5), 16, "a small map's cells are bigger");
+    assert_eq!(scale_for(32, 20), 8, "never under eight pixels a cell");
+    assert_eq!(scale_for(500, 10), 8);
 }
 
 #[test]
@@ -40,10 +41,13 @@ fn a_fresh_party_sees_only_its_surroundings_and_is_marked() {
         pose,
     );
     let s = raster.scale;
-    assert_eq!(raster.width, u32::from(map.def.width) * s);
-    assert_eq!(raster.height, u32::from(map.def.height) * s);
+    // The meadow is wider than the box holds: the picture is the cells round the party.
+    let (first_x, first_y, cols, rows) =
+        omnis_vector::minimap::window((map.def.width, map.def.height), pose);
+    assert_eq!(raster.width, u32::from(cols) * s);
+    assert_eq!(raster.height, u32::from(rows) * s);
     // The marker sits on the pose; the party's cell is known and painted around it.
-    let (cx, cy) = (u32::from(p.x) * s, u32::from(p.y) * s);
+    let (cx, cy) = (u32::from(p.x - first_x) * s, u32::from(p.y - first_y) * s);
     assert_eq!(raster.pixel(cx + s / 2, cy + s / 2), Some(MARKER));
     assert_ne!(raster.pixel(cx, cy + s - 1), Some(BACKGROUND));
     // A corner far from the party is unknown.
@@ -112,13 +116,19 @@ fn the_marker_points_along_the_yaw() {
         let pose = Pose::at(omnis_sim::omnis_core::Position { facing, ..p });
         let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, None, pose);
         let s = raster.scale as f32;
+        let (first_x, first_y, ..) =
+            omnis_vector::minimap::window((map.def.width, map.def.height), pose);
+        let (ox, oz) = (f32::from(first_x), f32::from(first_y));
         let (fx, fz) = omnis_vector::geom::forward(pose.yaw);
         // How far ahead of the pose, in cells, each marker pixel lies.
         let mut along = Vec::new();
         for y in 0..raster.height {
             for x in 0..raster.width {
                 if raster.pixel(x, y) == Some(MARKER) {
-                    let (dx, dz) = ((x as f32 + 0.5) / s - pose.x, (y as f32 + 0.5) / s - pose.z);
+                    let (dx, dz) = (
+                        (x as f32 + 0.5) / s + ox - pose.x,
+                        (y as f32 + 0.5) / s + oz - pose.z,
+                    );
                     along.push(dx * fx + dz * fz);
                 }
             }
@@ -152,9 +162,11 @@ fn an_edge_recorded_on_one_side_is_drawn_once_known() {
     let mut known = std::collections::BTreeMap::new();
     known.insert((5, 5), tile(Edges::NONE.with(Facing::East)));
     known.insert((6, 5), tile(Edges::NONE));
+    // The party stands where the box shows the map's north-west corner, the cells in question
+    // among them, and its mark is clear of them.
     let far = Pose {
-        x: 20.5,
-        z: 20.5,
+        x: 10.5,
+        z: 10.5,
         yaw: 0.0,
     };
     let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, Some(&known), far);
@@ -364,4 +376,60 @@ fn a_seen_portal_is_marked_with_a_rectangle_and_a_circle() {
         pose,
     );
     assert_eq!(in_cell(&raster, (11, 2), DOOR), 0);
+}
+
+/// A map too big for the box is not squeezed into it (the owner's report, 2026-11-15: "the
+/// minimap got squished", the yard having grown to 37 cells wide): a cell keeps its eight
+/// pixels and the box shows the part of the map round the party, stopping at the map's edges.
+#[test]
+fn a_big_map_keeps_its_cell_size_and_shows_the_part_round_the_party() {
+    use omnis_vector::minimap::{SIDE, window};
+    let data = common::objects_data();
+    let yard = common::map(&data, "objects:map:yard");
+    let map = &data.maps[&yard];
+    assert_eq!((map.def.width, map.def.height), (37, 5));
+    assert_eq!(scale_for(37, 5), 8, "as a 24 by 24 map's cells");
+    let at = |x: f32| Pose {
+        x: x + 0.5,
+        z: 2.5,
+        yaw: 0.0,
+    };
+    // In the yard the window starts at the west edge; down the hall it follows the party; at
+    // the east end it stops at the map's edge.
+    assert_eq!(window((37, 5), at(0.0)), (0, 0, 24, 5));
+    assert_eq!(window((37, 5), at(20.0)), (8, 0, 24, 5));
+    assert_eq!(window((37, 5), at(36.0)), (13, 0, 24, 5));
+    assert_eq!(
+        window((24, 24), at(3.0)),
+        (0, 0, 24, 24),
+        "a map that fits is whole"
+    );
+    for x in [0.0, 20.0, 36.0] {
+        let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, None, at(x));
+        assert_eq!((raster.width, raster.height, raster.scale), (SIDE, 40, 8));
+        // The party's mark is in the picture wherever it stands.
+        let marked = raster.rgba.chunks(4).filter(|p| *p == MARKER).count();
+        assert!(marked > 20, "at {x}: {marked}");
+    }
+    // A known cell far down the hall is drawn where the window has it: a wall on the east of
+    // (33, 2), with the party at (30, 2) and the window starting at column 13.
+    use omnis_sim::Known;
+    use omnis_sim::omnis_core::{Edges, Facing};
+    let mut known = std::collections::BTreeMap::new();
+    known.insert(
+        (33, 2),
+        Known {
+            terrain: 0,
+            walls: Edges::NONE.with(Facing::East),
+            doors: Edges::NONE,
+            layers: 0,
+            seen_at: 0,
+        },
+    );
+    let ground = omnis_sim::omnis_core::Level::GROUND;
+    let raster = paint(map, ground, Some(&known), at(30.0));
+    assert_eq!(window((37, 5), at(30.0)).0, 13);
+    for dy in 0..8 {
+        assert_eq!(raster.pixel((34 - 13) * 8, 2 * 8 + dy), Some(WALL));
+    }
 }
