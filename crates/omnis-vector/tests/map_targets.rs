@@ -461,3 +461,119 @@ fn a_member_s_attack_in_the_column_opens_the_target_step_and_the_fight() {
     forms.shown(Some(ScreenId::Actions), None);
     assert_eq!(forms.aim, Some(Aim::attack(pip)));
 }
+
+/// The owner's report (2026-11-15): "the options menu brings up the attack option and seems to
+/// list the objects available but I can't seem to target the objects with spells or weapons."
+/// The attack's Choose on an object's row sent no command, and a blow at an object had no
+/// line, so a bolt that landed showed nothing. Both rows send their command now, and every
+/// blow is told.
+#[test]
+fn choosing_an_object_s_row_strikes_it_with_a_weapon_or_a_spell_and_the_blow_is_told() {
+    use omnis_sim::Event;
+    use omnis_vector::rolllog::Names;
+    use omnis_vector::shell::text;
+    let data = common::objects_data();
+    let world = crate::loot::yard(&data, 2, 1, Facing::West);
+    let views = common::views(&world, &data);
+    let context = ctx(&data, &world, &views);
+    let game = context.game.unwrap();
+    let (brenna, ilvara) = (views.party.members[0].member, views.party.members[2].member);
+    let crate_1 = Target::Object {
+        object: "crate_1".into(),
+    };
+    let mut names = Names::default();
+    names.observe(&views.party);
+    names.locate(views.position.map);
+    let bolt = Aim {
+        member: ilvara,
+        option: omnis_sim::Chosen::Spell {
+            spell: "base:spell:fire_bolt".into(),
+            pay: omnis_sim::Pay::default(),
+        },
+    };
+    for (aim, who) in [(Aim::attack(brenna), "Brenna"), (bolt, "Ilvara")] {
+        let rows = aim.targets(&data, game);
+        let at = rows
+            .iter()
+            .position(|r| r.target == crate_1)
+            .expect("listed");
+        let command = aim
+            .chosen(&data, game, u8::try_from(at).unwrap())
+            .unwrap_or_else(|| panic!("{who}: Choose sends a command"));
+        // Through the screen too: the square's actions for the weapon.
+        if who == "Brenna" {
+            let mut forms = Forms::default();
+            forms.aim = Some(aim.clone());
+            let id = ControlId::Target(u8::try_from(at).unwrap());
+            let pressed = screen::apply(
+                ScreenId::Actions,
+                &context,
+                &mut forms,
+                id,
+                &Payload::Press,
+                0,
+            );
+            assert_eq!(
+                pressed,
+                Ok(Effect::Command {
+                    command: command.clone(),
+                    close: true
+                })
+            );
+        }
+        // Until a blow lands, so both the miss's and the hit's lines are read.
+        let mut world = world.clone();
+        let (mut hit, mut lines) = (false, Vec::new());
+        for _ in 0..40 {
+            let events = world.apply(&data, command.clone()).expect("a blow");
+            for event in &events {
+                if let Event::ObjectDamaged { amount, .. } = event {
+                    let line = text::describe(event, &names, &data).expect("told");
+                    assert!(line.starts_with(&format!("{who} ")), "{line}");
+                    assert!(
+                        line.contains("Crate") && line.contains("against AC 15"),
+                        "{line}"
+                    );
+                    assert_eq!(line.contains("HP left"), *amount > 0, "{line}");
+                    assert_eq!(line.contains(" misses "), *amount == 0, "{line}");
+                    hit |= *amount > 0;
+                    lines.push(line);
+                }
+                if matches!(event, Event::ObjectBroken { .. }) {
+                    assert_eq!(
+                        text::describe(event, &names, &data).as_deref(),
+                        Some("Crate breaks")
+                    );
+                }
+            }
+            if hit {
+                break;
+            }
+        }
+        assert!(hit, "{who}: {lines:?}");
+    }
+    // A blow with no roll to hit, shrugged off and landed; and the breaking.
+    let blow = |amount, left| Event::ObjectDamaged {
+        object: "crate_1".into(),
+        by: ilvara,
+        attack: None,
+        kind: omnis_sim::omnis_data::DamageType::Thunder,
+        rolls: Vec::new(),
+        raw: 7,
+        amount,
+        left,
+    };
+    let told = |event: &Event| text::describe(event, &names, &data);
+    assert_eq!(
+        told(&blow(0, 18)).as_deref(),
+        Some("Ilvara strikes Crate: no damage")
+    );
+    assert_eq!(
+        told(&blow(7, 11)).as_deref(),
+        Some("Ilvara strikes Crate: 7 thunder, 11 HP left")
+    );
+    let broken = Event::ObjectBroken {
+        object: "crate_1".into(),
+    };
+    assert_eq!(told(&broken).as_deref(), Some("Crate breaks"));
+}

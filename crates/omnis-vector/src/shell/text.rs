@@ -297,6 +297,36 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => format!("{}: {} failed", object(id), labels::verb(*verb)),
         Event::ObjectState { object: id, state } => format!("{} is now {state}", object(id)),
         Event::ObjectRemoved { object: id } => format!("{} is gone", object(id)),
+        // A blow at a thing from the road, landed or not (combat in feet, step 8).
+        Event::ObjectDamaged {
+            object: id,
+            by,
+            attack,
+            kind,
+            amount,
+            left,
+            ..
+        } => {
+            let (who, thing) = (names.member(*by), object(id));
+            let kind = format!("{kind:?}").to_lowercase();
+            let dealt = if *amount == 0 {
+                "no damage".to_owned()
+            } else {
+                format!("{amount} {kind}, {left} HP left")
+            };
+            match attack {
+                Some(roll) if !roll.hit => format!(
+                    "{who} misses {thing} ({} against AC {})",
+                    roll.roll.total, roll.ac
+                ),
+                Some(roll) => format!(
+                    "{who} hits {thing} ({} against AC {}): {dealt}",
+                    roll.roll.total, roll.ac
+                ),
+                None => format!("{who} strikes {thing}: {dealt}"),
+            }
+        }
+        Event::ObjectBroken { object: id } => format!("{} breaks", object(id)),
         // A search's lore: its text, as the pack writes it.
         Event::Lore { key, .. } => labels::text(data, key).to_owned(),
         Event::Searched { member, roll } => {

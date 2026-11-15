@@ -845,3 +845,16 @@ A zoom control (+/-) button controls the scale of the view ... not the whole map
 - A fix that changes a view's behaviour on the owner's own maps is a design choice: offer the choice with
   the alternative (I named the zoom control as an afterthought in the report, after building the other).
 - A picture whose size follows its content moves everything laid out beside it. A fixed box is the default.
+
+## 2026-11-15: an engine step that reaches the client through a list is a client step too
+
+Step 8 let the engine strike objects and I left the client for step 12. But the client's target lists come
+straight from the engine's `targets`, so the crate appeared at once under Attack and fire bolt, where the
+weapon's Choose built no command (the client matched groups only) and a bolt that did land had no log line.
+The owner: "seems to list the objects available but I can't seem to target the objects with spells or weapons."
+
+- When the engine adds a kind of row to a list the client shows, the same commit makes the row work in the
+  client, command and feedback both, or keeps the row out of the list until it does.
+- I noticed the row ("Crate, west") in a client test and pinned its words without pressing it. A row seen in
+  a test is pressed in that test.
+- A command with no visible result reads as a command that failed: every new event gets its line when it lands.

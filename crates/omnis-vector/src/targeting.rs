@@ -76,10 +76,13 @@ impl Aim {
                     receiver: Some(receiver),
                 }))
             }
-            (Chosen::Attack, target @ Target::Being { .. }) => Some(Command::Attack {
-                member: self.member,
-                target,
-            }),
+            // A group in sight, or a thing that can be damaged.
+            (Chosen::Attack, target @ (Target::Being { .. } | Target::Object { .. })) => {
+                Some(Command::Attack {
+                    member: self.member,
+                    target,
+                })
+            }
             _ => None,
         }
     }
