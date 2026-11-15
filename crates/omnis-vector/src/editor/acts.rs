@@ -126,6 +126,16 @@ pub enum EditAct {
     Save,
     /// Reopen the map's file, dropping every unsaved change.
     Revert,
+    /// Open the map's resize over the editor.
+    Resize,
+    /// The field of side `n` of the resize (north, east, south, west).
+    ResizeSide(u8),
+    /// The resize's Apply: made at once, or the warning shown when a cut destroys something.
+    ResizeApply,
+    /// The warning's Yes: make the cut.
+    ResizeYes,
+    /// The warning's No: back to the fields.
+    ResizeNo,
     /// Open the editor's menu.
     Menu,
     /// Start a game on the edited map at the cursor (M5.8).
@@ -435,6 +445,12 @@ impl Editor {
             EditAct::History => return Asked::History,
             EditAct::HistoryTo(at) => self.history_to(data, usize::from(at)),
             EditAct::Rules => return Asked::Rules,
+            EditAct::Resize => return self.resize_open(),
+            // A side's text comes through `typed_in`.
+            EditAct::ResizeSide(_) => {}
+            EditAct::ResizeApply => return self.resize_apply(data),
+            EditAct::ResizeYes => return self.resize_answer(data, true),
+            EditAct::ResizeNo => return self.resize_answer(data, false),
             // The search's text comes through `typed_in`.
             EditAct::RulesFilter => {}
             EditAct::RuleFile(n) => {

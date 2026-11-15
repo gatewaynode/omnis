@@ -568,10 +568,17 @@ fn inspector_plain(editor: &Editor, data: &Data) -> Screen {
     };
     let (x, y) = editor.cursor;
     let level = editor.level;
-    rows.push(Row::text(Span::body(format!(
-        "{}  {} x {}",
-        def.id, def.width, def.height
-    ))));
+    rows.push(Row {
+        spans: vec![Span::body(format!(
+            "{}  {} x {}",
+            def.id, def.width, def.height
+        ))],
+        controls: vec![Control::button(
+            ControlId::Edit(EditAct::Resize),
+            "Resize...",
+        )],
+        ..Row::default()
+    });
     rows.push(Row {
         spans: vec![Span::body(format!(
             "Level {}",

@@ -389,6 +389,18 @@ pub fn act(act: EditAct) -> Option<&'static str> {
             "Every rule the loaded packs set: its value, the pack it came from and what it \
              replaced."
         }
+        EditAct::Resize => {
+            "Add cells on any side of the map, or cut them off. Everything on the map moves \
+             with its cell."
+        }
+        EditAct::ResizeSide(_) => {
+            "Cells to add on this side. A negative number cuts that many off; empty is none."
+        }
+        EditAct::ResizeApply => {
+            "Resize the map. A cut that would destroy anything asks first; Undo brings it back."
+        }
+        EditAct::ResizeYes => "Make the cut and lose what is listed. Undo brings it back.",
+        EditAct::ResizeNo => "Leave the map as it is and return to the numbers.",
         EditAct::Save => "Write the map to its file and reseal the pack (Cmd S).",
         EditAct::Revert => "Open the map's file again, dropping every unsaved change.",
         EditAct::Menu => "The editor's menu: back to the title, or quit (Esc).",

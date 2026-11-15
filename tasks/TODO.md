@@ -847,7 +847,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         was added (a second save moves nothing more).
   - [x] 4. API: MCP schema and tool text, `docs/api.md` (with steps 1 and 2; the CLI's example is of
         `Resize` and stands).
-  - [ ] 5. The form and the warning (`ScreenId::EditorResize`).
+  - [x] 5. The form and the warning (`ScreenId::EditorResize`): `editor/resize.rs` (`Resizing`, the
+        `resize_*` acts), `screen/editor_resize.rs`, `EditAct::{Resize, ResizeSide, ResizeApply, ResizeYes,
+        ResizeNo}`, `Asked::Resize`, "Resize..." on the inspector's map line, tips. The fields are typed
+        (a number field steps by one, which twenty cells would not thank). Undo, Save and Revert moved to
+        `editor/saving.rs` (`editor/mod.rs` is 984 lines). Twelve mutations: eleven caught at once, one
+        after a test was added (a Yes with no question waiting). Not seen on screen by me.
   - [ ] 6. The QA hall inside the yard.
   - [ ] 7. Documents: the owner's sheet, code map, continuity. Report.
 - [ ] **Combat in feet, and things that break** (owner, 2026-11-14, on accepting the targeting sheet:

@@ -301,6 +301,7 @@ pub fn ctx_with<'a>(
         pick: e.picking.as_ref(),
         history: e.history(),
         rules_filter: &e.rules_filter,
+        resize: e.resizing.as_ref(),
         pack: e.pack(),
     });
     Ctx {

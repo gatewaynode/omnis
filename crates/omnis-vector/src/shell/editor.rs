@@ -370,6 +370,7 @@ pub fn answer(nav: &mut Nav, asked: Asked) {
         Asked::PickDetail => nav.open(ScreenId::EditorPick, None),
         Asked::History => nav.open(ScreenId::EditorHistory, None),
         Asked::Rules => nav.open(ScreenId::EditorRules, None),
+        Asked::Resize => nav.open(ScreenId::EditorResize, None),
         Asked::Props => {
             if nav.top(None) == Some(ScreenId::EditorPick) {
                 nav.back();
@@ -384,6 +385,7 @@ pub fn answer(nav: &mut Nav, asked: Asked) {
                         | ScreenId::EditorPick
                         | ScreenId::EditorProps
                         | ScreenId::EditorRules
+                        | ScreenId::EditorResize
                 )
             ) {
                 nav.back();

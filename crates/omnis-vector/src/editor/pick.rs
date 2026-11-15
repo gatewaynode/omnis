@@ -269,6 +269,7 @@ impl Editor {
         match act {
             EditAct::PickFilter => self.pick_filter(text),
             EditAct::RulesFilter => self.rules_filter = text,
+            EditAct::ResizeSide(side) => self.resize_typed(side, text),
             EditAct::Prop(n, i) => {
                 if let Some(form) = self
                     .picking

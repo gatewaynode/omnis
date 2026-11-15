@@ -16,7 +16,9 @@ pub mod pick;
 pub mod plan;
 pub mod playtest;
 pub mod preview;
+pub mod resize;
 pub mod run;
+pub mod saving;
 pub mod select;
 pub mod stamp;
 pub mod tips;
@@ -58,6 +60,8 @@ pub enum Asked {
     History,
     /// Open the rules list over the editor.
     Rules,
+    /// Open the map's resize over the editor.
+    Resize,
     /// Nothing beyond the model's change.
     Nothing,
     /// Open the editor's menu.
@@ -147,6 +151,8 @@ pub struct Editor {
     pub file: Option<FileEdit>,
     /// What the rules list's search field holds.
     pub rules_filter: String,
+    /// The resize being asked for, while its modal is up.
+    pub resizing: Option<resize::Resizing>,
 }
 
 /// A placement at the cursor, as the inspector lists it: its words and the key that names it.
@@ -203,6 +209,7 @@ impl Editor {
             files: Vec::new(),
             file: None,
             rules_filter: String::new(),
+            resizing: None,
         })
     }
 
@@ -973,66 +980,5 @@ impl Editor {
         self.message = None;
         self.point(target.cell);
         self.revision = self.revision.wrapping_add(1);
-    }
-
-    /// Back or forward one step of the document's history.
-    fn walk(&mut self, data: &Data, back: bool) {
-        let result = self
-            .session
-            .document_mut()
-            .and_then(|d| if back { d.undo() } else { d.redo() });
-        self.stroke = None;
-        match result {
-            Ok(()) => {
-                self.message = None;
-                self.changed(data);
-            }
-            Err(e) => self.message = Some(e.to_string()),
-        }
-    }
-
-    /// Write the map and reseal the pack, or say why not.
-    fn save(&mut self, data: &Data) -> Asked {
-        let file = self
-            .session
-            .document()
-            .map(|d| d.file().to_owned())
-            .unwrap_or_default();
-        match self.session.save(data) {
-            Ok(sealed) => {
-                self.message = Some(format!(
-                    "Saved {file}; {} sealed at {}",
-                    self.session.pack(),
-                    sealed.version
-                ));
-                self.stroke = None;
-                self.changed(data);
-                Asked::Saved
-            }
-            Err(EditError::Invalid(errors)) => {
-                let first = errors.first().map(ToString::to_string).unwrap_or_default();
-                self.message = Some(format!(
-                    "Not saved: {} error{}; the first: {first}",
-                    errors.len(),
-                    if errors.len() == 1 { "" } else { "s" }
-                ));
-                Asked::Nothing
-            }
-            Err(e) => {
-                self.message = Some(format!("Not saved: {e}"));
-                Asked::Nothing
-            }
-        }
-    }
-
-    /// Reopen the map's file as it is on disk, keeping the cursor, the level and the view.
-    fn revert(&mut self, data: &Data) {
-        let Some(id) = self.map_id() else {
-            return;
-        };
-        self.reopen(data);
-        if self.message.is_none() {
-            self.message = Some(format!("Reverted {id} to its file"));
-        }
     }
 }

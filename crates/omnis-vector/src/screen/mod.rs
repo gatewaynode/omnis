@@ -19,6 +19,7 @@ pub mod editor_history;
 pub mod editor_menu;
 pub mod editor_pick;
 pub mod editor_props;
+pub mod editor_resize;
 pub mod editor_rules;
 pub mod fight;
 pub mod inventory;
@@ -99,6 +100,8 @@ pub enum ScreenId {
     EditorHistory,
     /// The editor's rules list: every rule, where it came from and what it beat.
     EditorRules,
+    /// The map's resize: cells to add or cut on each side, and the warning before a cut.
+    EditorResize,
     /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
     EditorTools,
     /// The editor's inspector column, as the tools.
@@ -732,6 +735,8 @@ pub struct EditingCtx<'a> {
     pub history: Option<(&'a [String], usize)>,
     /// What the rules list's search field holds.
     pub rules_filter: &'a str,
+    /// The resize being asked for, while its modal is up.
+    pub resize: Option<&'a crate::editor::resize::Resizing>,
     /// The id of the pack being edited: the one whose rules files open as text.
     pub pack: &'a str,
 }
@@ -854,6 +859,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::EditorProps, _) => editor_props::content(ctx),
         (ScreenId::EditorHistory, _) => editor_history::content(ctx),
         (ScreenId::EditorRules, _) => editor_rules::content(ctx),
+        (ScreenId::EditorResize, _) => editor_resize::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (
             ScreenId::EditorTools
@@ -932,6 +938,7 @@ pub fn apply(
         (ScreenId::EditorProps, _) => editor_props::apply(control, payload),
         (ScreenId::EditorHistory, _) => editor_history::apply(control, payload),
         (ScreenId::EditorRules, _) => editor_rules::apply(control, payload),
+        (ScreenId::EditorResize, _) => editor_resize::apply(control, payload),
         (
             ScreenId::EditorTools
             | ScreenId::EditorInspector
