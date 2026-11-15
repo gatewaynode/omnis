@@ -12,12 +12,51 @@ use std::collections::BTreeMap;
 pub use crate::raster::Raster;
 use crate::raster::{EdgeKey, edge_key, edge_pixels, join_pixels, portal_pixels, tick_pixels};
 
-/// The longest side of the minimap, in pixels, before scaling to whole pixels a cell.
+/// The minimap's side in pixels: always this square, the party at its middle (owner,
+/// 2026-11-15: "a consistent square centered on the party ... not the whole map").
 pub const SIDE: u32 = 192;
-/// The fewest pixels a cell: what a map of 24 cells a side has. A bigger map keeps this size
-/// and the minimap shows the part of it round the party (owner, 2026-11-15: a map squeezed to
-/// fit reads as "squished").
-pub const MIN_SCALE: u32 = 8;
+/// The pixels a cell at each step of the zoom, farthest out first. Each divides [`SIDE`].
+pub const ZOOMS: [u32; 6] = [4, 6, 8, 12, 16, 24];
+
+/// How close the minimap looks: a step of [`ZOOMS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Zoom(usize);
+
+impl Default for Zoom {
+    /// Twelve pixels a cell: eight cells each way from the party.
+    fn default() -> Zoom {
+        Zoom(3)
+    }
+}
+
+impl Zoom {
+    /// Pixels a cell.
+    #[must_use]
+    pub fn scale(self) -> u32 {
+        ZOOMS[self.0.min(ZOOMS.len() - 1)]
+    }
+
+    /// One step closer (`closer`) or farther, if there is one.
+    #[must_use]
+    pub fn step(self, closer: bool) -> Option<Zoom> {
+        let to = if closer {
+            self.0.checked_add(1).filter(|i| *i < ZOOMS.len())
+        } else {
+            self.0.checked_sub(1)
+        };
+        to.map(Zoom)
+    }
+}
+
+/// The picture's top-left corner in the map's pixels at `scale` pixels a cell: the pose is at
+/// the picture's middle, wherever on the map it is.
+#[must_use]
+pub fn corner(scale: u32, pose: Pose) -> (i64, i64) {
+    let half = i64::from(SIDE / 2);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let at = |v: f32| (v * scale as f32).round() as i64 - half;
+    (at(pose.x), at(pose.z))
+}
 
 /// Unknown ground.
 pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
@@ -38,31 +77,6 @@ pub const JOIN: [u8; 4] = [240, 215, 90, 255];
 pub const HOLE: [u8; 4] = [255, 90, 70, 255];
 /// The party.
 pub const MARKER: [u8; 4] = [255, 255, 255, 255];
-
-/// Pixels a cell for a map of `width × height` cells.
-#[must_use]
-pub fn scale_for(width: u16, height: u16) -> u32 {
-    (SIDE / u32::from(width.max(height)).max(1)).max(MIN_SCALE)
-}
-
-/// The cells the minimap shows of a map of `size` with the party at `pose`: the first column
-/// and row, then how many of each. The whole map when it fits the box at its scale; else as
-/// many cells as fit, the party in the middle, stopping at the map's edges.
-#[must_use]
-pub fn window(size: (u16, u16), pose: Pose) -> (u16, u16, u16, u16) {
-    let fits = u16::try_from(SIDE / scale_for(size.0, size.1)).unwrap_or(u16::MAX);
-    let span = |cells: u16, at: f32| {
-        let shown = cells.min(fits).max(1);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let cell = at.max(0.0) as u16;
-        let first = cell
-            .saturating_sub(shown / 2)
-            .min(cells.saturating_sub(shown));
-        (first, shown)
-    };
-    let ((x, cols), (y, rows)) = (span(size.0, pose.x), span(size.1, pose.z));
-    (x, y, cols, rows)
-}
 
 fn shade(rgb: (u8, u8, u8), k: u16) -> [u8; 4] {
     let f = |c: u8| u8::try_from(u16::from(c) * k / 100).unwrap_or(u8::MAX);
@@ -126,26 +140,21 @@ fn rises(
 
 /// Paint the known tiles of a level of `map` (visited ones brighter than ones only seen), their
 /// cliffs and ramps (M8.5 step 4), their stairs, ladders and holes (step 1b), their walls and
-/// doors over those, then the party as a triangle pointing along the yaw.
+/// doors over those, then the party as a triangle pointing along the yaw: a square of [`SIDE`]
+/// at `scale` pixels a cell, the party at its middle.
 #[must_use]
 pub fn paint(
     map: &MapData,
     level: Level,
     known: Option<&BTreeMap<(u16, u16), Known>>,
     pose: Pose,
+    scale: u32,
 ) -> Raster {
     let size = (map.def.width, map.def.height);
-    let scale = scale_for(size.0, size.1);
-    let (first_x, first_y, cols, rows) = window(size, pose);
-    let mut shown = Raster::filled(
-        u32::from(cols) * scale,
-        u32::from(rows) * scale,
-        scale,
-        BACKGROUND,
-    );
+    let mut shown = Raster::filled(SIDE, SIDE, scale, BACKGROUND);
     let s = i64::from(scale);
-    // Everything is placed by the map's own pixels; the window takes its corner off.
-    let corner = (i64::from(first_x) * s, i64::from(first_y) * s);
+    // Everything is placed by the map's own pixels; the picture takes its corner off.
+    let corner = corner(scale, pose);
     let whole = (u32::from(size.0) * scale, u32::from(size.1) * scale);
     let mut out = Shifted {
         raster: &mut shown,
@@ -153,8 +162,17 @@ pub fn paint(
         width: whole.0,
         height: whole.1,
     };
-    let empty = BTreeMap::new();
-    let known = known.unwrap_or(&empty);
+    // Only the known cells in the picture, and one beyond for an edge they share with it.
+    let cells =
+        |first: i64| (first.div_euclid(s) - 1)..=((first + i64::from(SIDE)).div_euclid(s) + 1);
+    let (cols, rows) = (cells(corner.0), cells(corner.1));
+    let known: BTreeMap<(u16, u16), Known> = known
+        .into_iter()
+        .flatten()
+        .filter(|((x, y), _)| cols.contains(&i64::from(*x)) && rows.contains(&i64::from(*y)))
+        .map(|(at, tile)| (*at, *tile))
+        .collect();
+    let known = &known;
     for (&(x, y), tile) in known {
         let Some(terrain) = map.def.terrains.get(usize::from(tile.terrain)) else {
             continue;
@@ -210,16 +228,17 @@ pub fn paint(
             out.put(px, py, colour);
         }
     }
+    #[allow(clippy::cast_precision_loss)]
     let within = Pose {
-        x: pose.x - f32::from(first_x),
-        z: pose.z - f32::from(first_y),
+        x: pose.x - corner.0 as f32 / scale as f32,
+        z: pose.z - corner.1 as f32 / scale as f32,
         ..pose
     };
     marker(&mut shown, within);
     shown
 }
 
-/// The window's raster, written to by the whole map's pixel coordinates.
+/// The picture's raster, written to by the whole map's pixel coordinates.
 struct Shifted<'a> {
     raster: &'a mut Raster,
     corner: (i64, i64),

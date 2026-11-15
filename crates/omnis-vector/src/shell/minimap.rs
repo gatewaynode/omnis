@@ -1,10 +1,13 @@
 //! The minimap, top right: `minimap::paint` uploaded into an image shown as a UI node
-//! (presentation-ARCHITECTURE.md §8). Repainted only when what it shows changes.
+//! (presentation-ARCHITECTURE.md §8). Repainted only when what it shows changes. Always the same
+//! square with the party at its middle; the two buttons on it step the zoom (owner, 2026-11-15).
 
 use super::VectorSet;
+use super::controls::{Control, Pressing, pressable};
 use super::session::Session;
-use super::theme::{edge, ink};
-use crate::minimap::{Raster, paint};
+use super::theme::{edge, fill, ink};
+use super::tips::Tip;
+use crate::minimap::{Raster, SIDE, Zoom, paint};
 use crate::style::Role;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
@@ -21,9 +24,39 @@ pub struct Minimap;
 #[derive(Component)]
 pub struct MinimapCaption;
 
+/// How close the minimap looks, for as long as the game runs.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Zooming(pub Zoom);
+
+/// A zoom button on the minimap: closer (`+`) or farther (`-`). Dim at the end of its range.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZoomButton {
+    /// Whether it steps closer.
+    pub closer: bool,
+}
+
+impl ZoomButton {
+    /// The button's mark.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        if self.closer { "+" } else { "-" }
+    }
+
+    /// What it is for, or why it is dim.
+    #[must_use]
+    pub fn tip(self, zoom: Zoom) -> &'static str {
+        match (self.closer, zoom.step(self.closer).is_some()) {
+            (true, true) => "Zoom the map in",
+            (false, true) => "Zoom the map out",
+            (true, false) => "The map is as close as it goes",
+            (false, false) => "The map is as far out as it goes",
+        }
+    }
+}
+
 /// What the picture last showed: the map, the accepted-command count (the automap only changes
-/// when a command is accepted), and the marker's pixel and heading.
-type Shown = ((MapId, Level), usize, (i64, i64), i64);
+/// when a command is accepted), the picture's corner on the map, the heading and the zoom.
+type Shown = ((MapId, Level), usize, (i64, i64), i64, u32);
 
 /// The caption's text and place, apart from the picture's node.
 type Caption<'w, 's> =
@@ -34,7 +67,9 @@ pub struct MinimapPlugin;
 
 impl Plugin for MinimapPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn)
+        app.init_resource::<Zooming>()
+            .add_systems(Startup, spawn)
+            .add_systems(Update, (zoom, light).chain().in_set(VectorSet::Input))
             .add_systems(Update, repaint.in_set(VectorSet::Draw));
     }
 }
@@ -46,18 +81,65 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         scale: 1,
         rgba: vec![0; 4],
     }));
-    commands.spawn((
-        Minimap,
-        ImageNode::new(handle),
-        Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(16.0),
-            top: Val::Px(16.0),
-            border: UiRect::all(Val::Px(1.0)),
-            ..default()
-        },
-        edge(Role::Interface),
-    ));
+    #[allow(clippy::cast_precision_loss)]
+    let side = Val::Px(SIDE as f32);
+    commands
+        .spawn((
+            Minimap,
+            ImageNode::new(handle),
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(16.0),
+                top: Val::Px(16.0),
+                width: side,
+                height: side,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            edge(Role::Interface),
+        ))
+        .with_children(|map| {
+            // In the picture's bottom corners, so they come and go with it.
+            for button in [ZoomButton { closer: false }, ZoomButton { closer: true }] {
+                let (left, right) = if button.closer {
+                    (Val::Auto, Val::Px(2.0))
+                } else {
+                    (Val::Px(2.0), Val::Auto)
+                };
+                map.spawn((
+                    button,
+                    pressable(),
+                    Tip {
+                        text: button.tip(Zoom::default()).into(),
+                        beside: true,
+                    },
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left,
+                        right,
+                        bottom: Val::Px(2.0),
+                        width: Val::Px(26.0),
+                        height: Val::Px(26.0),
+                        border: UiRect::all(Val::Px(1.0)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    edge(Role::Interface),
+                    fill(0),
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        Text::new(button.label()),
+                        TextFont {
+                            font_size: FontSize::Px(16.0),
+                            ..default()
+                        },
+                        ink(Role::Interface),
+                    ));
+                });
+            }
+        });
     commands.spawn((
         MinimapCaption,
         Text::new(""),
@@ -92,39 +174,81 @@ pub fn image(raster: &Raster) -> Image {
     image
 }
 
+/// A pressed zoom button steps the zoom.
+fn zoom(pressed: Query<&ZoomButton, Pressing>, mut zooming: ResMut<Zooming>) {
+    for button in &pressed {
+        if let Some(to) = zooming.0.step(button.closer) {
+            zooming.0 = to;
+        }
+    }
+}
+
+/// A button with no step left is dim and takes no press, and its tip says why.
+fn light(
+    zooming: Res<Zooming>,
+    mut buttons: Query<(Entity, &ZoomButton, &mut Tip, &Children)>,
+    mut commands: Commands,
+) {
+    if !zooming.is_changed() {
+        return;
+    }
+    for (entity, button, mut tip, children) in &mut buttons {
+        let live = zooming.0.step(button.closer).is_some();
+        let role = if live { Role::Interface } else { Role::Dim };
+        tip.text = button.tip(zooming.0).into();
+        let mut node = commands.entity(entity);
+        node.insert(edge(role));
+        if live {
+            node.insert(pressable());
+        } else {
+            // The pointer's hover stays: the tip that says why hangs on it.
+            node.remove::<(Control, bevy::ui::Pressed)>();
+        }
+        for child in children {
+            commands.entity(*child).insert(ink(role));
+        }
+    }
+}
+
 fn repaint(
     session: Res<Session>,
+    zoom: Res<Zooming>,
     mut images: ResMut<Assets<Image>>,
-    mut node: Query<(&ImageNode, &mut Node), With<Minimap>>,
+    node: Query<&ImageNode, With<Minimap>>,
     mut caption: Caption,
     mut last: Local<Option<Shown>>,
 ) {
-    let Ok((picture, mut layout)) = node.single_mut() else {
+    let Ok(picture) = node.single() else {
         return;
     };
     let p = session.views.position;
     let Some(map) = session.data.maps.get(&p.map) else {
         return;
     };
-    let scale = crate::minimap::scale_for(map.def.width, map.def.height) as f32;
+    let scale = zoom.0.scale();
     let pose = session.pose;
     // A sixteenth of a turn is as fine as the heading line can show.
     #[allow(clippy::cast_possible_truncation)]
     let shown = (
         (p.map, p.level),
         session.binder.log.len(),
-        ((pose.x * scale) as i64, (pose.z * scale) as i64),
+        crate::minimap::corner(scale, pose),
         (pose.yaw * 8.0 / core::f32::consts::PI).round() as i64,
+        scale,
     );
     if *last == Some(shown) {
         return;
     }
     *last = Some(shown);
-    let raster = paint(map, p.level, session.world.automap(p.map, p.level), pose);
+    let raster = paint(
+        map,
+        p.level,
+        session.world.automap(p.map, p.level),
+        pose,
+        scale,
+    );
     #[allow(clippy::cast_precision_loss)]
-    let (w, h) = (raster.width as f32, raster.height as f32);
-    layout.width = Val::Px(w);
-    layout.height = Val::Px(h);
+    let w = raster.width as f32;
     if let Ok((mut text, mut place)) = caption.single_mut() {
         text.0 = crate::labels::level(&session.data, map, p.level).unwrap_or_default();
         // Left of the picture and its one-pixel border.

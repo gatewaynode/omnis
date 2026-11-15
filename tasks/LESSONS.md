@@ -832,3 +832,16 @@ failed, because the tests on the minimap stood on maps that fit.
   fight's picture) and look at each on the new size before the report, in a capture if not in a window.
 - A view that fits content to a box needs a floor on the scale and a window for what does not fit; "never
   below two pixels a cell" was a floor nobody could read.
+
+## 2026-11-15: a "squished" report is about what the view is for, not its smallest scale
+
+After the minimap was squished by the grown yard I kept its design (fit the whole map to the box) and patched
+the symptom: a floor on the cell size and a window that stopped at the map's edges. The owner: "I don't think
+the minimap is fixed, it is still unusable. The minimap should be a consistent square centered on the party.
+A zoom control (+/-) button controls the scale of the view ... not the whole map."
+
+- When a view breaks on new content, ask what the view is for before patching the number that broke. A
+  minimap answers "where am I among what I have explored"; its shape and scale must not depend on the map.
+- A fix that changes a view's behaviour on the owner's own maps is a design choice: offer the choice with
+  the alternative (I named the zoom control as an afterthought in the report, after building the other).
+- A picture whose size follows its content moves everything laid out beside it. A fixed box is the default.
