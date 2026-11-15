@@ -165,6 +165,7 @@ pub(super) fn spawn(
                             let mut field = area.spawn((
                                 DocumentField,
                                 TextInput,
+                                super::focus::field(),
                                 document_field(value, max),
                                 TextFont {
                                     font_size: FontSize::Px(Size::Body.px(height)),

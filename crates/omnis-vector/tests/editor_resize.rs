@@ -10,7 +10,7 @@ use common::app::press_ui;
 use common::editor::{editing, in_editor, press_edit, top_screen, type_ui};
 use omnis_vector::editor::EditAct;
 use omnis_vector::screen::{ControlId, ScreenId};
-use omnis_vector::shell::screen::Pressable;
+use omnis_vector::shell::screen::{EditorPress, Pressable};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Packs;
 
@@ -196,4 +196,147 @@ fn a_yes_with_no_question_waiting_cuts_nothing() {
     app.update();
     assert_eq!(size(&app), (12, 5));
     assert_eq!(top_screen(&app), Some(ScreenId::EditorResize));
+}
+
+/// The side's field that holds the keyboard.
+fn focused_side(app: &App) -> Option<ControlId> {
+    let focused = app
+        .world()
+        .resource::<bevy::input_focus::InputFocus>()
+        .get()?;
+    app.world().get::<Pressable>(focused).map(|p| p.0)
+}
+
+/// The field of side `side`.
+fn field(app: &mut App, side: u8) -> Entity {
+    let world = app.world_mut();
+    let mut fields = world.query::<(Entity, &Pressable, &bevy::text::EditableText)>();
+    fields
+        .iter(world)
+        .find(|(_, p, _)| p.0 == ControlId::Edit(EditAct::ResizeSide(side)))
+        .map(|(e, _, _)| e)
+        .expect("the side's field")
+}
+
+/// The owner's report of 2026-11-15: "I could only write in one direction field, the cursor
+/// disappeared if I tried to choose any other field, I couldn't tab or arrow through the form
+/// fields." The form opens with the keyboard in North; a field chosen by a click keeps the
+/// keyboard through what is typed in it, whatever lines come and go beneath.
+#[test]
+fn every_side_s_field_takes_the_keyboard_when_chosen_and_keeps_it() {
+    use common::app::{keyboard, keyboard_on};
+    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
+    app.update();
+    press_edit(&mut app, EditAct::Resize);
+    app.update();
+    assert_eq!(
+        focused_side(&app),
+        Some(ControlId::Edit(EditAct::ResizeSide(NORTH))),
+        "the first field takes the keyboard as the form opens"
+    );
+    keyboard(&mut app, window, "1");
+    assert_eq!(editing(&app).resizing.as_ref().unwrap().typed[0], "1");
+    for (side, text) in [(EAST, "2"), (2, "3"), (WEST, "4"), (NORTH, "5")] {
+        let chosen = field(&mut app, side);
+        app.world_mut()
+            .resource_mut::<bevy::input_focus::InputFocus>()
+            .set(chosen, bevy::input_focus::FocusCause::Pressed);
+        app.update();
+        app.update();
+        let id = ControlId::Edit(EditAct::ResizeSide(side));
+        assert_eq!(focused_side(&app), Some(id), "side {side} chosen");
+        keyboard(&mut app, window, text);
+        assert_eq!(focused_side(&app), Some(id), "side {side} after typing");
+    }
+    assert_eq!(
+        editing(&app).resizing.as_ref().unwrap().typed,
+        ["15", "2", "3", "4"].map(str::to_owned)
+    );
+}
+
+/// A key with no text of its own, down and up.
+fn key(app: &mut App, window: Entity, code: KeyCode, logical: bevy::input::keyboard::Key) {
+    use bevy::input::ButtonState;
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut()
+            .write_message(bevy::input::keyboard::KeyboardInput {
+                key_code: code,
+                logical_key: logical.clone(),
+                state,
+                text: None,
+                repeat: false,
+                window,
+            });
+        app.update();
+    }
+}
+
+/// The same report: a click as Bevy resolves it (a request for the keyboard on what was
+/// pressed, which goes up the tree) gives the keyboard to the field pressed, and to a box's
+/// field when the box was; Tab, Shift+Tab, Down and Up step through the four fields and stay
+/// among them; none of it writes into a field.
+#[test]
+fn a_click_gives_a_field_the_keyboard_and_tab_and_the_arrows_step_through_the_fields() {
+    use bevy::input::keyboard::Key;
+    use bevy::input_focus::AcquireFocus;
+    use common::app::keyboard_on;
+    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
+    // The two observers a window has from Bevy's own plugins.
+    app.add_observer(bevy::input_focus::tab_navigation::acquire_focus_tab_index);
+    app.add_observer(bevy::input_focus::on_window_acquire_focus_clear);
+    app.update();
+    // A form open in the inspector beneath: its field is not one of the modal's.
+    press_edit(&mut app, EditAct::Note(omnis_vector::editor::NoteOf::Map));
+    app.update();
+    let world = app.world_mut();
+    let mut beneath = world.query::<(&EditorPress, &bevy::text::EditableText)>();
+    assert!(beneath.iter(world).next().is_some(), "the note's field");
+    press_edit(&mut app, EditAct::Resize);
+    app.update();
+    let id = |side| Some(ControlId::Edit(EditAct::ResizeSide(side)));
+    let click = |app: &mut App, on: Entity| {
+        app.world_mut().trigger(AcquireFocus {
+            focused_entity: on,
+            window,
+        });
+        app.update();
+    };
+    // Tab passes over what is hidden, and no plugin here says what is seen.
+    let world = app.world_mut();
+    let mut seen = world.query::<&mut InheritedVisibility>();
+    for mut v in seen.iter_mut(world) {
+        *v = InheritedVisibility::VISIBLE;
+    }
+    let south = field(&mut app, 2);
+    click(&mut app, south);
+    assert_eq!(focused_side(&app), id(2), "a click on a field");
+    let east = field(&mut app, EAST);
+    let its_box = app.world().get::<ChildOf>(east).expect("in a box").parent();
+    click(&mut app, its_box);
+    assert_eq!(focused_side(&app), id(EAST), "a click on a field's box");
+    for (code, logical, to) in [
+        (KeyCode::Tab, Key::Tab, 2),
+        (KeyCode::Tab, Key::Tab, WEST),
+        (KeyCode::Tab, Key::Tab, NORTH),
+        (KeyCode::ArrowDown, Key::ArrowDown, EAST),
+        (KeyCode::ArrowUp, Key::ArrowUp, NORTH),
+        (KeyCode::ArrowUp, Key::ArrowUp, WEST),
+    ] {
+        key(&mut app, window, code, logical);
+        assert_eq!(focused_side(&app), id(to), "after {code:?}");
+    }
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::ShiftLeft);
+    key(&mut app, window, KeyCode::Tab, Key::Tab);
+    assert_eq!(focused_side(&app), id(2), "Shift+Tab goes back");
+    assert_eq!(
+        editing(&app).resizing.as_ref().unwrap().typed,
+        [const { String::new() }; 4],
+        "no key wrote into a field"
+    );
+    // A click on the panel, which is no field's box, is the way out of the fields.
+    let panel = app.world().get::<ChildOf>(its_box).expect("a row").parent();
+    click(&mut app, panel);
+    assert_eq!(focused_side(&app), None);
 }

@@ -178,6 +178,7 @@ fn enter(
         .with_children(|root| {
             root.spawn((
                 Column::Tools,
+                super::focus::column(0),
                 Node {
                     flex_direction: FlexDirection::Column,
                     flex_shrink: 0.0,
@@ -200,6 +201,7 @@ fn enter(
             .with_children(|centre| {
                 centre.spawn((
                     Column::Bar,
+                    super::focus::column(1),
                     Node {
                         flex_direction: FlexDirection::Column,
                         flex_shrink: 0.0,
@@ -228,6 +230,7 @@ fn enter(
                 // A file's text in Files mode (M5.9), in place of the bar and the plan.
                 centre.spawn((
                     Column::Text,
+                    super::focus::column(2),
                     Node {
                         flex_direction: FlexDirection::Column,
                         flex_grow: 1.0,
@@ -277,6 +280,7 @@ fn enter(
                 }
                 right.spawn((
                     Column::Inspector,
+                    super::focus::column(3),
                     Node {
                         flex_direction: FlexDirection::Column,
                         flex_grow: 1.0,

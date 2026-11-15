@@ -858,3 +858,19 @@ The owner: "seems to list the objects available but I can't seem to target the o
 - I noticed the row ("Crate, west") in a client test and pinned its words without pressing it. A row seen in
   a test is pressed in that test.
 - A command with no visible result reads as a command that failed: every new event gets its line when it lands.
+
+## 2026-11-15: a form of several fields is tried with the window's own input, field by field
+
+The Resize form had four text fields and every test typed into them with `type_ui`, which writes a field's
+text directly. The owner: "I could only write in one direction field, the cursor disappeared if I tried to
+choose any other field, I couldn't tab or arrow through the form fields." Two faults, both older than the
+form: every field of a screen asked for the keyboard when it opened (the last one drawn won), and since
+Bevy 0.20 a click gives the keyboard only to a node with a `TabIndex`, which no field of ours had, so a
+click on any field took the keyboard from all of them. Screens with one field never showed either.
+
+- A test helper that writes a control's value skips how the player reaches the control. A screen with more
+  than one field gets a test that chooses each field as the window does (the focus request a click makes,
+  the keyboard's keys) before it is reported as built.
+- After an engine upgrade, list what the engine now does itself on a click or a key (focus, hover, press)
+  and check each against a screen that has two of the thing, not one.
+- A form is not done until Tab, Shift+Tab and the arrows have been pressed in it.

@@ -103,7 +103,7 @@ impl Plugin for ScreenPlugin {
             .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
             .init_resource::<Beside>()
-            .add_plugins(super::tips::TipsPlugin)
+            .add_plugins((super::tips::TipsPlugin, super::focus::plugin))
             .add_plugins(super::theme::plugin)
             .add_observer(slid)
             .add_systems(Startup, (spawn, super::roster::spawn, open_start))
@@ -179,6 +179,7 @@ fn spawn(mut commands: Commands) {
             ));
             layer.spawn((
                 ScreenRoot,
+                super::focus::screen(),
                 Node {
                     flex_direction: FlexDirection::Column,
                     flex_shrink: 0.0,

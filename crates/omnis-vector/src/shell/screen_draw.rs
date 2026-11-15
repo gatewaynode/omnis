@@ -481,6 +481,7 @@ fn control_node(
                 }
                 let mut field = b.spawn((
                     TextInput,
+                    super::focus::field(),
                     text_field(value, *max, *lines),
                     TextFont {
                         font_size: FontSize::Px(Size::Body.px(height)),
@@ -811,6 +812,16 @@ pub(super) fn build(
     (height, mark): (f32, Mark),
     keep: Option<ControlId>,
 ) {
+    // With no field named, a screen's first field takes the keyboard: one field, never each of
+    // them (the owner's report, 2026-11-15: the resize's four fields all asked for it and the
+    // last one drawn won).
+    let first = || {
+        screen
+            .controls()
+            .find(|c| matches!(c.kind, Kind::Text { .. } | Kind::Document { .. }))
+            .map(|c| c.id)
+    };
+    let keep = keep.or_else(|| (mark != Mark::Editor).then(first).flatten());
     let spawn = Spawn {
         id: Some(screen.id),
         height,
