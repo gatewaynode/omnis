@@ -21,6 +21,15 @@ fn open(data: &Data, id: &str) -> Document {
     Document::from_def(&format!("data/maps/{name}.ron"), def).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
+/// The yard as these tests know it, seven by five: the fixture's, with the hall that was grown
+/// east of it (2026-11-15) cut off again.
+fn yard(data: &Data) -> Document {
+    let mut doc = open(data, "objects:map:yard");
+    doc.edit(extend(0, -30, 0, 0)).unwrap();
+    assert_eq!((doc.def().width, doc.def().height), (7, 5));
+    doc
+}
+
 fn extend(north: i16, east: i16, south: i16, west: i16) -> Edit {
     Edit::Extend {
         north,
@@ -74,7 +83,7 @@ fn holds(new: &[String], old: &[String], (west, north): (usize, usize)) {
 #[test]
 fn a_grow_moves_everything_together_and_keeps_the_old_wall() {
     let data = with_fixture("objects");
-    let mut doc = open(&data, "objects:map:yard");
+    let mut doc = yard(&data);
     let before = doc.def();
     doc.edit(extend(1, 2, 3, 4)).unwrap();
     let after = doc.def();
@@ -135,7 +144,7 @@ fn heights_move_with_their_cells() {
 #[test]
 fn a_cut_drops_what_falls_outside_on_any_side() {
     let data = with_fixture("objects");
-    let before = open(&data, "objects:map:yard").def();
+    let before = yard(&data).def();
     let kept = |by: (i32, i32), inside: &dyn Fn(u16, u16) -> bool| -> Vec<_> {
         placed(&before)
             .into_iter()
@@ -148,7 +157,7 @@ fn a_cut_drops_what_falls_outside_on_any_side() {
             .collect()
     };
     // Two columns off the east: the chest, the torch, the loft's crate and the rats go.
-    let mut doc = open(&data, "objects:map:yard");
+    let mut doc = yard(&data);
     doc.edit(extend(0, -2, 0, 0)).unwrap();
     let east = doc.def();
     assert_eq!((east.width, east.height), (5, 5));
@@ -158,7 +167,7 @@ fn a_cut_drops_what_falls_outside_on_any_side() {
     assert!(east.layout.iter().all(|row| row.len() == 11));
     assert!(east.layout[1].ends_with('|'), "the new edge is walled");
     // One column off the west and one row off the north: everything else moves up and left.
-    let mut doc = open(&data, "objects:map:yard");
+    let mut doc = yard(&data);
     doc.edit(extend(-1, 0, 0, -1)).unwrap();
     let corner = doc.def();
     assert_eq!((corner.width, corner.height), (6, 4));
@@ -169,7 +178,7 @@ fn a_cut_drops_what_falls_outside_on_any_side() {
         "the start at (0, 2) is put on the nearest cell inside"
     );
     // Two rows off the south.
-    let mut doc = open(&data, "objects:map:yard");
+    let mut doc = yard(&data);
     doc.edit(extend(0, 0, -2, 0)).unwrap();
     assert_eq!(placed(&doc.def()), kept((0, 0), &|_, y| y < 3));
 }
@@ -229,17 +238,17 @@ fn a_portal_moves_with_its_cell() {
 #[test]
 fn resize_is_an_extend_on_the_east_and_south() {
     let data = with_fixture("objects");
-    let mut resized = open(&data, "objects:map:yard");
+    let mut resized = yard(&data);
     resized
         .edit(Edit::Resize {
             width: 9,
             height: 4,
         })
         .unwrap();
-    let mut extended = open(&data, "objects:map:yard");
+    let mut extended = yard(&data);
     extended.edit(extend(0, 2, -1, 0)).unwrap();
     assert_eq!(resized.def(), extended.def());
-    let before = open(&data, "objects:map:yard").def();
+    let before = yard(&data).def();
     let row = &resized.def().layout[1];
     assert_eq!(
         &row[..15],
@@ -278,8 +287,7 @@ fn stairs_move_and_a_new_cell_joins_nothing() {
 
     // The yard with its ladder listed first: the new ground is the next terrain, not a ladder.
     let data = with_fixture("objects");
-    let map = data.registry.maps.get("objects:map:yard").unwrap();
-    let mut def = data.maps[&map].def.clone();
+    let mut def = yard(&data).def();
     def.terrains.swap(0, 2);
     assert!(def.terrains[0].join.is_some());
     let mut doc = Document::from_def("data/maps/yard.ron", def).unwrap();
@@ -294,7 +302,7 @@ fn stairs_move_and_a_new_cell_joins_nothing() {
 #[test]
 fn a_cut_s_losses_are_listed_and_empty_cells_are_none() {
     let data = with_fixture("objects");
-    let mut doc = open(&data, "objects:map:yard");
+    let mut doc = yard(&data);
     assert!(
         doc.losses(&extend(3, 3, 3, 3)).unwrap().is_empty(),
         "a grow"
@@ -352,7 +360,7 @@ fn a_cut_s_losses_are_listed_and_empty_cells_are_none() {
     .unwrap();
     assert_eq!(doc.losses(&extend(0, -2, 0, 0)).unwrap().cells, 1);
     // The step's words carry the summary.
-    let mut doc = open(&with_fixture("objects"), "objects:map:yard");
+    let mut doc = yard(&with_fixture("objects"));
     doc.edit(extend(0, -2, 0, 0)).unwrap();
     assert_eq!(
         doc.steps().last().copied(),
@@ -374,4 +382,60 @@ fn only_a_change_of_size_has_losses() {
         height: 3,
     };
     assert!(!doc.losses(&cut).unwrap().is_empty());
+}
+
+/// The QA hall inside the yard (owner, 2026-11-15), made with the edit itself: the yard grown
+/// thirty cells to the east, one row of them a flagstone hall behind a gate in the old east
+/// wall, the rest no ground; four shamblers at its far end. Run deliberately: it rewrites
+/// `crates/omnis-sim/tests/packs/objects/data/maps/yard.ron` and reseals the pack.
+#[test]
+#[ignore = "rewrites the objects fixture's yard and reseals the pack; run deliberately"]
+fn put_the_hall_in_the_yard() {
+    use omnis_data::edit::{Place, Session};
+    use omnis_data::ron_io::from_str;
+    let roots = vec![base_pack(), test_pack(), fixture_pack("objects")];
+    let data = with_fixture("objects");
+    let mut session = Session::new(roots).unwrap();
+    session.open("objects:map:yard").unwrap();
+    let file = std::path::Path::new("x.ron");
+    let flagstones = from_str(
+        "(glyph: 'h', name: \"flagstones\", floor: \"road\", ceiling: None, passable: true, \
+         visibility_depth: 32, step_minutes: 1)",
+        file,
+    )
+    .unwrap();
+    let mob = from_str(
+        "(id: \"shamblers\", x: 35, y: 2, stacks: [(\"objects:monster:shambler\", 4)], once: \
+         false, stand: Some((pos: (0, 0), facing: West)))",
+        file,
+    )
+    .unwrap();
+    let doc = session.document_mut().unwrap();
+    assert_eq!(doc.def().width, 7, "the yard as it was");
+    doc.edit(Edit::TerrainAdd(flagstones)).unwrap();
+    doc.edit(extend(0, 30, 0, 0)).unwrap();
+    let edge = |side, kind| Brush::Edge { side, kind };
+    for x in 7..37 {
+        for y in 0..5 {
+            if y == 2 {
+                let hall = Brush::Tile {
+                    glyph: 'h',
+                    rise: None,
+                };
+                doc.paint(Level::GROUND, x, y, &hall, false).unwrap();
+                for side in [Facing::North, Facing::South] {
+                    let wall = edge(side, EdgeKind::Wall);
+                    doc.paint(Level::GROUND, x, y, &wall, false).unwrap();
+                }
+            } else {
+                doc.paint(Level::GROUND, x, y, &Brush::Clear, false)
+                    .unwrap();
+            }
+        }
+    }
+    let gate = edge(Facing::East, EdgeKind::Door);
+    doc.paint(Level::GROUND, 6, 2, &gate, false).unwrap();
+    doc.place(Place::Encounter(mob)).unwrap();
+    assert_eq!(doc.validate(Some(&data)), vec![]);
+    session.save(&data).unwrap();
 }

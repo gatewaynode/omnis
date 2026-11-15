@@ -55,8 +55,15 @@ fn the_rats_stand_in_view_as_their_front_monster_s_figure() {
     assert_eq!(seen(&world, &data), [rats()]);
     let world = four_at(&data, 3, 1, Facing::West);
     assert!(seen(&world, &data).is_empty(), "behind the party");
+    // The level's groups: the rats, and the shamblers down the hall east of the gate.
+    let level = beings_on_level(&world, &data, yard(&data), Level::GROUND);
+    assert_eq!(level.len(), 2);
     assert_eq!(
-        beings_on_level(&world, &data, yard(&data), Level::GROUND),
+        (level[1].being.as_str(), level[1].x, level[1].y),
+        ("shamblers", 35, 2)
+    );
+    assert_eq!(
+        level[..1],
         [rats()],
         "the level's, wherever the party looks"
     );
@@ -209,7 +216,8 @@ fn beaten_once_they_are_gone_from_the_view_the_level_and_their_cell() {
         "{events:?}"
     );
     assert!(seen(&world, &data).is_empty());
-    assert!(beings_on_level(&world, &data, yard(&data), Level::GROUND).is_empty());
+    let left = beings_on_level(&world, &data, yard(&data), Level::GROUND);
+    assert!(!left.iter().any(|b| b.being == "rat"), "{left:?}");
     assert_eq!(
         apply(
             &mut world,

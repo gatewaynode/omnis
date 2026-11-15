@@ -109,3 +109,7 @@ can be approached from the next cell, and can be struck from the road with a spe
 - An unseen ambush can no longer be placed. If you want one, it needs a tick of its own in the
   editor ("hidden"); say so.
 - The editor's "stands apart" tick now only moves the figure off the cell's middle or turns it.
+
+**2026-11-15: the hall moved into the yard.** `just qa` alone now: from the start walk to (6, 2), the
+east side of the yard's middle row, open the gate in the east hedge and step through. The hall runs
+east from there (5 ft tiles, so the shamblers stand 140 ft off, not 200; fire bolt reaches 120 ft).

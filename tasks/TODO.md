@@ -853,8 +853,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         (a number field steps by one, which twenty cells would not thank). Undo, Save and Revert moved to
         `editor/saving.rs` (`editor/mod.rs` is 984 lines). Twelve mutations: eleven caught at once, one
         after a test was added (a Yes with no question waiting). Not seen on screen by me.
-  - [ ] 6. The QA hall inside the yard.
-  - [ ] 7. Documents: the owner's sheet, code map, continuity. Report.
+  - [x] 6. The QA hall inside the yard: grown thirty cells east by the edit itself
+        (`edit_extend.rs::put_the_hall_in_the_yard`, ignored, run deliberately), a flagstone hall along
+        row 2 behind a gate in the old east wall at (6, 2), the cells beside it no ground, four shamblers
+        at (35, 2); `objects:map:hall` removed; the pack 0.1.7. Five older yard tests moved, all because
+        the level now has a second group or the yard is wider (two in `beings.rs`, one each in
+        `objects.rs`, `opening_strike.rs`, data `feet.rs`); the resize tests cut the hall off first
+        (`edit_extend.rs::yard`).
+  - [x] 7. Documents: `tasks/acceptance/editor-resize.md`, the code map, continuity. **Built, not yet
+        tried by the owner.**
 - [ ] **Combat in feet, and things that break** (owner, 2026-11-14, on accepting the targeting sheet:
   "We'll need to work on combat to fix the opening strike, lack of range calculation, reach and such. One
   thing to note, the destructive spells like flame bolt need to be able to target objects, and we'll need

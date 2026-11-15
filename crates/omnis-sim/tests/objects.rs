@@ -496,7 +496,11 @@ fn a_map_s_objects_and_groups_read_as_placed_with_no_world() {
     );
     assert_eq!(piles, seen_piles);
     let standing = standing_as_placed(&data, map, Level::GROUND);
-    assert_eq!(standing.len(), 1);
+    assert_eq!(
+        standing.len(),
+        2,
+        "the rats, and the shamblers down the hall"
+    );
     assert_eq!(
         (standing[0].being.as_str(), standing[0].facing),
         ("rat", Facing::West)

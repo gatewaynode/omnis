@@ -234,9 +234,10 @@ fn the_strike_is_paid_lands_and_starts_the_fight_with_the_monsters_surprised() {
         "the fight keeps the time from here"
     );
     // The group no longer stands on the map: it is being fought.
+    let standing = omnis_sim::beings::on_level(&world, &data, yard, Level::GROUND);
     assert!(
-        omnis_sim::beings::on_level(&world, &data, yard, Level::GROUND).is_empty(),
-        "met"
+        !standing.iter().any(|b| b.being == "rat"),
+        "met: {standing:?}"
     );
 }
 

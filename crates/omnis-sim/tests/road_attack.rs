@@ -448,10 +448,11 @@ fn the_attack_lists_the_groups_in_sight() {
     }
 }
 
-/// The long hall of the fixtures (owner, 2026-11-14: "one long hall with a new monster mob"):
-/// from its west end the shamblers are in sight two hundred feet off; a crossbow opens the
-/// fight at that distance, the line may advance, and the mob closes fifteen feet a turn,
-/// dashing while it is out of its stones' range.
+/// The long hall east of the yard (owner, 2026-11-14: "one long hall with a new monster mob";
+/// inside the yard since 2026-11-15, behind the gate at (6, 2)): from its west end the
+/// shamblers are in sight a hundred and forty feet off; a crossbow opens the fight at that
+/// distance, the line may advance, and the mob closes fifteen feet a turn, dashing while it is
+/// out of its stones' range. From the yard, with the gate shut, they are not seen.
 #[test]
 fn the_long_hall_is_a_fight_at_a_distance() {
     let mut data = objects();
@@ -463,12 +464,22 @@ fn the_long_hall_is_a_fight_at_a_distance() {
     let mut world = crate::common::new_world(&data, 3, settings);
     crate::common::party_of(&mut world, &data, 6);
     let hall = DevCommand::Teleport {
-        map: "objects:map:hall".into(),
+        map: "objects:map:yard".into(),
         level: omnis_core::Level::GROUND,
-        x: 0,
-        y: 0,
+        x: 7,
+        y: 2,
         facing: Facing::East,
     };
+    // In the yard, before the shut gate: only the rats are there to attack.
+    let yard = at(&data, 6, 2, Facing::East);
+    let seen = targets(
+        &yard,
+        &data,
+        yard.party.members[FIGHTER].id,
+        &Chosen::Attack,
+    )
+    .unwrap();
+    assert!(!seen.iter().any(|row| row.target != rat()), "{seen:?}");
     apply(&mut world, &data, Command::Dev(hall)).expect("the hall's west end");
     let mob = Target::Being {
         being: "shamblers".into(),
@@ -478,7 +489,7 @@ fn the_long_hall_is_a_fight_at_a_distance() {
     assert_eq!(rows.len(), 1, "seen from end to end");
     assert_eq!(
         (rows[0].target.clone(), rows[0].distance),
-        (mob.clone(), 20)
+        (mob.clone(), 28)
     );
     assert_eq!(rows[0].refusal, None, "within the crossbow's long range");
     let strike = Command::Attack {
@@ -494,8 +505,8 @@ fn the_long_hall_is_a_fight_at_a_distance() {
     let state = fight(&world);
     match from {
         // The mob acted already: out of range of its stones, it moved and dashed.
-        Some(moved) => assert_eq!(moved, (200, 185)),
-        None => assert_eq!(state.encounter.stacks[0].distance, 200),
+        Some(moved) => assert_eq!(moved, (140, 125)),
+        None => assert_eq!(state.encounter.stacks[0].distance, 140),
     }
     assert_eq!(state.encounter.stacks[0].hp.len(), 4, "four of them");
     let view = omnis_sim::combat_view(&world, &data).unwrap();

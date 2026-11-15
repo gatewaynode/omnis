@@ -1313,6 +1313,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-15 (fixtures only): the fixture pack `objects` is 0.1.7 (hash 7212696385307235208). Its yard was
+  grown thirty cells east with `Edit::Extend` and holds the long hall behind a gate at (6, 2), the four
+  shamblers at (35, 2); the separate `objects:map:hall` is gone.
 - 2026-11-15 (an addition and a **behaviour** change; the editor's resize on four sides,
   `tasks/plans/editor-resize.md`). `Edit` gains `Extend { north, east, south, west }` (signed cells added on
   each side, a negative number removing them; each defaults to 0): everything on the map moves together

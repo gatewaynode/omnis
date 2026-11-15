@@ -1,7 +1,10 @@
 # Continuity notes
 
-**In progress since 2026-11-15: "Resize a map from the editor, on all four sides"** (`tasks/plans/editor-resize.md`,
-approved in plan mode; the TODO item of that name has the steps). The owner tried the QA hall ("advance works")
+**Built 2026-11-15, not yet tried by the owner: "Resize a map from the editor, on all four sides"** (`tasks/plans/editor-resize.md`,
+approved in plan mode; the TODO item of that name has the steps; the owner's sheet `tasks/acceptance/editor-resize.md`).
+`Edit::Extend`, `Document::losses`, notes following cells at Save, the modal `EditorResize` with its Yes / No warning;
+the QA hall is inside the yard (objects 0.1.7; plain `just qa`, east through the gate at (6, 2)); a yard test that
+wants the old seven-by-five yard cuts the hall off (`edit_extend.rs::yard`). The owner tried the QA hall ("advance works")
 and found opening it by name odd, which led here. Combat in feet resumes at step 8 after it.
 
 Written 2026-11-14, night. **In progress: "Combat in feet, and things that break"** (`tasks/plans/combat-in-feet.md`,

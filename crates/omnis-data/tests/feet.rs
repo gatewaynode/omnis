@@ -267,6 +267,14 @@ fn a_group_must_fit_the_squares_of_a_scaled_tile() {
         let map = "data/maps/yard.ron";
         let scale = format!("id: \"objects:map:yard\",\n    tile_feet: Some({feet}),");
         rewrite(&pack, map, "id: \"objects:map:yard\",", &scale);
+        // The shamblers down the hall are another matter: four of them share a square here.
+        let shambler = "data/monsters/shambler.ron";
+        rewrite(
+            &pack,
+            shambler,
+            "size: Medium,",
+            "size: Medium, per_square: Some(4),",
+        );
         if let Some(n) = per_square {
             let rat = "data/monsters/pack_rat.ron";
             rewrite(
