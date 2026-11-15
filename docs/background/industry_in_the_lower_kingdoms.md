@@ -31,5 +31,8 @@ A magical school of animating basic or prime substances, similar to Golems or an
 ## Hylosomatics and Hyloplasty
 The study and act of binding animated matter to biological systems is a regularly recurring theme in maagic on Toel.  Learned and lost numerous times, different civilizations and groups have explored strange amalgams of people and construct.  Though an easy enough path to explore once Hylomancy starts to become more advanced, Hylosomatics has stability risk that often carries it to ruin during periods of cataclysm.
 
+### Examples
+- "Metal Hand of Might" is a common prosthetic chosen by fighters and warrors of Toel when available, or when magic regeneration is not an option.  A base model acts as a melee weapon but utilizes the martial skill providing 1d6 base crushing damage, and a grip strength of 17.
+
 # High Smithing
 An ancient art that the dwarves of Karinguard have preserved, high smithing is the art of using magic to build with tightly controlled and purified metals and minerals.  The outputs are generally mundane but of a quality not possible in the general scientific and industrial level of the world.  Perfectly pure and hardened or softened steel, exotic metal alloys, bronzes of unfathomable strength, diamond grown into natural tool shapes, and many more outputs are possible.  The outputs of the high smiths of Karinguard are deeply valued for their attributes and their magic neutral properties.
