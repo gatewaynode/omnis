@@ -1,5 +1,19 @@
 # Continuity notes
 
+**2026-11-15, afternoon. Combat in feet resumes at step 9 (doors).** The owner tried Part I ("Tested ranged advance
+and combat, seems to work well") and the rebuilt minimap ("That fixed the minimap usability"): `0b78b7ef`, one
+192-pixel square centred on the party, `minimap::Zoom` over `ZOOMS` (12 px a cell first), `Zooming` resource,
+two `ZoomButton`s on the picture; lesson recorded (a "squished" report is about what the view is for). Then step 8,
+`52655b5c` (gate 1470): `breaking.rs`, `ObjectState.damage`/`broken`, `objects::standing`, Cast and Attack at
+`Target::Object`, `ObjectDamaged`/`ObjectBroken` (78 events), `CannotBeDamaged`/`Broken` (77 rejections), fixture
+`objects` 0.1.8 (hash 9841898359379817104; crate and chest durable). Departures are in the plan's "As built".
+For step 9: `MapState.door_damage`/`broken_doors` and a new journal `Change`, `MapState::door_open` the one place a
+broken door counts as open, `DoorMake::numbers()`, `breaking::strike` generalised from `Thing` (an object) to a door,
+`targets::durable` lists doors (a test in `breaking.rs` pins that it does not yet), `EdgeView::Door` gains damage and
+broken, events `DoorDamaged`/`DoorBroken`. The client already lists and strikes durable objects through `targets`;
+marks wait for step 12. Still open with the owner: the Resize form's try (`tasks/acceptance/editor-resize.md`),
+the six decisions in `combat-in-feet-part-1.md`, the minimap's start zoom, unsaved zoom and button place.
+
 **Built 2026-11-15, not yet tried by the owner: "Resize a map from the editor, on all four sides"** (`tasks/plans/editor-resize.md`,
 approved in plan mode; the TODO item of that name has the steps; the owner's sheet `tasks/acceptance/editor-resize.md`).
 `Edit::Extend`, `Document::losses`, notes following cells at Save, the modal `EditorResize` with its Yes / No warning;
