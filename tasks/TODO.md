@@ -828,6 +828,20 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
     ground shows through a darker channel. Not built: the minimap; the theme outside a fight; icons and
     the text cursor on the theme; the arena on the line material. Not seen by me: the fight screen (the
     dev socket did not answer); the factors are untuned by eye.
+- [ ] **Resize a map from the editor, on all four sides** (owner, 2026-11-14: "plan the Resize form, all four
+  sides. Shrink is destructive, a warning and y/n accept buttons should be thrown when shrinking a map
+  destroys things."; `tasks/plans/editor-resize.md`, approved in plan mode 2026-11-15). The owner's choices:
+  a grow keeps the old outer wall as an inside wall; the warning comes for anything but empty cells; the
+  form is then used to put the QA hall inside the yard. It comes before step 8 of combat in feet.
+  - [ ] 0. Documents: the plan, this item.
+  - [ ] 1. Engine: `Edit::Extend { north, east, south, west }`, everything shifted together, the old wall
+        kept, new-cell terrain, `Resize` rerouted, the step's words.
+  - [ ] 2. Losses: `Document::losses`.
+  - [ ] 3. Notes follow their cells at Save.
+  - [ ] 4. API: MCP schema and tool text, CLI example, `docs/api.md`.
+  - [ ] 5. The form and the warning (`ScreenId::EditorResize`).
+  - [ ] 6. The QA hall inside the yard.
+  - [ ] 7. Documents: the owner's sheet, code map, continuity. Report.
 - [ ] **Combat in feet, and things that break** (owner, 2026-11-14, on accepting the targeting sheet:
   "We'll need to work on combat to fix the opening strike, lack of range calculation, reach and such. One
   thing to note, the destructive spells like flame bolt need to be able to target objects, and we'll need
