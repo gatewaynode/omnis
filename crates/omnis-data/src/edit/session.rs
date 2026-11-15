@@ -4,8 +4,9 @@
 //! loader would refuse the map, and nothing is written then.
 
 use crate::edit::document::Document;
+use crate::edit::extend::Losses;
 use crate::edit::files::{DIRECTORIES, check_text};
-use crate::edit::kinds::{EditError, EditorStatus, MapEntry, NewMap};
+use crate::edit::kinds::{Edit, EditError, EditorStatus, MapEntry, NewMap};
 use crate::edit::notes_store::Notes;
 use crate::error::DataError;
 use crate::loader::{self, Data};
@@ -94,6 +95,32 @@ impl Session {
     pub fn set_note(&mut self, key: &str, text: Option<&str>) -> Result<(), EditError> {
         let root = self.root().to_path_buf();
         self.notes.set(&root, key, text)
+    }
+
+    /// What `edit` would destroy in the open map ([`Document::losses`]), with the notes written
+    /// on cells it cuts.
+    ///
+    /// # Errors
+    /// `NoDocument`; `OutOfRange` for a size the map may not have.
+    pub fn losses(&self, edit: &Edit) -> Result<Losses, EditError> {
+        let doc = self.document.as_ref().ok_or(EditError::NoDocument)?;
+        let mut lost = doc.losses(edit)?;
+        let def = doc.def();
+        let mut after = doc.clone();
+        after.edit(edit.clone())?;
+        let (by, was) = doc.moved_since_saved();
+        let (then, size) = (after.moved_since_saved().0, {
+            let d = after.def();
+            (d.width, d.height)
+        });
+        let now = (def.width, def.height);
+        let cells = self.notes.on_cells(&def.id);
+        let cut = cells.iter().filter(|(_, _, at)| {
+            let had = at.0 < was.0 && at.1 < was.1;
+            had && moved(*at, by, now).is_some() && moved(*at, then, size).is_none()
+        });
+        lost.notes = u32::try_from(cut.count()).unwrap_or(u32::MAX);
+        Ok(lost)
     }
 
     /// The notes whose target is nowhere in `data` nor in the open map.
@@ -215,9 +242,20 @@ impl Session {
         if !errors.is_empty() {
             return Err(EditError::Invalid(errors));
         }
-        let text = to_string(&doc.def())?;
+        let def = doc.def();
+        let text = to_string(&def)?;
         write_files(&root, &[(doc.file(), &text, false)])?;
+        // Notes written on cells follow them: by the cells added or cut on the west and north
+        // since the file was last written, and gone with a cell that is.
+        let (by, was) = doc.moved_since_saved();
+        let size = (def.width, def.height);
         doc.mark_saved();
+        self.notes.follow(
+            &root,
+            &def.id,
+            |(x, y)| x < was.0 && y < was.1,
+            |cell| moved(cell, by, size),
+        )?;
         Ok(seal::seal(&root, None)?)
     }
 
@@ -273,4 +311,12 @@ impl Session {
         }
         Ok(Some(seal::seal(&root, None)?))
     }
+}
+
+/// Where a cell lies after every cell moved `by` (east, south) on a map of `size`, when it is
+/// still on it.
+fn moved((x, y): (u16, u16), by: (i32, i32), size: (u16, u16)) -> Option<(u16, u16)> {
+    let x = u16::try_from(i32::from(x) + by.0).ok()?;
+    let y = u16::try_from(i32::from(y) + by.1).ok()?;
+    (x < size.0 && y < size.1).then_some((x, y))
 }

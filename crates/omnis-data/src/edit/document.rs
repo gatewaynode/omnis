@@ -30,6 +30,9 @@ pub const UNDO_CAP: usize = 100;
 pub(super) struct State {
     pub(super) def: MapDef,
     pub(super) grids: BTreeMap<Level, Arc<Grid>>,
+    /// How far every cell has moved east and south since the map was opened, by cells added
+    /// and cut on the west and north: what the notes written on cells follow at the next save.
+    pub(super) shift: (i32, i32),
 }
 
 impl State {
@@ -132,7 +135,11 @@ impl Document {
             level.layout.clear();
             level.heights.clear();
         }
-        let state = State { def, grids };
+        let state = State {
+            def,
+            grids,
+            shift: (0, 0),
+        };
         Ok(Document {
             file: file.to_owned(),
             saved: state.clone(),
@@ -182,7 +189,11 @@ impl Document {
             Level::GROUND,
             Arc::new(Grid::blank(new.width, new.height, Some(0))),
         );
-        let state = State { def, grids };
+        let state = State {
+            def,
+            grids,
+            shift: (0, 0),
+        };
         let mut saved = state.clone();
         saved.def.id.clear();
         Document {
@@ -223,6 +234,17 @@ impl Document {
     #[must_use]
     pub fn dirty(&self) -> bool {
         self.state != self.saved
+    }
+
+    /// How far every cell stands east and south of where the saved file has it, and the size
+    /// the saved file has: what notes written on cells are moved by at a save.
+    #[must_use]
+    pub fn moved_since_saved(&self) -> ((i32, i32), (u16, u16)) {
+        let (now, then) = (self.state.shift, self.saved.shift);
+        (
+            (now.0 - then.0, now.1 - then.1),
+            (self.saved.def.width, self.saved.def.height),
+        )
     }
 
     /// The file now holds the map as it is.

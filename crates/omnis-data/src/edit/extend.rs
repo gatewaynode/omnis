@@ -103,6 +103,8 @@ pub(super) fn extend(state: &mut State, sides: Sides) -> Result<(), EditError> {
         let fill = if level.is_ground() { ground } else { None };
         *grid = Arc::new(grid.extended((sides.west, sides.north), size, fill));
     }
+    state.shift.0 += i32::from(sides.west);
+    state.shift.1 += i32::from(sides.north);
     let def = &mut state.def;
     (def.width, def.height) = size;
     let to = |cell| sides.moved(cell, size);

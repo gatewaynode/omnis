@@ -58,6 +58,54 @@ impl Notes {
         out
     }
 
+    /// The notes written on cells of `map`: each key with its level and cell.
+    #[must_use]
+    pub fn on_cells(&self, map: &str) -> Vec<(String, i8, (u16, u16))> {
+        let prefix = format!("{map}/");
+        let notes = self.with_prefix(&prefix).into_iter();
+        notes
+            .filter_map(|(key, _)| {
+                let (level, cell) = key.strip_prefix(&prefix)?.split_once('/')?;
+                let (x, y) = cell.split_once(',')?;
+                let at = (x.parse().ok()?, y.parse().ok()?);
+                Some((key.to_owned(), level.parse().ok()?, at))
+            })
+            .collect()
+    }
+
+    /// Move the notes written on cells of `map` as its cells moved: `to` gives a cell's new
+    /// place, or `None` for a cell that is gone, whose note goes with it. Notes on cells the
+    /// map never had (`was` says which it had) are left as they are.
+    ///
+    /// # Errors
+    /// The store's, as for [`Notes::set`].
+    pub fn follow(
+        &mut self,
+        root: &Path,
+        map: &str,
+        was: impl Fn((u16, u16)) -> bool,
+        to: impl Fn((u16, u16)) -> Option<(u16, u16)>,
+    ) -> Result<(), EditError> {
+        let moving: Vec<_> = self
+            .on_cells(map)
+            .into_iter()
+            .filter(|(_, _, at)| was(*at) && to(*at) != Some(*at))
+            .collect();
+        let texts: Vec<Option<String>> = moving
+            .iter()
+            .map(|(key, _, _)| self.get(key).map(str::to_owned))
+            .collect();
+        for (key, _, _) in &moving {
+            self.set(root, key, None)?;
+        }
+        for ((_, level, at), text) in moving.iter().zip(texts) {
+            if let (Some((x, y)), Some(text)) = (to(*at), text) {
+                self.set(root, &format!("{map}/{level}/{x},{y}"), Some(&text))?;
+            }
+        }
+        Ok(())
+    }
+
     /// How many notes there are.
     #[must_use]
     pub fn len(&self) -> usize {

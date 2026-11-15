@@ -841,7 +841,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 2. Losses: `Document::losses` (`Losses { cells, things, start, notes }`, `lines`, `summary`); the
         step is named with what it took. A wall shared with a cell that stays is no loss, a door on it is.
         Ten mutations caught.
-  - [ ] 3. Notes follow their cells at Save.
+  - [x] 3. Notes follow their cells at Save: `State.shift`, `Document::moved_since_saved`,
+        `Notes::{on_cells, follow}`, `Session::losses` (the document's with the notes a cut takes). A note
+        on a cell the map never had is left alone. Seven mutations: six caught at once, one after a test
+        was added (a second save moves nothing more).
   - [x] 4. API: MCP schema and tool text, `docs/api.md` (with steps 1 and 2; the CLI's example is of
         `Resize` and stands).
   - [ ] 5. The form and the warning (`ScreenId::EditorResize`).

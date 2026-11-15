@@ -334,3 +334,94 @@ fn notes_are_written_at_once_never_sealed_and_orphans_are_told_apart() {
     let text = session.read("notes/town.ron").unwrap();
     assert_eq!(session.write("notes/town.ron", &text, &data).unwrap(), None);
 }
+
+/// Notes written on cells follow their cells (owner, 2026-11-14;
+/// `tasks/plans/editor-resize.md`): when the map is saved after growing on the west or north
+/// they are rekeyed by the cells added; a note on a cell that was cut goes with it, and is
+/// counted among the cut's losses beforehand. Nothing moves before the save, and an undone
+/// resize moves nothing.
+#[test]
+fn notes_on_cells_follow_their_cells_at_the_save() {
+    use omnis_data::edit::Edit;
+    let (mut session, scratch, data) = session("edit-session-notes-follow");
+    let extend = |north: i16, east: i16, south: i16, west: i16| Edit::Extend {
+        north,
+        east,
+        south,
+        west,
+    };
+    session.open("test:map:meadow").unwrap();
+    let size = {
+        let def = session.document().unwrap().def();
+        (def.width, def.height)
+    };
+    let far = format!("test:map:meadow/0/{},1", size.0 - 1);
+    session
+        .set_note("test:map:meadow/0/1,1", Some("near"))
+        .unwrap();
+    session.set_note(&far, Some("far")).unwrap();
+    session
+        .set_note("test:map:meadow/0/300,1", Some("never on the map"))
+        .unwrap();
+    session
+        .set_note("test:map:meadow", Some("the map's own"))
+        .unwrap();
+    // A cut of the east column would take the far note: it is counted.
+    assert_eq!(session.losses(&extend(0, -1, 0, 0)).unwrap().notes, 1);
+    assert_eq!(session.losses(&extend(0, 0, 0, 2)).unwrap().notes, 0);
+    // Grown two on the west and one on the north, then undone: a save moves nothing.
+    session
+        .document_mut()
+        .unwrap()
+        .edit(extend(1, 0, 0, 2))
+        .unwrap();
+    assert_eq!(session.notes().get("test:map:meadow/0/1,1"), Some("near"));
+    session.document_mut().unwrap().undo().unwrap();
+    session.save(&data).unwrap();
+    assert_eq!(session.notes().get("test:map:meadow/0/1,1"), Some("near"));
+    // Grown and saved: the notes are where their cells are.
+    session
+        .document_mut()
+        .unwrap()
+        .edit(extend(1, 0, 0, 2))
+        .unwrap();
+    session.save(&data).unwrap();
+    let notes = session.notes();
+    assert_eq!(notes.get("test:map:meadow/0/1,1"), None);
+    assert_eq!(notes.get("test:map:meadow/0/3,2"), Some("near"));
+    let moved_far = format!("test:map:meadow/0/{},2", size.0 + 1);
+    assert_eq!(notes.get(&moved_far), Some("far"));
+    assert_eq!(
+        notes.get("test:map:meadow/0/300,1"),
+        Some("never on the map"),
+        "a note on no cell is left alone"
+    );
+    assert_eq!(notes.get("test:map:meadow"), Some("the map's own"));
+    // A second save moves nothing more: the file already has the cells where they are.
+    let data = reload(&scratch).unwrap();
+    session.save(&data).unwrap();
+    assert_eq!(session.notes().get("test:map:meadow/0/3,2"), Some("near"));
+    assert_eq!(session.notes().get("test:map:meadow/0/5,3"), None);
+    // Read again from disk, they are the same.
+    let fresh = Session::new(vec![base_pack(), scratch.clone()]).unwrap();
+    assert_eq!(fresh.notes().get("test:map:meadow/0/3,2"), Some("near"));
+    // The east column cut and saved: its note is gone, the near one stays.
+    let data = reload(&scratch).unwrap();
+    session.open("test:map:meadow").unwrap();
+    session
+        .document_mut()
+        .unwrap()
+        .edit(extend(0, -1, 0, 0))
+        .unwrap();
+    match session.save(&data) {
+        Ok(_) => {
+            assert_eq!(session.notes().get(&moved_far), None);
+            assert_eq!(session.notes().get("test:map:meadow/0/3,2"), Some("near"));
+        }
+        // The loader may refuse the cut map (a portal in that column); then nothing moved.
+        Err(EditError::Invalid(_)) => {
+            assert_eq!(session.notes().get(&moved_far), Some("far"));
+        }
+        Err(other) => panic!("{other:?}"),
+    }
+}
