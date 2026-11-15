@@ -383,7 +383,8 @@ fn refused(world: &World, data: &Data, slot: usize, target: Target) -> Rejection
     result.expect_err("refused")
 }
 
-/// The attack's list for the member in `slot`, each row checked against the command itself on
+/// The groups in the attack's list for the member in `slot` (the things a weapon may damage
+/// are `breaking.rs`'s), each row of the list checked against the command itself on
 /// a copy of the world: `(target, tiles, refusal)`.
 fn listed(world: &World, data: &Data, slot: usize) -> Vec<(Target, u16, Option<Rejection>)> {
     let id = world.party.members[slot].id;
@@ -402,7 +403,9 @@ fn listed(world: &World, data: &Data, slot: usize) -> Vec<(Target, u16, Option<R
         }
     }
     let rows = rows.into_iter();
-    rows.map(|r| (r.target, r.distance, r.refusal)).collect()
+    rows.filter(|r| matches!(r.target, Target::Being { .. }))
+        .map(|r| (r.target, r.distance, r.refusal))
+        .collect()
 }
 
 /// On the road the attack lists the groups in sight, and the command agrees with every row;
@@ -479,7 +482,10 @@ fn the_long_hall_is_a_fight_at_a_distance() {
         &Chosen::Attack,
     )
     .unwrap();
-    assert!(!seen.iter().any(|row| row.target != rat()), "{seen:?}");
+    let groups = seen
+        .iter()
+        .filter(|row| matches!(row.target, Target::Being { .. }));
+    assert_eq!(groups.map(|row| &row.target).collect::<Vec<_>>(), [&rat()]);
     apply(&mut world, &data, Command::Dev(hall)).expect("the hall's west end");
     let mob = Target::Being {
         being: "shamblers".into(),

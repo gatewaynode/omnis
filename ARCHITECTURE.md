@@ -195,7 +195,7 @@ pub enum Command {                  // 17 variants
     Attack { member, target },      // a weapon's opening strike at a standing group in sight (combat in feet, step 6)
 }
 
-pub enum Event {                    // 76 variants, integers, ids and roll traces only
+pub enum Event {                    // 78 variants, integers, ids and roll traces only
     // Exploration and time: Moved, Blocked, Visible, Door, Message { key: MessageKey }, PartyChanged,
     //   TimeAdvanced { holder, minutes, day_rolled }, Reconciled { a, b, delta_a, delta_b, era_b } (M8),
     //   SignalsDropped { count } (M8, §4.8)
@@ -214,7 +214,7 @@ pub enum Event {                    // 76 variants, integers, ids and roll trace
 }
 ```
 
-- `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` (75 variants, `command.rs`) is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs. A command is validated in full before anything changes, so a rejected command leaves the world and its streams untouched.
+- `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` (77 variants, `command.rs`) is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs. A command is validated in full before anything changes, so a rejected command leaves the world and its streams untouched.
 - Every dice roll produces a `RollTrace` in the event so a client can show the math and a test can assert it. A `Roll` (M4) is a d20 with its mode (normal, advantage, disadvantage: both dice in the trace, the kept face named), the modifier, the proficiency bonus, and the total.
 - Events are appended to `World::log`, the party's log, capped at `LOG_CAPACITY` (16384) in every build, so `events.tail` works for a client that polls. Each is stamped with the party's age and map. The character save carries the events a full log tells (`told`: all but `Visible`, `EncounterCheck`, `TimeAdvanced`), so a load gives them back and the client retells its full log from them; a fold leaves the log be (M8.5 7f). A character save may be 8 MiB (`MAX_SAVE_BYTES`).
 - Text never appears in events; only keys and ids. Clients localize from pack `text/`.

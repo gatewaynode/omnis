@@ -74,8 +74,22 @@ pub struct ObjectView {
     pub capacity: u16,
     /// A container's items when it is open; `None` when shut or not a container.
     pub contents: Option<Vec<ItemCount>>,
-    /// Every interaction offered in its state, a spent one with its refusal.
+    /// Every interaction offered in its state, a spent one with its refusal; none when broken.
     pub verbs: Vec<VerbView>,
+    /// Its armor class and whole hit points, when its kind can be damaged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub durability: Option<(u8, u16)>,
+    /// Hit points it has lost.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub damage: u16,
+    /// Broken: it offers nothing until repaired.
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub broken: bool,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_zero(value: &u16) -> bool {
+    *value == 0
 }
 
 /// What `objects.get` answers.
@@ -113,6 +127,9 @@ pub struct SeenObject {
     pub look: Look,
     /// Whether it blocks a step in that state; a client draws a shut arch closed.
     pub blocks: bool,
+    /// Broken: a client draws it so.
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub broken: bool,
 }
 
 /// A pile in sight.
@@ -147,8 +164,10 @@ fn object(world: &World, data: &Data, p: &ResolvedPlacement, kind: &ObjectKind) 
     let state = state_of(world, world.position.map, p);
     let open = kind.states.is_empty() || kind.states.get(state).is_some_and(|s| s.open);
     let capacity = kind.attributes.capacity;
+    let saved = crate::objects::saved(world, world.position.map, &p.id);
+    let broken = saved.is_some_and(|s| s.broken);
     let mut verbs: Vec<VerbView> = Vec::new();
-    for (index, interaction) in offered(kind, state) {
+    for (index, interaction) in offered(kind, state).filter(|_| !broken) {
         let earlier = verbs.iter().filter(|v| v.verb == interaction.verb).count();
         let refusal = if matches!(world.mode, Mode::Explore) {
             let mut roller = Roller::take_stream(world, "object");
@@ -178,8 +197,11 @@ fn object(world: &World, data: &Data, p: &ResolvedPlacement, kind: &ObjectKind) 
             .map_or_else(|| kind.name.clone(), |key| id_of(&data.registry.text, key)),
         state: String::from(state),
         capacity,
-        contents: (capacity > 0 && open).then(|| counted(data, contents(world, p))),
+        contents: (capacity > 0 && open && !broken).then(|| counted(data, contents(world, p))),
         verbs,
+        durability: crate::breaking::make(kind).map(|m| (m.armor_class, m.hit_points)),
+        damage: saved.map_or(0, |s| s.damage),
+        broken,
     }
 }
 
@@ -271,6 +293,7 @@ pub fn placed_on_level(
                 state: p.state.clone(),
                 look: *look,
                 blocks,
+                broken: false,
             })
         })
         .collect();
@@ -297,7 +320,7 @@ fn drawn(world: &World, map: MapId, data: &Data, p: &ResolvedPlacement) -> Optio
     }
     let kind = data.objects.get(&p.kind)?;
     let now = state_in(state, p);
-    let (look, blocks, _) = in_state(kind, now);
+    let (look, blocks, _) = crate::objects::standing(kind, state, p);
     Some(SeenObject {
         object: p.id.clone(),
         object_kind: id_of(&data.registry.objects, p.kind),
@@ -308,6 +331,9 @@ fn drawn(world: &World, map: MapId, data: &Data, p: &ResolvedPlacement) -> Optio
         state: String::from(now),
         look: *look,
         blocks,
+        broken: state
+            .and_then(|s| s.objects.get(&p.id))
+            .is_some_and(|s| s.broken),
     })
 }
 

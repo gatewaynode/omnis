@@ -135,7 +135,9 @@ fn a_harmful_spell_s_target_is_the_group_in_sight_and_the_screen_gives_way() {
         .iter()
         .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
         .collect();
-    assert_eq!(rows.len(), 1);
+    // The group first, then the thing in sight that can be damaged (step 8 of combat in feet).
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].spans[0].text, "Crate, west");
     let rat = labels::monster(&data, "objects:monster:pack_rat");
     assert_eq!(
         (
@@ -301,7 +303,9 @@ fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
         .iter()
         .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
         .collect();
-    assert_eq!(rows.len(), 1);
+    // The group first, then the thing in sight that can be damaged (step 8 of combat in feet).
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].spans[0].text, "Crate, west");
     let rat = labels::monster(&data, "objects:monster:pack_rat");
     assert_eq!(
         rows[0].spans[0].text,
@@ -335,12 +339,22 @@ fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
         Ok(Effect::None)
     );
     assert_eq!(forms.aim, None);
-    let hidden = crate::loot::yard(&data, 5, 4, Facing::North);
-    let views = common::views(&hidden, &data);
-    let context = ctx(&data, &hidden, &views);
-    let list = screen::content(ScreenId::Actions, &context, &Forms::default());
-    let any = list.panels[0].rows.iter().flat_map(|r| &r.controls);
-    assert!(!any.into_iter().any(|c| c.label == "Attack..."));
+    // Behind the hedge no group is seen, but the chest in reach can be struck: the entry stays.
+    // With nothing there that can be damaged it is not offered.
+    let offered = |data: &omnis_sim::omnis_data::Data| {
+        let hidden = crate::loot::yard(data, 5, 4, Facing::North);
+        let views = common::views(&hidden, data);
+        let context = ctx(data, &hidden, &views);
+        let list = screen::content(ScreenId::Actions, &context, &Forms::default());
+        let mut any = list.panels[0].rows.iter().flat_map(|r| &r.controls);
+        any.any(|c| c.label == "Attack...")
+    };
+    assert!(offered(&data));
+    let mut bare = common::objects_data();
+    for kind in bare.objects.values_mut() {
+        kind.attributes.durability = None;
+    }
+    assert!(!offered(&bare));
 }
 
 /// The party column's Attack on a member's entry (the owner's QA note, 2026-11-14: "no
@@ -397,8 +411,19 @@ fn a_member_s_attack_in_the_column_opens_the_target_step_and_the_fight() {
         Tool::Attack.why_not(&data, context.game.unwrap(), member)
     };
     assert_eq!(why(3, 1, Facing::East, pip), None);
+    // Behind the hedge no group is seen, but the chest in reach can be struck.
+    assert_eq!(why(5, 4, Facing::North, pip), None);
+    let mut bare = common::objects_data();
+    for kind in bare.objects.values_mut() {
+        kind.attributes.durability = None;
+    }
+    let world = crate::loot::yard(&bare, 5, 4, Facing::North);
+    let views = common::views(&world, &bare);
+    let context = ctx(&bare, &world, &views);
     assert_eq!(
-        why(5, 4, Facing::North, pip).as_deref(),
+        Tool::Attack
+            .why_not(&bare, context.game.unwrap(), pip)
+            .as_deref(),
         Some("No one in sight")
     );
     assert!(

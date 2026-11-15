@@ -2,6 +2,7 @@
 //! `cast_minutes` of the party's clock.
 
 use crate::apply::advance;
+use crate::breaking::{self, Blow, Thing};
 use crate::combat::cast::{self, Aim, CastPlan, Target};
 use crate::combat::{Roller, state};
 use crate::command::Rejection;
@@ -28,6 +29,8 @@ pub(crate) struct Checked<'a> {
     hand: Option<Hand<'a>>,
     /// The standing group an opening strike is sent at, when the cast is one.
     strike: Option<String>,
+    /// The object the spell is to damage, when it is aimed at one.
+    thing: Option<Thing<'a>>,
 }
 
 /// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
@@ -77,10 +80,20 @@ pub(crate) fn validate<'a>(
         _ => None,
     };
     // A harmful spell on the road is an opening strike, at a group the party sees.
+    let mut thing = None;
     let strike = match &target {
         Target::Being { being } if effect.strikes() => {
             crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
             Some(being.clone())
+        }
+        // A spell that may strike objects, at a thing that can be damaged: no fight starts.
+        Target::Object { object } if effect.strikes() => {
+            if !def.objects {
+                return Err(Rejection::CannotBeDamaged);
+            }
+            crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
+            thing = Some(breaking::thing(world, data, object)?);
+            None
         }
         _ if effect.strikes() => return Err(Rejection::WrongTarget),
         _ => None,
@@ -88,7 +101,7 @@ pub(crate) fn validate<'a>(
     let aim = match target {
         Target::Member(id) => Aim::Member(usize::from(world.party.slot_of(id)?)),
         Target::Stack(stack) => Aim::Stack(stack),
-        _ if hand.is_some() || strike.is_some() => Aim::Party,
+        _ if hand.is_some() || strike.is_some() || thing.is_some() => Aim::Party,
         _ => return Err(Rejection::WrongTarget),
     };
     let plan = CastPlan {
@@ -105,6 +118,48 @@ pub(crate) fn validate<'a>(
         plan,
         hand,
         strike,
+        thing,
+    })
+}
+
+/// The effect with a cantrip's dice at the caster's level.
+fn scaled(
+    world: &World,
+    data: &Data,
+    own: usize,
+    def: &Spell,
+    effect: SpellEffect,
+    roller: &mut Roller,
+) -> Result<SpellEffect, Rejection> {
+    if def.level > 0 {
+        return Ok(effect);
+    }
+    let caster = &world.party.members[own];
+    let mut at = |dice| {
+        omnis_rules::cantrip_dice(caster, data, dice, &mut roller.rng, &roller.stream)
+            .map_err(Rejection::Rule)
+    };
+    Ok(match effect {
+        SpellEffect::Attack { dice, damage_type } => SpellEffect::Attack {
+            dice: at(dice)?,
+            damage_type,
+        },
+        SpellEffect::AutoHit { dice, damage_type } => SpellEffect::AutoHit {
+            dice: at(dice)?,
+            damage_type,
+        },
+        SpellEffect::Save {
+            ability,
+            dice,
+            damage_type,
+            half_on_save,
+        } => SpellEffect::Save {
+            ability,
+            dice: at(dice)?,
+            damage_type,
+            half_on_save,
+        },
+        other => other,
     })
 }
 
@@ -126,6 +181,7 @@ pub(crate) fn apply(
         plan,
         hand,
         strike,
+        thing,
     } = validate(world, data, caster, spell, target, &mut roller.rng)?;
     cast::pay(world, data, &plan, events).map_err(Rejection::Rule)?;
     if let Some(being) = strike {
@@ -143,6 +199,12 @@ pub(crate) fn apply(
                 .map_err(Rejection::Rule)?;
         }
         return Ok(());
+    }
+    if let Some(thing) = &thing {
+        let effect = scaled(world, data, own, def, effect.clone(), &mut roller)?;
+        let blow = Blow::Spell(&effect);
+        breaking::strike(world, data, own, thing, &blow, &mut roller, events)
+            .map_err(Rejection::Rule)?;
     }
     match (effect, plan.target) {
         (SpellEffect::Heal { dice, add_mod }, Aim::Member(slot)) => {

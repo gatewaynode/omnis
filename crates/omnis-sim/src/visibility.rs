@@ -34,7 +34,6 @@ use omnis_core::ObjectKindId;
 use omnis_core::{Facing, Level, Position};
 use omnis_data::footprint::Footprint;
 use omnis_data::limits::MAX_VISIBILITY_DEPTH;
-use omnis_data::placement::in_state;
 use omnis_data::{Data, MapData, ObjectKind};
 use omnis_rules::light_depth;
 
@@ -211,7 +210,7 @@ impl Sheet<'_> {
             let Some(kind) = self.kinds.get(&p.kind) else {
                 return false;
             };
-            let (look, _, blocks) = in_state(kind, objects::state_in(self.state, p));
+            let (look, _, blocks) = objects::standing(kind, self.state, p);
             let footprint: Footprint = p.footprint(look);
             blocks
                 && footprint

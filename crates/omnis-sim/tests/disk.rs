@@ -62,7 +62,7 @@ fn kept(world: &World) -> World {
     kept
 }
 
-fn round_trip(world: &World, data: &Data, at: &str) -> Restored {
+pub(crate) fn round_trip(world: &World, data: &Data, at: &str) -> Restored {
     let mut disk = BTreeMap::new();
     write(world, data, &mut disk);
     let (back, report) = read(&disk, data, false).unwrap_or_else(|e| panic!("{at}: {e}"));

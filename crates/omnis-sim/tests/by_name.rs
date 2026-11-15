@@ -473,6 +473,7 @@ fn the_yard_reads_the_same() {
             removed: false,
             used: [u8::try_from(search).unwrap()].into(),
             contents: Some(vec![(dagger, 3)]),
+            ..ObjectState::default()
         },
     );
     state.ground.insert(

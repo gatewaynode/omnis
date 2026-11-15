@@ -113,3 +113,7 @@ can be approached from the next cell, and can be struck from the road with a spe
 **2026-11-15: the hall moved into the yard.** `just qa` alone now: from the start walk to (6, 2), the
 east side of the yard's middle row, open the gate in the east hedge and step through. The hall runs
 east from there (5 ft tiles, so the shamblers stand 140 ft off, not 200; fire bolt reaches 120 ft).
+
+**2026-11-15, the owner after trying it:** "Tested ranged advance and combat, seems to work well." Part I
+is tried. The minimap rebuilt the same day (one square centred on the party, +/- zoom) "fixed the minimap
+usability". The six decisions above stay open; Part II starts at step 8.

@@ -538,7 +538,35 @@ pub enum Event {
         /// Where to.
         to: ItemPlace,
     },
-    /// Items were destroyed where they lay: gone for good (`ItemCommand::Destroy`).
+    /// A blow was aimed at an object from the road: the roll to hit when one was made, and
+    /// what it did. `amount` is 0 for a miss, for poison or psychic damage, and for damage
+    /// under the thing's threshold.
+    ObjectDamaged {
+        /// The placement's id.
+        object: String,
+        /// Who struck.
+        by: CharacterId,
+        /// The roll to hit; none for a spell that needs none.
+        attack: Option<omnis_rules::AttackRoll>,
+        /// The kind of damage.
+        kind: DamageType,
+        /// The damage dice; none on a miss.
+        rolls: Vec<RollTrace>,
+        /// Dice plus bonus.
+        raw: i64,
+        /// Hit points it lost.
+        amount: u16,
+        /// Hit points it has left.
+        left: u16,
+    },
+    /// An object broke: it offers nothing more, and what it held follows as moved or
+    /// destroyed items.
+    ObjectBroken {
+        /// The placement's id.
+        object: String,
+    },
+    /// Items were destroyed where they lay: gone for good (`ItemCommand::Destroy`, or fragile
+    /// items in a thing that broke).
     ItemDestroyed {
         /// Which item.
         item: String,

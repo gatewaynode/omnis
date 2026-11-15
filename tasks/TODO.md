@@ -916,7 +916,23 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         squares; the editor refuses a save in the loader's words, as for any load error. Fourteen
         mutations caught. Said plainly: not seen on screen by me; the editor has no form field for
         `tile_feet` or `door_make` (the map's own fields are files still); Shift+Space never attacks.
-  - [ ] 8. Objects take damage: state, AC and hit points, cast and attack, break, spill, fragile loss.
+  - [x] 8. Objects take damage: state, AC and hit points, cast and attack, break, spill, fragile loss.
+        Built 2026-11-15 after the owner tried Part I ("Tested ranged advance and combat, seems to work
+        well"). `breaking.rs` (`make`, `thing`, `Blow`, `strike`), `ObjectState.damage`/`broken`,
+        `objects::standing` (the one place that says how a thing stands: a broken thing with no broken state
+        is a heap that blocks nothing) and `objects::broken`; `casting::validate` and `assault::validate`
+        take `Target::Object`; `Event::ObjectDamaged`, `ObjectBroken` (78), `Rejection::CannotBeDamaged`,
+        `Broken` (77); `ObjectView.durability/damage/broken`, `SeenObject.broken`; `targets` lists whole
+        durable objects for `Attack` and for a spell flagged `objects`. Fixture `objects` 0.1.8: the crate
+        (wood, Medium: AC 15, 18 hp, a heap when broken) and the chest (Small: 10 hp, broken state
+        "smashed") are durable. Twenty-six mutations: twenty-two caught at once, four after a test was added
+        (a shot past normal range, the spell's range, a thing in reach on wide tiles, the dice moving on).
+        **Departures, said plainly**: a save spell flagged `objects` lands in full whatever its save (the
+        plan said only Strength and Dexterity saves fail; shatter saves on Constitution and the SRD says
+        objects in its area take the damage); `ObjectDamaged` is also the event of a miss (amount 0); a
+        weapon blow at a thing rolls on a new `strike` stream; bless does not add to a roll at a thing; the
+        client already lists and strikes such objects through `targets` (the row reads "Crate, west"), with
+        no damaged or broken mark until step 12.
   - [ ] 9. Doors the same.
   - [ ] 10. Repair: mending and `Command::Repair`.
   - [ ] 11. Repair service.

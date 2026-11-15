@@ -7,8 +7,9 @@
     states: {
         "closed": (),
         "open": (open: true),
+        "smashed": (blocks_movement: Some(false)),
     },
-    attributes: (blocks_movement: true, capacity: 8, material: Some(Wood), value_cp: 500, tags: ["container"]),
+    attributes: (blocks_movement: true, size: Some(Small), capacity: 8, material: Some(Wood), durability: Some((broken_state: Some("smashed"))), value_cp: 500, tags: ["container"]),
     interactions: [
         (
             verb: Open,

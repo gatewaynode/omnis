@@ -23,12 +23,17 @@ use core::fmt;
 use omnis_core::{Facing, ItemId, Level, MapId};
 use omnis_data::footprint::Footprint;
 use omnis_data::placement::{ResolvedPlacement, in_state};
-use omnis_data::{Data, School, Verb};
+use omnis_data::{Data, Look, ObjectKind, School, Verb};
 use serde::{Deserialize, Serialize};
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
 const fn is_false(value: &bool) -> bool {
     !*value
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_zero(value: &u16) -> bool {
+    *value == 0
 }
 
 /// What the save remembers of one placement; every field left out holds its default.
@@ -46,6 +51,12 @@ pub struct ObjectState {
     /// A container's items, once changed from what it started with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<(ItemId, u16)>>,
+    /// Hit points lost, of a kind that can be damaged (`tasks/plans/combat-in-feet.md` step 8).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub damage: u16,
+    /// Broken: it offers nothing, and blocks nothing unless its kind's broken state says so.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub broken: bool,
 }
 
 /// Why an object does not allow what was asked of it now. Checks are not refusals: a failed
@@ -171,6 +182,33 @@ pub fn state_of<'a>(world: &'a World, map: MapId, p: &'a ResolvedPlacement) -> &
         .unwrap_or(&p.state)
 }
 
+/// Whether a placement lies broken.
+#[must_use]
+pub fn broken(world: &World, map: MapId, p: &ResolvedPlacement) -> bool {
+    saved(world, map, &p.id).is_some_and(|s| s.broken)
+}
+
+/// The look, movement blocking and sight blocking of a placement as it stands now. A broken
+/// thing whose kind names no broken state lies as a heap: its kind's look, blocking nothing.
+#[must_use]
+pub fn standing<'a>(
+    kind: &'a ObjectKind,
+    state: Option<&'a MapState>,
+    p: &'a ResolvedPlacement,
+) -> (&'a Look, bool, bool) {
+    let saved = state.and_then(|s| s.objects.get(&p.id));
+    let heap = saved.is_some_and(|s| s.broken)
+        && !kind
+            .attributes
+            .durability
+            .as_ref()
+            .is_some_and(|d| d.broken_state.is_some());
+    if heap {
+        return (&kind.look, false, false);
+    }
+    in_state(kind, state_in(state, p))
+}
+
 /// Whether a placement has been taken away.
 #[must_use]
 pub fn removed(world: &World, map: MapId, p: &ResolvedPlacement) -> bool {
@@ -221,6 +259,6 @@ fn blocks(
     if removed(world, map_id, p) {
         return false;
     }
-    let (look, moves, _) = in_state(kind, state_of(world, map_id, p));
+    let (look, moves, _) = standing(kind, world.maps.get(&map_id), p);
     moves && p.footprint(look).overlaps(path)
 }

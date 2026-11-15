@@ -174,6 +174,9 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
 - **An engaged stack stops the line**: a stack behind it is reached by a ranged weapon, a spell or a
   longer reach.
 - No dash counter is kept: the feet advanced this round say everything.
+- Step 8: a save spell flagged `objects` lands in full on a thing whatever its save's ability (shatter
+  saves on Constitution; the SRD has objects in its area take the damage). `ObjectDamaged` is the event of
+  every blow at a thing, a miss included (`amount` 0).
 
 ## Not in this plan
 A fight grid, member positions, cover, flanking, retreating or kiting monsters, thrown weapons and

@@ -6,14 +6,14 @@
 //! may keep more, later). What held nothing (an open door no longer a door, a cleared encounter
 //! the map lost, automap tiles outside the map) is forgotten.
 
-use crate::objects::{ObjectState, state_of};
+use crate::objects::ObjectState;
 use crate::world::{Mode, World};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Facing, ItemId, Level, MapId};
-use omnis_data::placement::{covers_centre, in_state};
+use omnis_data::placement::covers_centre;
 use omnis_data::{Data, MapData};
 use serde::{Deserialize, Serialize};
 
@@ -189,7 +189,7 @@ fn standable(
     !map.objects_at(level, x, y).any(|(_, p)| {
         data.objects.get(&p.kind).is_some_and(|kind| {
             let removed = crate::objects::removed(world, id, p);
-            let (look, moves, _) = in_state(kind, state_of(world, id, p));
+            let (look, moves, _) = crate::objects::standing(kind, world.maps.get(&id), p);
             !removed && moves && covers_centre(&p.footprint(look), x, y)
         })
     })

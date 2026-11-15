@@ -58,6 +58,8 @@ fn cast(world: &World, spell: &str, target: Target) -> Command {
 }
 
 /// The spell's list, each row checked against the command itself on a copy of the world.
+/// The groups a spell lists, every row of the list (the things it may damage too, which
+/// `breaking.rs` tests) checked against the command itself.
 fn listed(world: &World, data: &Data, spell: &str) -> Vec<TargetView> {
     let id = world.party.members[WIZARD].id;
     let rows = targets(world, data, id, &chosen(spell)).expect("a list");
@@ -69,7 +71,9 @@ fn listed(world: &World, data: &Data, spell: &str) -> Vec<TargetView> {
             assert_eq!(&copy, world, "a refusal changes nothing: {row:?}");
         }
     }
-    rows
+    let rows = rows.into_iter();
+    rows.filter(|r| matches!(r.target, Target::Being { .. }))
+        .collect()
 }
 
 fn refused(world: &World, data: &Data, spell: &str, target: Target) -> Rejection {

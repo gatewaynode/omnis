@@ -668,7 +668,9 @@ meets; left out when none, M8.5 step 2c).
 `ObjectView`: `object` (the placement's id, `Act`'s `object`), `object_kind` (the kind's id),
 `name` (text key: the placement's own, else the kind's), `state` (empty when the kind has none),
 `capacity` (kinds of item it holds; 0 when not a container), `contents` (`[ItemCount]` when an
-open container, else null), `verbs` (`[VerbView]`).
+open container, else null), `verbs` (`[VerbView]`; none when broken), `durability` (`[armor class, hit points]`
+when its kind can be damaged, else left out), `damage` (hit points lost; left out at 0), `broken` (left out
+when false: a broken object offers nothing and its contents read null).
 
 `VerbView`, one per interaction the kind offers in that state, in the kind's order: `verb` and
 `option` (which of the verb's offered interactions, from 0: `Act`'s `verb` and `option`), `label`
@@ -719,7 +721,7 @@ party meets or fights it. One whose figure reaches a seen tile is listed.
 `pos` (`[east, south]` offset from the cell's centre in eighths, −4..=4), `facing` (its look's
 width runs across it), `state`, `look` (`shape`: `Box`, `Post`, `Slab`, `Arch`, `Sign`, `Heap`;
 `Figure` for a being; `width`, `depth`, `height` in eighths, in the state it is in), `blocks` (whether it blocks a step in
-that state, so a client can draw a shut gate shut). An object whose footprint spills
+that state, so a client can draw a shut gate shut), `broken` (left out when false). An object whose footprint spills
 onto a seen tile is listed once; a hidden one only once found; a removed one never.
 `PileView`: `x`, `y`, `pos`, `items` (`[ItemCount]`, in the order laid down).
 
@@ -849,14 +851,14 @@ means the same thing after a reorder or a change to a list.
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
-| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. A harmful spell (an attack, an auto-hit, a save) takes a `Being`, a standing group in sight and in range, and is the **opening strike**: the cast is paid; `EncounterStarted` follows with the group hostile whatever it was, `noticed` true and no stealth roll; then `CombatStarted` with `surprised: "Monsters"` (or `"None"` when the rules value `opening_strike_surprise` is written 0), `Initiative`, the spell's own events on the group's first stack in front by its `reach` as in a fight, and round one. The strike was the caster's action for round one (`CombatState.struck` until that turn begins). No pre-fight choice is offered, no minute passes (the fight keeps the time), and Run returns the party to where it stood. Any other target for a harmful spell on the road is `WrongTarget`. |
+| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. A harmful spell (an attack, an auto-hit, a save) takes a `Being`, a standing group in sight and in range, and is the **opening strike**: the cast is paid; `EncounterStarted` follows with the group hostile whatever it was, `noticed` true and no stealth roll; then `CombatStarted` with `surprised: "Monsters"` (or `"None"` when the rules value `opening_strike_surprise` is written 0), `Initiative`, the spell's own events on the group's first stack in front by its `reach` as in a fight, and round one. The strike was the caster's action for round one (`CombatState.struck` until that turn begins). No pre-fight choice is offered, no minute passes (the fight keeps the time), and Run returns the party to where it stood. A harmful spell whose data says `objects: true` also takes an `Object` whose kind can be damaged, in its range: one blow (`ObjectDamaged`, `ObjectBroken`), the cast's minute, no fight; refused `CannotBeDamaged` (the kind, or a spell that strikes creatures only) and `Broken`. Any other target for a harmful spell on the road is `WrongTarget`. |
 | `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
 | `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
 | `Approach` | `being` (the group's id in the map, `BeingView.being`) | Go up to a group standing in the party's cell, or the faced cell across an edge with no wall, closed door or cliff (else `NoSuchBeing`): the encounter begins as a step into its cell begins it (`EncounterStarted` with its `Fixed` source), but the party stays where it is, and Run puts it back there facing away. Takes no time. Exploring only. |
-| `Attack` | `member` (`CharacterId`), `target` (`Target`: `{"Being": {being}}`, a standing group the party sees) | A weapon's opening strike from the road (`targets.get` with `Attack` lists the groups in sight). The member's melee weapon is used when its reach covers the distance (tiles to the group times the map's `tile_feet`, never under 5; the back row stands 5 ft further), else the ranged weapon in the `Ranged` slot within its long range, at disadvantage past its normal range. The group is met as hostile, the party's group Stealth check settles surprise as for a spell's strike, the blow lands on the nearest stack before round one and was the member's action for that round. Takes no time and pays nothing. Refused `NoSuchBeing` (not in sight), `NeedsRangedWeapon`, `BeyondRange`, `WrongTarget` (anything but a group), `MemberDown`, `MemberDead`. Exploring only. |
+| `Attack` | `member` (`CharacterId`), `target` (`Target`: `{"Being": {being}}`, a standing group the party sees) | A weapon's opening strike from the road (`targets.get` with `Attack` lists the groups in sight). The member's melee weapon is used when its reach covers the distance (tiles to the group times the map's `tile_feet`, never under 5; the back row stands 5 ft further), else the ranged weapon in the `Ranged` slot within its long range, at disadvantage past its normal range. The group is met as hostile, the party's group Stealth check settles surprise as for a spell's strike, the blow lands on the nearest stack before round one and was the member's action for that round. Takes no time and pays nothing. Refused `NoSuchBeing` (not in sight), `NeedsRangedWeapon`, `BeyondRange`, `WrongTarget` (anything but a group or an object), `MemberDown`, `MemberDead`. At `{"Object": {object}}`, an object whose kind can be damaged: one blow (`ObjectDamaged`, then `ObjectBroken` at no hit points), a minute, no fight; an object in the party's reach is in a melee weapon's; refused `NoSuchObject`, `CannotBeDamaged`, `Broken`, `OutOfSight`. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -971,7 +973,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 76 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 78 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1045,7 +1047,9 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
 | `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell; for `PickUp` also the cell it faces; for what an object gave, the object's cell where the party reaches it, else the party's) or `{"Object": placement id}`) | Items moved. From an `Object` to `"Ground"`: an object gave the items (the effect `GiveItem`), and they lie as a pile to be taken. |
-| `ItemDestroyed` | `item`, `count`, `from` (`ItemPlace`: `"Ground"` or `{"Object": placement id}`) | `Destroy`: the items are gone for good. |
+| `ItemDestroyed` | `item`, `count`, `from` (`ItemPlace`: `"Ground"` or `{"Object": placement id}`) | `Destroy`: the items are gone for good. Also a fragile item in an object that broke under acid, bludgeoning, cold, fire, force, lightning or thunder damage. |
+| `ObjectDamaged` | `object` (placement id), `by` (`CharacterId`), `attack` (`AttackRoll` or null: `roll`, `ac`, `hit`, `crit`), `kind` (`DamageType`), `rolls` (`[RollTrace]`, empty on a miss), `raw`, `amount`, `left` | A blow at an object from the road (`Cast` or `Attack` at an `Object`), landed or not. `amount` is the hit points it lost: 0 on a miss, for poison or psychic damage, and for damage under its threshold. `left` is what it has left. |
+| `ObjectBroken` | `object` | The object has no hit points left: it shows its kind's `broken_state` if it names one (else it lies as a heap that blocks nothing), offers nothing, and what it held follows as `ItemMoved` to the ground or `ItemDestroyed`. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1093,7 +1097,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (75 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (77 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1157,6 +1161,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). `Cast` at an `Object`: none of that id on the party's level that it sees or knows of (none in the map, hidden, taken away, or out of sight on a tile not on the automap). |
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
+| `CannotBeDamaged` | | `Cast` or `Attack` at an object: its kind has no `durability`, or the spell strikes creatures only (`Spell.objects` false). |
+| `Broken` | | The object is broken: `Cast` and `Attack` at it, `Act` on it and taking from or putting into it are refused until it is repaired. |
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. `Cast` at a `Door`: no door on that edge that the party sees or knows of. |
@@ -1313,6 +1319,20 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-15 (additions; combat in feet, step 8: objects take damage; PRD §8.3). `Command::Cast` of a
+  harmful spell whose data says `objects: true` (base: fire bolt, acid arrow, shatter) and `Command::Attack`
+  take `{"Object": {object}}`, an object of the party's level whose kind has a `durability`: one blow a
+  command, a minute, no fight. A spell needs its range and, where its targeting says so, sight; a weapon
+  reaches an object in the party's reach with its melee reach, else by range in feet and in sight. A spell
+  attack and a weapon roll against the object's armor class; an auto-hit and a save spell land in full (a
+  thing makes no save). Poison and psychic damage and damage under the kind's `threshold` do nothing.
+  `Event::ObjectDamaged` and `Event::ObjectBroken` (78 events), `Rejection::CannotBeDamaged` and
+  `Rejection::Broken` (77 rejections). `ObjectView` gains `durability`, `damage`, `broken`; `SeenObject`
+  gains `broken` (left out when false). `targets.get` lists such objects, whole ones only, after the groups
+  in sight for `Attack` and for a spell that may strike objects. A broken object blocks no step or sight
+  unless its `broken_state` says so. The save keeps `damage` and `broken` on the object's state (schema 9,
+  both left out at their defaults). Doors come with step 9; nothing may be struck in a fight. The fixture
+  pack `objects` is 0.1.8 (hash 9841898359379817104): its crate and chest are durable.
 - 2026-11-15 (fixtures only): the fixture pack `objects` is 0.1.7 (hash 7212696385307235208). Its yard was
   grown thirty cells east with `Edit::Extend` and holds the long hall behind a gate at (6, 2), the four
   shamblers at (35, 2); the separate `objects:map:hall` is gone.

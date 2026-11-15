@@ -34,6 +34,9 @@ pub(crate) fn act(
             object: String::from(object),
         })?;
     let refused = |reason| Rejection::VerbRefused { reason };
+    if super::broken(world, world.position.map, placement) {
+        return Err(Rejection::Broken);
+    }
     let state = String::from(state_of(world, world.position.map, placement));
     let (index, interaction) = offered(kind, &state)
         .filter(|(_, it)| it.verb == verb)
@@ -69,7 +72,8 @@ pub(crate) fn pick<'d>(
     let not_offered = Rejection::VerbRefused {
         reason: Refusal::NotOffered,
     };
-    let Some(kind) = data.objects.get(&placement.kind) else {
+    let kind = data.objects.get(&placement.kind);
+    let Some(kind) = kind.filter(|_| !super::broken(world, world.position.map, placement)) else {
         return Err(not_offered);
     };
     let state = String::from(state_of(world, world.position.map, placement));
@@ -135,6 +139,9 @@ pub(crate) fn choices(world: &World, data: &Data) -> Vec<Choice> {
         let Some(kind) = data.objects.get(&placement.kind) else {
             continue;
         };
+        if super::broken(world, map, placement) {
+            continue;
+        }
         let used = saved(world, map, &placement.id).map(|s| &s.used);
         let mut verbs = Vec::new();
         for (index, interaction) in offered(kind, state_of(world, map, placement)) {

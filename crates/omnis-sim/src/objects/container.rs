@@ -103,6 +103,9 @@ fn open<'d>(
         object: String::from(object),
     })?;
     let refused = |reason| Rejection::VerbRefused { reason };
+    if super::broken(world, world.position.map, placement) {
+        return Err(Rejection::Broken);
+    }
     let kind = data
         .objects
         .get(&placement.kind)

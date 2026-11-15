@@ -38,6 +38,7 @@ fn object(x: u16, y: u16, pos: (i8, i8), facing: Facing, look: Look, blocks: boo
         state: String::new(),
         look,
         blocks,
+        broken: false,
     }
 }
 

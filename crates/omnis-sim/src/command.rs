@@ -80,7 +80,8 @@ pub enum Command {
     Attack {
         /// Who attacks.
         member: CharacterId,
-        /// What is attacked: a standing group, `{"Being": {being}}`.
+        /// What is attacked: a standing group, `{"Being": {being}}`, or an object that can be
+        /// damaged, `{"Object": {object}}`, which costs a minute and starts no fight.
         target: Target,
     },
 }
@@ -175,6 +176,11 @@ pub enum Rejection {
     NeedsRangedWeapon,
     /// The party's line cannot advance: a stack is engaged already.
     AlreadyEngaged,
+    /// The thing aimed at cannot be damaged: its kind has no durability, or the spell strikes
+    /// creatures only.
+    CannotBeDamaged,
+    /// The thing is broken: it offers nothing until it is repaired.
+    Broken,
     /// No member has that identity.
     NoSuchMember {
         /// The member asked for.
@@ -487,6 +493,8 @@ impl Rejection {
                 f.write_str("a back-row member needs a ranged weapon to attack")
             }
             Rejection::AlreadyEngaged => f.write_str("the party is engaged already"),
+            Rejection::CannotBeDamaged => f.write_str("that cannot be damaged"),
+            Rejection::Broken => f.write_str("it is broken"),
             Rejection::NoSuchMember {
                 member: CharacterId(member),
             } => write!(f, "there is no member {member}"),

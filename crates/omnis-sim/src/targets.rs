@@ -195,6 +195,18 @@ fn hand_rows(world: &World, data: &Data, targeting: Targeting) -> Vec<Row> {
         .collect()
 }
 
+/// The objects among `things` that can be damaged and are not broken.
+fn durable(world: &World, data: &Data, things: Vec<(Target, map::Spot)>) -> Vec<Row> {
+    let things = things.into_iter();
+    things
+        .filter(|(target, _)| match target {
+            Target::Object { object } => crate::breaking::thing(world, data, object).is_ok(),
+            _ => false,
+        })
+        .map(|(target, spot)| (target, spot.distance, spot.sight))
+        .collect()
+}
+
 /// Every member, in marching order.
 fn members(world: &World) -> Vec<Target> {
     let ids = world.party.members.iter().map(|m| m.id);
@@ -249,7 +261,16 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
         return hand_rows(world, data, def.targeting());
     }
     if effect.strikes() && matches!(world.mode, Mode::Explore) {
-        return seen(map::beings(world, data, def.targeting()));
+        // The groups in sight, then the things the spell may damage.
+        let mut rows = seen(map::beings(world, data, def.targeting()));
+        if def.objects {
+            rows.extend(durable(
+                world,
+                data,
+                map::things(world, data, def.targeting()),
+            ));
+        }
+        return rows;
     }
     let on_the_party = matches!(
         effect,
@@ -362,7 +383,12 @@ pub fn targets(
             let rows = match chosen {
                 Chosen::Spell { spell, .. } => spell_rows(world, data, own.clone(), spell),
                 Chosen::Item { item } => item_rows(item),
-                Chosen::Attack => seen(map::seen(world, data)),
+                Chosen::Attack => {
+                    let mut rows = seen(map::seen(world, data));
+                    let things = map::things(world, data, Targeting::SIGHT);
+                    rows.extend(durable(world, data, things));
+                    rows
+                }
                 Chosen::Feature { .. } | Chosen::Exchange => Vec::new(),
             };
             (rows, &|target| match (chosen, target) {
