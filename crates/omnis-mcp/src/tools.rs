@@ -194,7 +194,7 @@ fn editor_tools() -> Vec<Tool> {
         tool(
             "editor_edit",
             "editor.edit",
-            "Change the open map's structure: Resize (the top-left kept, what falls outside dropped), Map fields, LevelAdd (all no ground) / LevelSet / LevelRemove (with everything on it), TerrainAdd / TerrainSet (a rename carries its rest events; a join change while in use is refused) / TerrainRemove (while unused), or a stair's Rise.",
+            "Change the open map's structure: Extend (cells added north, east, south, west, a negative number cutting them; everything moves together, a grown side keeps its old wall, and what a cut leaves outside is destroyed without asking), Resize (an Extend on the east and south to a width and height), Map fields, LevelAdd (all no ground) / LevelSet / LevelRemove (with everything on it), TerrainAdd / TerrainSet (a rename carries its rest events; a join change while in use is refused) / TerrainRemove (while unused), or a stair's Rise.",
             &[Field::new::<Edit>("edit", true, "The change.")],
         ),
         tool(

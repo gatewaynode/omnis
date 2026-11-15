@@ -226,7 +226,7 @@ socket and the bridge (malformed request).
 | `editor.new` | `map` (`NewMap`: `id`, `name`, `kind`, `tileset`, `width`, `height`, `wall`, `door`, `door_open`, `terrain`) | `editor` | `TooLong`, `Invalid` (an id not `<pack>:map:<name>` of the edited pack; `data/maps/<name>.ron` exists) | host. Every tile the terrain, walls round it, the start at (0, 0) facing East; open and unsaved |
 | `editor.paint` | `level` (default 0), `x`, `y`, `brush` (`Brush`: `Tile { glyph, rise }`, `Edge { side, kind }`, `Height { eighths }`, `Clear`), `stroke` (default false) | `editor` | `Invalid` (no such level; outside; no terrain has the glyph; a stair without its rise; a boundary edge that is not a wall; a height beyond ±4096) | host. A stair up or down keeps the `stairs` list consistent; with `stroke` the paint joins the step the last paint opened |
 | `editor.place` | `place` (`Place`: `Start`, `Portal`, `Encounter`, `Random`, `Site`, `RestEvent`, `Object`, `Ground`, `Lore`, or `Remove(Target)`) | `editor` | `Invalid` (a start outside; a collection at its limit; a removal that matches nothing) | host. Upsert by key: a tile for portals, sites and piles, an id for encounters, objects and lore, terrain and rest kind for rest events. A portal (W1 step 2, 2026-11-01) is `{level, x, y, id, link, facing, marker}`: linked by id, its landing the cell ahead of its partner; the authored `to_map`, `to_level`, `to_x`, `to_y`, `to_facing` are gone. A start (W1 step 3, 2026-11-07) is `{level, x, y, facing}`, `level` the ground when left out: a new game and a save's fallback begin on it |
-| `editor.edit` | `edit` (`Edit`: `Resize`, `Map`, `LevelAdd`, `LevelSet`, `LevelRemove`, `TerrainAdd`, `TerrainSet`, `TerrainRemove`, `Rise`) | `editor` | `Invalid` (the edit's rule, one line) | host. The map's structure; what falls outside a resize is dropped and the start clamped; a level removed takes everything on it and returns a start on it to the ground; a terrain in use cannot go or change its join |
+| `editor.edit` | `edit` (`Edit`: `Resize`, `Extend`, `Map`, `LevelAdd`, `LevelSet`, `LevelRemove`, `TerrainAdd`, `TerrainSet`, `TerrainRemove`, `Rise`) | `editor` | `Invalid` (the edit's rule, one line) | host. The map's structure; what falls outside a resize is dropped and the start clamped; a level removed takes everything on it and returns a start on it to the ground; a terrain in use cannot go or change its join |
 | `editor.undo`, `editor.redo` | none | `editor` | `Invalid` (nothing to undo; no map open) | host. 100 steps, each named by what it did for the editor's history list (`Document::steps`); a step made over the socket takes the document's own words (`edit/words.rs`). No op reads the words yet |
 | `editor.save` | none | `written` (`path`, `version`) | `Invalid` (the loader's words; nothing written), `Failed` (I/O, the seal) | host. The map written to its file atomically, then the pack resealed at its next patch version (owner, 2026-10-21), so the game loads it; the running world sees the pack after `pack.reload` |
 | `editor.files` | none | `files` | `Failed` | host. `pack.ron` and the `.ron` files under `data/`, `text/`, `notes/`, `migrations/` |
@@ -1313,6 +1313,15 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-15 (an addition and a **behaviour** change; the editor's resize on four sides,
+  `tasks/plans/editor-resize.md`). `Edit` gains `Extend { north, east, south, west }` (signed cells added on
+  each side, a negative number removing them; each defaults to 0): everything on the map moves together
+  by the cells added west and north, what a cut leaves outside is dropped, and the size must stay 1..=256
+  a side. `Resize { width, height }` is an `Extend` on the east and south and changes in two ways: **a side
+  that grows keeps its old outer wall** as an inside wall (it was silently opened), and **new ground cells
+  are the first terrain that joins no level** (they were terrain 0 even when that was a stair). The undo
+  step is named for what it did ("grew 3 west; cut 1 east (4 cells, 2 things lost)"). The op applies
+  without asking; `Document::losses(&Edit)` (Rust tier) lists what a cut would destroy.
 - 2026-11-14 (**behaviour**; the owner's "place holder for all placed foes"): every fixed encounter stands
   in view. One whose placement writes no `stand` is given the middle of its cell, facing north: it is in
   `ViewportModel.beings`, `ObjectsView.beings` and `beings_on_level`, `Approach` and Use reach it, and a

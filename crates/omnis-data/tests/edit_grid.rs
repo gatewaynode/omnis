@@ -102,10 +102,10 @@ fn resize_keeps_the_top_left_and_walls_the_new_boundary() {
         .expect("the dungeon");
     let def = &data.maps[&id].def;
     let (by_glyph, order) = glyphs(def);
-    let mut grid =
+    let grid =
         Grid::from_text(def.width, def.height, &def.layout, &def.heights, &by_glyph).unwrap();
     let before = grid.layout(&order);
-    grid.resize(3, 2, Some(0));
+    let grid = grid.extended((0, 0), (3, 2), Some(0));
     let after = grid.layout(&order);
     assert_eq!(after.len(), 5);
     for (row, full) in after.iter().enumerate() {
@@ -117,9 +117,12 @@ fn resize_keeps_the_top_left_and_walls_the_new_boundary() {
             assert!(full.ends_with('|'));
         }
     }
-    grid.resize(4, 3, None);
+    let grid = grid.extended((0, 0), (4, 3), None);
     assert_eq!(grid.tile(3, 2), Some(None), "new tiles are no ground");
     assert_eq!(grid.edge(3, 2, Facing::East), Some(EdgeKind::Wall));
+    // The wall the cut made at the old edge stays where it stood when the grid grows again.
+    assert_eq!(grid.edge(2, 1, Facing::East), Some(EdgeKind::Wall));
+    assert_eq!(grid.edge(2, 1, Facing::South), Some(EdgeKind::Wall));
 }
 
 #[test]

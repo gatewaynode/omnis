@@ -290,12 +290,30 @@ pub struct MapFields {
 /// A change to the map's structure rather than to a tile or a placement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Edit {
-    /// New tiles across and down; the top-left is kept, what falls outside is dropped.
+    /// New tiles across and down; the top-left is kept, what falls outside is dropped. The
+    /// same as an `Extend` on the east and south.
     Resize {
         /// Tiles across.
         width: u16,
         /// Tiles down.
         height: u16,
+    },
+    /// Cells added on each side of the map, a negative number removing them (owner,
+    /// 2026-11-14). Everything on the map moves together; a side that grows keeps its old outer
+    /// wall as an inside wall; what a cut leaves outside is dropped.
+    Extend {
+        /// Rows added above row 0.
+        #[serde(default)]
+        north: i16,
+        /// Columns added past the last.
+        #[serde(default)]
+        east: i16,
+        /// Rows added past the last.
+        #[serde(default)]
+        south: i16,
+        /// Columns added before column 0.
+        #[serde(default)]
+        west: i16,
     },
     /// The map's own fields.
     Map(MapFields),

@@ -6,6 +6,7 @@
 
 pub mod answer;
 pub mod document;
+pub mod extend;
 pub mod files;
 pub mod grid;
 pub mod kinds;
@@ -15,6 +16,7 @@ pub mod words;
 
 pub use answer::{Answer, Request, answer};
 pub use document::{Document, UNDO_CAP};
+pub use extend::{Losses, Sides};
 pub use files::check_text;
 pub use grid::{EdgeKind, Grid};
 pub use kinds::{Brush, Edit, EditError, EditorStatus, MapEntry, MapFields, NewMap, Place, Target};

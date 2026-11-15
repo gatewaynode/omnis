@@ -116,11 +116,41 @@ fn target(target: &Target) -> String {
     }
 }
 
+/// "grew 3 west, 2 south; cut 1 east": what an extend did, side by side.
+fn extended(sides: [(i16, &str); 4]) -> String {
+    let said = |grew: bool| {
+        let parts: Vec<String> = sides
+            .iter()
+            .filter(|(n, _)| *n != 0 && (*n > 0) == grew)
+            .map(|(n, side)| format!("{} {side}", n.unsigned_abs()))
+            .collect();
+        let verb = if grew { "grew" } else { "cut" };
+        (!parts.is_empty()).then(|| format!("{verb} {}", parts.join(", ")))
+    };
+    let both: Vec<String> = [said(true), said(false)].into_iter().flatten().collect();
+    if both.is_empty() {
+        "size kept".to_owned()
+    } else {
+        both.join("; ")
+    }
+}
+
 /// A map edit's words.
 #[must_use]
 pub fn edit(edit: &Edit) -> String {
     clip(&match edit {
         Edit::Resize { width, height } => format!("resized to {width} x {height}"),
+        Edit::Extend {
+            north,
+            east,
+            south,
+            west,
+        } => extended([
+            (*north, "north"),
+            (*east, "east"),
+            (*south, "south"),
+            (*west, "west"),
+        ]),
         Edit::Map(_) => "map fields set".to_owned(),
         Edit::LevelAdd { level, .. } => format!("level {level} added"),
         Edit::LevelSet { level, .. } => format!("level {level} set"),

@@ -239,6 +239,7 @@ impl Schema for Edit {
         );
         json!({"description": "A change to the map's structure.", "oneOf": [
             variant("Resize", obj(json!({"width": u16::schema(), "height": u16::schema()}), &["width", "height"])),
+            variant("Extend", obj(json!({"north": i16::schema(), "east": i16::schema(), "south": i16::schema(), "west": i16::schema()}), &[])),
             variant("Map", fields),
             variant("LevelAdd", obj(json!({"level": {"type": "integer", "minimum": -128, "maximum": 127}, "name": id(), "base": i16::schema()}), &["level", "name"])),
             variant("LevelSet", obj(json!({"level": {"type": "integer", "minimum": -128, "maximum": 127}, "name": {"type": ["string", "null"]}, "base": {"type": ["integer", "null"]}}), &["level"])),
@@ -328,6 +329,7 @@ mod tests {
         let terrain = json!({"glyph": "~", "name": "pond", "floor": "water", "passable": false, "visibility_depth": 12, "step_minutes": 1});
         let edits = [
             json!({"Resize": {"width": 8, "height": 6}}),
+            json!({"Extend": {"west": 3, "south": -1}}),
             json!({"Map": {"name": "test:text:map.town.name", "door_open": null}}),
             json!({"LevelAdd": {"level": 1, "name": "test:text:map.town.upper", "base": 8}}),
             json!({"LevelSet": {"level": 1, "base": 16}}),

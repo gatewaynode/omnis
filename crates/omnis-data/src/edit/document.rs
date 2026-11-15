@@ -5,12 +5,13 @@
 //! of what it did (`words`), for the history list (the editor's column, step 5): `steps`, `at`,
 //! `goto` and `name_step`.
 
+use crate::edit::extend::{Losses, Sides};
 use crate::edit::grid::Grid;
 use crate::edit::kinds::{Brush, Edit, EditError, MapFields, NewMap, Place, Target};
 use crate::edit::words;
 use crate::error::DataError;
 use crate::levels::{self, LevelDef};
-use crate::limits::{MAX_COLLECTION, MAX_LEVELS, MAX_MAP_SIDE, MAX_OBJECTS_PER_MAP};
+use crate::limits::{MAX_COLLECTION, MAX_LEVELS, MAX_OBJECTS_PER_MAP};
 use crate::loader::Data;
 use crate::map::{Join, MapDef};
 use crate::map_data::MapData;
@@ -26,9 +27,9 @@ pub const UNDO_CAP: usize = 100;
 /// The map at one moment: its definition with every `layout` and `heights` empty, and the
 /// grids that fill them.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct State {
-    def: MapDef,
-    grids: BTreeMap<Level, Arc<Grid>>,
+pub(super) struct State {
+    pub(super) def: MapDef,
+    pub(super) grids: BTreeMap<Level, Arc<Grid>>,
 }
 
 impl State {
@@ -433,8 +434,37 @@ impl Document {
     /// The edit's rules, named by the variants of [`EditError`].
     pub fn edit(&mut self, edit: Edit) -> Result<(), EditError> {
         self.stroke = None;
-        let words = words::edit(&edit);
+        let mut words = words::edit(&edit);
+        // A cut says in its step what it took: "cut 2 east (4 cells, 1 things lost)".
+        if let Some(lost) = self.losses(&edit).ok().and_then(|l| l.summary()) {
+            words = format!("{words} ({lost})");
+        }
         self.change(false, words, |state| apply_edit(state, edit))
+    }
+
+    /// What `edit` would destroy, were it applied now: something only for a `Resize` or an
+    /// `Extend` that cuts. Notes are not the document's; the session counts those.
+    ///
+    /// # Errors
+    /// `OutOfRange` for a size the map may not have.
+    pub fn losses(&self, edit: &Edit) -> Result<Losses, EditError> {
+        let old = (self.state.def.width, self.state.def.height);
+        let sides = match *edit {
+            Edit::Resize { width, height } => Sides::to_size(old, (width, height)),
+            Edit::Extend {
+                north,
+                east,
+                south,
+                west,
+            } => Sides {
+                north,
+                east,
+                south,
+                west,
+            },
+            _ => return Ok(Losses::default()),
+        };
+        super::extend::losses(&self.state, sides)
     }
 
     /// Back one step.
@@ -690,7 +720,24 @@ const RESERVED: [char; 9] = ['-', '=', '|', ':', '/', '+', ' ', '*', '_'];
 
 fn apply_edit(state: &mut State, edit: Edit) -> Result<(), EditError> {
     match edit {
-        Edit::Resize { width, height } => resize(state, width, height),
+        Edit::Resize { width, height } => {
+            let old = (state.def.width, state.def.height);
+            super::extend::extend(state, Sides::to_size(old, (width, height)))
+        }
+        Edit::Extend {
+            north,
+            east,
+            south,
+            west,
+        } => super::extend::extend(
+            state,
+            Sides {
+                north,
+                east,
+                south,
+                west,
+            },
+        ),
         Edit::Map(fields) => {
             set_fields(&mut state.def, fields);
             Ok(())
@@ -863,29 +910,5 @@ fn remove_level(state: &mut State, level: i8) -> Result<(), EditError> {
     if def.start_level == gone {
         def.start_level = Level::GROUND;
     }
-    Ok(())
-}
-
-fn resize(state: &mut State, width: u16, height: u16) -> Result<(), EditError> {
-    if !(1..=MAX_MAP_SIDE).contains(&width) || !(1..=MAX_MAP_SIDE).contains(&height) {
-        return Err(EditError::OutOfRange);
-    }
-    for (level, grid) in &mut state.grids {
-        let fill = level.is_ground().then_some(0);
-        Arc::make_mut(grid).resize(width, height, fill);
-    }
-    let def = &mut state.def;
-    def.width = width;
-    def.height = height;
-    let inside = |x: u16, y: u16| x < width && y < height;
-    def.start.0 = def.start.0.min(width - 1);
-    def.start.1 = def.start.1.min(height - 1);
-    def.stairs.retain(|s| inside(s.x, s.y));
-    def.portals.retain(|p| inside(p.x, p.y));
-    def.encounters.retain(|e| inside(e.x, e.y));
-    def.sites.retain(|s| inside(s.x, s.y));
-    def.objects.retain(|o| inside(o.x, o.y));
-    def.ground.retain(|g| inside(g.x, g.y));
-    def.lore.retain(|l| inside(l.x, l.y));
     Ok(())
 }

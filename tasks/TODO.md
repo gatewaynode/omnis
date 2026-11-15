@@ -834,11 +834,16 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   a grow keeps the old outer wall as an inside wall; the warning comes for anything but empty cells; the
   form is then used to put the QA hall inside the yard. It comes before step 8 of combat in feet.
   - [ ] 0. Documents: the plan, this item.
-  - [ ] 1. Engine: `Edit::Extend { north, east, south, west }`, everything shifted together, the old wall
-        kept, new-cell terrain, `Resize` rerouted, the step's words.
-  - [ ] 2. Losses: `Document::losses`.
+  - [x] 1. Engine: `Edit::Extend { north, east, south, west }`, everything shifted together, the old wall
+        kept, new-cell terrain, `Resize` rerouted, the step's words. `edit/extend.rs` (`Sides`, `extend`),
+        `Grid::extended`. Seventeen mutations: fifteen caught at once, two after tests were added (a map
+        whose first terrain is a ladder; the tower's stairs).
+  - [x] 2. Losses: `Document::losses` (`Losses { cells, things, start, notes }`, `lines`, `summary`); the
+        step is named with what it took. A wall shared with a cell that stays is no loss, a door on it is.
+        Ten mutations caught.
   - [ ] 3. Notes follow their cells at Save.
-  - [ ] 4. API: MCP schema and tool text, CLI example, `docs/api.md`.
+  - [x] 4. API: MCP schema and tool text, `docs/api.md` (with steps 1 and 2; the CLI's example is of
+        `Resize` and stands).
   - [ ] 5. The form and the warning (`ScreenId::EditorResize`).
   - [ ] 6. The QA hall inside the yard.
   - [ ] 7. Documents: the owner's sheet, code map, continuity. Report.

@@ -8,6 +8,7 @@ mod catalog;
 mod common;
 mod edit_authoring;
 mod edit_document;
+mod edit_extend;
 mod edit_grid;
 mod edit_session;
 mod feet;

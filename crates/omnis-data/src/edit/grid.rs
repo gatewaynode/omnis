@@ -342,22 +342,53 @@ impl Grid {
         Ok(())
     }
 
-    /// Resize, keeping the top-left; new tiles are `fill`, flat and open; the boundary is
-    /// walled again.
-    pub fn resize(&mut self, width: u16, height: u16, fill: Option<u8>) {
-        let mut next = Grid::blank(width, height, fill);
-        let (w, h) = (usize::from(width), usize::from(height));
-        for y in 0..h.min(usize::from(self.height)) {
-            for x in 0..w.min(usize::from(self.width)) {
-                let (ow, i) = (usize::from(self.width), y * w + x);
-                next.tiles[i] = self.tiles[y * ow + x];
-                next.heights[i] = self.heights[y * ow + x];
-                next.h_edges[y * w + x] = self.h_edges[y * ow + x];
-                next.v_edges[y * (w + 1) + x] = self.v_edges[y * (ow + 1) + x];
+    /// The grid at a new `size`, every cell moved `by` (east, south): new tiles are `fill`,
+    /// flat and open; every edge of the old grid that still lies on the new one is kept, its
+    /// old outer wall among them, so a side that grew has a wall where the map used to end; the
+    /// new boundary is walled.
+    #[must_use]
+    pub fn extended(&self, by: (i16, i16), size: (u16, u16), fill: Option<u8>) -> Grid {
+        let mut next = Grid::blank(size.0, size.1, fill);
+        let (w, h) = (i32::from(size.0), i32::from(size.1));
+        let (ow, oh) = (usize::from(self.width), usize::from(self.height));
+        // Where the old column `x` and row `y` lie now, when below the given bounds.
+        let moved = |x: usize, y: usize, (wide, tall): (i32, i32)| {
+            let nx = i32::try_from(x).ok()? + i32::from(by.0);
+            let ny = i32::try_from(y).ok()? + i32::from(by.1);
+            let inside = (0..wide).contains(&nx) && (0..tall).contains(&ny);
+            inside.then(|| {
+                (
+                    usize::try_from(nx).unwrap_or(0),
+                    usize::try_from(ny).unwrap_or(0),
+                )
+            })
+        };
+        let nw = usize::from(size.0);
+        for y in 0..=oh {
+            for x in 0..=ow {
+                if x < ow
+                    && y < oh
+                    && let Some((nx, ny)) = moved(x, y, (w, h))
+                {
+                    next.tiles[ny * nw + nx] = self.tiles[y * ow + x];
+                    next.heights[ny * nw + nx] = self.heights[y * ow + x];
+                }
+                // The edge north of (x, y): rows run to the south boundary.
+                if x < ow
+                    && let Some((nx, ny)) = moved(x, y, (w, h + 1))
+                {
+                    next.h_edges[ny * nw + nx] = self.h_edges[y * ow + x];
+                }
+                // The edge west of (x, y): columns run to the east boundary.
+                if y < oh
+                    && let Some((nx, ny)) = moved(x, y, (w + 1, h))
+                {
+                    next.v_edges[ny * (nw + 1) + nx] = self.v_edges[y * (ow + 1) + x];
+                }
             }
         }
         next.wall_boundary();
-        *self = next;
+        next
     }
 
     /// Whether any tile is terrain `index`.
