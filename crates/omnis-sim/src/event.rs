@@ -565,6 +565,49 @@ pub enum Event {
         /// The placement's id.
         object: String,
     },
+    /// A member struck a door of the map with a spell or a weapon (combat in feet step 9), as
+    /// `ObjectDamaged` tells a blow at an object.
+    DoorDamaged {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+        /// Who struck.
+        by: CharacterId,
+        /// The roll to hit; none for a spell that needs none.
+        attack: Option<omnis_rules::AttackRoll>,
+        /// The kind of damage.
+        kind: DamageType,
+        /// The damage dice; none on a miss.
+        rolls: Vec<RollTrace>,
+        /// Dice plus bonus.
+        raw: i64,
+        /// Hit points it lost.
+        amount: u16,
+        /// Hit points it has left.
+        left: u16,
+    },
+    /// A door broke: it stands open and can be neither opened nor shut.
+    DoorBroken {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+    },
     /// Items were destroyed where they lay: gone for good (`ItemCommand::Destroy`, or fragile
     /// items in a thing that broke).
     ItemDestroyed {

@@ -707,8 +707,9 @@ Races, classes and backgrounds are in id order.
 `visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
 (that level's name as a text key, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
 the party's level), `objects` (`[SeenObject]`, the objects on those tiles, nearest first; left out
-when none), `piles` (`[PileView]`, the piles on them; left out when none) and `beings`
-(`[BeingView]`, the groups standing on them, nearest first; left out when none).
+when none), `piles` (`[PileView]`, the piles on them; left out when none), `beings`
+(`[BeingView]`, the groups standing on them, nearest first; left out when none) and `door`
+(`[armor class, hit points]` of the map's doors; left out when they cannot be damaged).
 
 `BeingView` (M8.5 step 2c): `being` (the group's id in the map, which `Approach` names),
 `monster` (its front stack's monster, the one drawn), `count` (how many stand there, every stack
@@ -728,7 +729,7 @@ onto a seen tile is listed once; a hidden one only once found; a removed one nev
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
 `x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
 eighths of a cell; a wall is 8 tall), `front`, `left`, `right` (`EdgeView`: `"Open"`, `"Wall"`,
-`{"Door": {"open": bool}}`, `"Ramp"` (open, and walkable across up to 16), as seen from the
+`{"Door": {"open": bool, "damage": n, "broken": bool}}` (`damage` and `broken` left out at 0 and false; a broken door is `open`), `"Ramp"` (open, and walkable across up to 16), as seen from the
 party). `visibility_depth` counts the terrain, a light, and the party's height above the tiles
 around it; a tile behind higher ground is not in `tiles`.
 
@@ -845,20 +846,20 @@ means the same thing after a reorder or a change to a list.
 | `Step` | `Direction` | Move one tile relative to the facing, without turning. A stair up is taken only by a step onto it from its foot (moving the way the map's `stairs` list says it rises), a stair down only from its head (moving against it); a step from any other side lands on the stair as on a floor. The step's direction counts, not the facing, so backing or sidestepping onto a stair from its foot takes it. |
 | `Turn` | `Rotation` | Turn in place. |
 | `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge, every group standing in reach (as `Approach`) and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door`, `Approach` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
-| `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. Costs 1 minute. Exploring only. |
+| `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. A broken door is refused (`Broken`) and is not among `Interact`'s choices. Costs 1 minute. Exploring only. |
 | `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
-| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. A harmful spell (an attack, an auto-hit, a save) takes a `Being`, a standing group in sight and in range, and is the **opening strike**: the cast is paid; `EncounterStarted` follows with the group hostile whatever it was, `noticed` true and no stealth roll; then `CombatStarted` with `surprised: "Monsters"` (or `"None"` when the rules value `opening_strike_surprise` is written 0), `Initiative`, the spell's own events on the group's first stack in front by its `reach` as in a fight, and round one. The strike was the caster's action for round one (`CombatState.struck` until that turn begins). No pre-fight choice is offered, no minute passes (the fight keeps the time), and Run returns the party to where it stood. A harmful spell whose data says `objects: true` also takes an `Object` whose kind can be damaged, in its range: one blow (`ObjectDamaged`, `ObjectBroken`), the cast's minute, no fight; refused `CannotBeDamaged` (the kind, or a spell that strikes creatures only) and `Broken`. Any other target for a harmful spell on the road is `WrongTarget`. |
+| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast; `targets.get` lists what a spell may be sent at). A heal or a buff takes a member. Mage hand takes a `Door` or an `Object` within its `targeting`: it opens or closes the door, or works the object by the first of the object's own `Open`, `Close`, `Push`, `Pull` or `Use` interactions that may be tried now (its requirements, checks, `once` and minutes hold as for `Act`), then the cast's minute passes; anything else is `WrongTarget`. Light and detect magic take a member or a stack and ignore which; a thing of the map is `WrongTarget`. A harmful spell (an attack, an auto-hit, a save) takes a `Being`, a standing group in sight and in range, and is the **opening strike**: the cast is paid; `EncounterStarted` follows with the group hostile whatever it was, `noticed` true and no stealth roll; then `CombatStarted` with `surprised: "Monsters"` (or `"None"` when the rules value `opening_strike_surprise` is written 0), `Initiative`, the spell's own events on the group's first stack in front by its `reach` as in a fight, and round one. The strike was the caster's action for round one (`CombatState.struck` until that turn begins). No pre-fight choice is offered, no minute passes (the fight keeps the time), and Run returns the party to where it stood. A harmful spell whose data says `objects: true` also takes an `Object` whose kind can be damaged, in its range: one blow (`ObjectDamaged`, `ObjectBroken`), the cast's minute, no fight; refused `CannotBeDamaged` (the kind, or a spell that strikes creatures only) and `Broken`. Such a spell also takes a `Door` of a map whose doors can be damaged (`ViewportModel.door`), in its range: `DoorDamaged`, `DoorBroken`, the same refusals. Mage hand at a broken door is `Broken`. Any other target for a harmful spell on the road is `WrongTarget`. |
 | `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
 | `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
 | `Approach` | `being` (the group's id in the map, `BeingView.being`) | Go up to a group standing in the party's cell, or the faced cell across an edge with no wall, closed door or cliff (else `NoSuchBeing`): the encounter begins as a step into its cell begins it (`EncounterStarted` with its `Fixed` source), but the party stays where it is, and Run puts it back there facing away. Takes no time. Exploring only. |
-| `Attack` | `member` (`CharacterId`), `target` (`Target`: `{"Being": {being}}`, a standing group the party sees) | A weapon's opening strike from the road (`targets.get` with `Attack` lists the groups in sight). The member's melee weapon is used when its reach covers the distance (tiles to the group times the map's `tile_feet`, never under 5; the back row stands 5 ft further), else the ranged weapon in the `Ranged` slot within its long range, at disadvantage past its normal range. The group is met as hostile, the party's group Stealth check settles surprise as for a spell's strike, the blow lands on the nearest stack before round one and was the member's action for that round. Takes no time and pays nothing. Refused `NoSuchBeing` (not in sight), `NeedsRangedWeapon`, `BeyondRange`, `WrongTarget` (anything but a group or an object), `MemberDown`, `MemberDead`. At `{"Object": {object}}`, an object whose kind can be damaged: one blow (`ObjectDamaged`, then `ObjectBroken` at no hit points), a minute, no fight; an object in the party's reach is in a melee weapon's; refused `NoSuchObject`, `CannotBeDamaged`, `Broken`, `OutOfSight`. Exploring only. |
+| `Attack` | `member` (`CharacterId`), `target` (`Target`: `{"Being": {being}}`, a standing group the party sees) | A weapon's opening strike from the road (`targets.get` with `Attack` lists the groups in sight). The member's melee weapon is used when its reach covers the distance (tiles to the group times the map's `tile_feet`, never under 5; the back row stands 5 ft further), else the ranged weapon in the `Ranged` slot within its long range, at disadvantage past its normal range. The group is met as hostile, the party's group Stealth check settles surprise as for a spell's strike, the blow lands on the nearest stack before round one and was the member's action for that round. Takes no time and pays nothing. Refused `NoSuchBeing` (not in sight), `NeedsRangedWeapon`, `BeyondRange`, `WrongTarget` (anything but a group or an object), `MemberDown`, `MemberDead`. At `{"Object": {object}}`, an object whose kind can be damaged: one blow (`ObjectDamaged`, then `ObjectBroken` at no hit points), a minute, no fight; an object in the party's reach is in a melee weapon's; refused `NoSuchObject`, `CannotBeDamaged`, `Broken`, `OutOfSight`. At `{"Door": {x, y, facing}}`, a door of a map whose doors can be damaged: the same (`DoorDamaged`, then `DoorBroken`); a door on an edge of the party's own cell is in a melee weapon's reach; refused `NoDoor`, `CannotBeDamaged`, `Broken`, `OutOfSight`. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -973,7 +974,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 78 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 80 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1050,6 +1051,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ItemDestroyed` | `item`, `count`, `from` (`ItemPlace`: `"Ground"` or `{"Object": placement id}`) | `Destroy`: the items are gone for good. Also a fragile item in an object that broke under acid, bludgeoning, cold, fire, force, lightning or thunder damage. |
 | `ObjectDamaged` | `object` (placement id), `by` (`CharacterId`), `attack` (`AttackRoll` or null: `roll`, `ac`, `hit`, `crit`), `kind` (`DamageType`), `rolls` (`[RollTrace]`, empty on a miss), `raw`, `amount`, `left` | A blow at an object from the road (`Cast` or `Attack` at an `Object`), landed or not. `amount` is the hit points it lost: 0 on a miss, for poison or psychic damage, and for damage under its threshold. `left` is what it has left. |
 | `ObjectBroken` | `object` | The object has no hit points left: it shows its kind's `broken_state` if it names one (else it lies as a heap that blocks nothing), offers nothing, and what it held follows as `ItemMoved` to the ground or `ItemDestroyed`. |
+| `DoorDamaged` | `map`, `level` (left out on the ground), `x`, `y`, `facing`, then `by`, `attack`, `kind`, `rolls`, `raw`, `amount`, `left` as `ObjectDamaged` | A blow at a door from the road (`Cast` or `Attack` at a `Door`), landed or not. The door's armor class and hit points are its map's (`door_make`; `ViewportModel.door`). |
+| `DoorBroken` | `map`, `level`, `x`, `y`, `facing` | The door has no hit points left: it counts as open for steps, sight and reach from then on, and can be neither opened nor shut. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1161,8 +1164,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). `Cast` at an `Object`: none of that id on the party's level that it sees or knows of (none in the map, hidden, taken away, or out of sight on a tile not on the automap). |
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
-| `CannotBeDamaged` | | `Cast` or `Attack` at an object: its kind has no `durability`, or the spell strikes creatures only (`Spell.objects` false). |
-| `Broken` | | The object is broken: `Cast` and `Attack` at it, `Act` on it and taking from or putting into it are refused until it is repaired. |
+| `CannotBeDamaged` | | `Cast` or `Attack` at an object or a door: its kind (or the map's `door_make`) has no `durability`, or the spell strikes creatures only (`Spell.objects` false). |
+| `Broken` | | The object is broken: `Cast` and `Attack` at it, `Act` on it and taking from or putting into it are refused until it is repaired. A broken door: `Cast` and `Attack` at it, `Door`, and mage hand. |
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. `Cast` at a `Door`: no door on that edge that the party sees or knows of. |
@@ -1319,6 +1322,17 @@ Additive (§13), so `PROTOCOL` stays 2:
   step as before. `World` and `Checkpoint` gain `quiet` (`u16`, left out at zero, so `SAVE_SCHEMA` stays 9 and
   an older save reads as zero). No event, command or op changes shape. `base` is resealed at 0.1.2, so the
   goldens moved: walk `244eb411d2c9856c`, fight `961b2593313f176b`.
+- 2026-11-15 (additions; combat in feet, step 9: doors take damage and break; PRD §8.3). `Command::Cast`
+  of a harmful spell with `objects: true` and `Command::Attack` take `{"Door": {x, y, facing}}`, a door of
+  the party's level on a map whose `door_make` has a durability (the default: wood, Medium, armor class 15,
+  18 hit points; a map with `door_make: (durability: None)` has doors that cannot be damaged). The rules are
+  an object's: range and sight, the roll against armor class, poison and psychic and the threshold, one blow
+  a command. `Event::DoorDamaged` and `Event::DoorBroken` (80 events; no new rejection). A broken door
+  counts as open everywhere and is refused by `Door`, mage hand and further blows (`Broken`).
+  `EdgeView::Door` gains `damage` and `broken` (left out at 0 and false); `ViewportModel` gains `door`
+  (`[armor class, hit points]`, left out when the map's doors cannot be damaged). `targets.get` lists whole
+  doors with the durable objects. The save keeps a door's wear in `MapState.worn_doors` (schema 9, left out
+  when empty) and the journal as `Change::DoorWear`. No pack changed; no golden moved.
 - 2026-11-15 (additions; combat in feet, step 8: objects take damage; PRD §8.3). `Command::Cast` of a
   harmful spell whose data says `objects: true` (base: fire bolt, acid arrow, shatter) and `Command::Attack`
   take `{"Object": {object}}`, an object of the party's level whose kind has a `durability`: one blow a
@@ -1619,7 +1633,7 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the character save (M8.5 7d, PRD D28, amended the same day), `SAVE_SCHEMA` 8:
   `save.write` writes a character save (`CharacterSave { schema, world, bases, checkpoint, journal,
   fingerprint }`: the party as it stands, and the journal of interactions, `Entry { minute, at,
-  command, changes }`, each `Change` a value after: `Door`, `LevelDoor`, `Cleared`, `Object`,
+  command, changes }`, each `Change` a value after: `Door`, `LevelDoor`, `DoorWear` (since 2026-11-15), `Cleared`, `Object`,
   `Ground`, `Flag`, `Clock`, `Contact`, `Stream`) and the world folder `.omnis/worlds/<id>/`
   (`manifest.ron`, `world/<hash>.ron`, `regions/<pack>/<name>/<hash>.ron`); `save.read` joins the
   bases with the party and lays the changes over them, running no rule, or converts a schema 1 to

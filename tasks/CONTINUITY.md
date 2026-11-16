@@ -9,8 +9,12 @@ modal `TabGroup`, the editor's columns groups 0 to 3; Bevy's own Tab handler lef
 word ("a visual representation of a destroyed object"), part of step 12 pulled forward: a broken object is a
 wreck in the 3D view (`shapes::WRECK`, `Out::wreck`). The owner tried both: Resize "now works as expected"; the wreck "works, but it lagged until I changed my
 view", fixed by `ObjectBroken` in `session::reshapes` (awaiting the owner's try; step 9's `DoorBroken` and
-`DoorDamaged` go there too if they change the picture). Not seen on screen by me. **Next: step 9 (doors), plan
-mode first**; the notes for it are in the paragraph below.
+`DoorDamaged` go there too if they change the picture). Not seen on screen by me. **Step 9 (doors) is built, awaiting the
+owner's try** (plan approved in plan mode; TODO's step 9 line has what exists): 80 events, 77 rejections,
+no pack change. Said to the owner: every door is breakable by default (18 HP of wood), so Attack is lit
+wherever a door is in sight; a map opts out with `door_make: (durability: None)`, map-wide. **Next: step 10
+(repair: mending, tools, `Command::Repair`; remove `monster_front_stacks` from base at that reseal), plan
+mode first.**
 
 **2026-11-15, afternoon. Combat in feet resumes at step 9 (doors).** The owner tried Part I ("Tested ranged advance
 and combat, seems to work well") and the rebuilt minimap ("That fixed the minimap usability"): `0b78b7ef`, one

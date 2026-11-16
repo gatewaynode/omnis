@@ -9,8 +9,8 @@ use omnis_sim::api::{
     Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
     Rejection, ReloadRefused, Reply, RestView, SaveCheck, SeenObject, ServiceView, Settings,
     Status, World, apply, automap, beings_on_level, cast_view, combat_view, creation_view,
-    dispatch, door_open, here, object_blocks, objects_on_level, objects_view, party_view, reload,
-    rest_view, service_view, status, step_lands, viewport,
+    dispatch, door_broken, door_open, here, object_blocks, objects_on_level, objects_view,
+    party_view, reload, rest_view, service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -176,6 +176,12 @@ impl SimWorld {
         door_open(&self.0, map, level, x, y, facing)
     }
 
+    /// Whether a door is broken in the world (`api::door_broken`).
+    #[must_use]
+    pub fn door_broken(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        door_broken(&self.0, map, level, x, y, facing)
+    }
+
     /// Whether the party faces a door, and if so whether it is open.
     #[must_use]
     pub fn faced_door(&self, data: &Data) -> Option<bool> {
@@ -238,6 +244,10 @@ impl SimWorld {
 impl crate::scene::Occupancy for SimWorld {
     fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
         SimWorld::door_open(self, map, level, x, y, facing)
+    }
+
+    fn door_broken(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        SimWorld::door_broken(self, map, level, x, y, facing)
     }
 
     fn objects_on(

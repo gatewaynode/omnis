@@ -143,7 +143,15 @@ pub fn extract(
             (x0, z0 + 1.0)
         };
         let (feet, top) = span(ground, (horizontal, col, row), h);
-        edge(&mut out, [x0, z0], [x1, z1], kind, open, role, feet, top);
+        // The edge is the north or the west side of the cell at its corner.
+        let side = if horizontal {
+            Facing::North
+        } else {
+            Facing::West
+        };
+        let broken = kind == SegKind::Door && world.door_broken(map_id, level, col, row, side);
+        let leaf = (open, broken);
+        edge(&mut out, [x0, z0], [x1, z1], kind, leaf, role, feet, top);
     }
     for (edge, split, role) in splits(map, level) {
         match split {
@@ -701,14 +709,16 @@ pub(crate) fn door_head(feet: [f32; 2], top: f32) -> f32 {
 }
 
 /// A wall's outline from its `feet` at each end up to `top`, or a door: the lintel over a frame,
-/// crossed while closed.
+/// crossed while closed. A broken door (`leaf.1`) is its frame's two posts cut to stumps,
+/// `shapes::WRECK` of their height, with no head and no cross (owner, 2026-11-15: what is
+/// destroyed is seen to be).
 #[allow(clippy::too_many_arguments)]
 fn edge(
     out: &mut Vec<Segment>,
     a: [f32; 2],
     b: [f32; 2],
     kind: SegKind,
-    open: bool,
+    (open, broken): (bool, bool),
     role: Named,
     feet: [f32; 2],
     top: f32,
@@ -721,6 +731,12 @@ fn edge(
             line(out, at(0.0, top), at(1.0, top), SegKind::Wall, role);
             line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, role);
             line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, role);
+            if broken {
+                let stump = |t: f32| foot(t) + (head - foot(t)) * crate::shapes::WRECK;
+                line(out, at(l, foot(l)), at(l, stump(l)), kind, role);
+                line(out, at(r, foot(r)), at(r, stump(r)), kind, role);
+                return;
+            }
             line(out, at(l, foot(l)), at(l, head), kind, role);
             line(out, at(r, foot(r)), at(r, head), kind, role);
             line(out, at(l, head), at(r, head), kind, role);
@@ -757,7 +773,7 @@ mod tests {
             [0.0, 0.0],
             [1.0, 0.0],
             SegKind::Door,
-            false,
+            (false, false),
             None,
             [0.0; 2],
             1.0,
@@ -768,12 +784,39 @@ mod tests {
             [0.0, 0.0],
             [1.0, 0.0],
             SegKind::Door,
-            true,
+            (true, false),
             None,
             [0.0; 2],
             1.0,
         );
         assert_eq!(closed.len(), open.len() + 2);
+    }
+
+    #[test]
+    fn a_broken_door_is_two_stumps_under_the_wall_s_outline() {
+        let mut broken = Vec::new();
+        edge(
+            &mut broken,
+            [0.0, 0.0],
+            [1.0, 0.0],
+            SegKind::Door,
+            (true, true),
+            None,
+            [0.0; 2],
+            1.0,
+        );
+        let leaf: Vec<&Segment> = broken.iter().filter(|s| s.kind == SegKind::Door).collect();
+        assert_eq!(leaf.len(), 2, "two posts: no head, no cross");
+        let top = door_head([0.0; 2], 1.0) * crate::shapes::WRECK;
+        for post in leaf {
+            assert!((post.a[0] - post.b[0]).abs() < 1e-6, "upright");
+            assert!(post.a[1].abs() < 1e-6 && (post.b[1] - top).abs() < 1e-6);
+        }
+        assert_eq!(
+            broken.len(),
+            5,
+            "and the wall's three lines around the opening"
+        );
     }
 
     #[test]

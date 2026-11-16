@@ -5,6 +5,7 @@
 mod api_views;
 mod beings;
 mod breaking;
+mod breaking_doors;
 mod by_id;
 mod by_name;
 mod casting;

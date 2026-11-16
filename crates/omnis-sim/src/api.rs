@@ -76,8 +76,8 @@ pub use crate::beings::{BeingView, on_level as beings_on_level, standing_as_plac
 pub use crate::journal::{Change, apply_changes, archive_len, journal_len};
 pub use crate::log::{Logged, history, told};
 pub use crate::query::{
-    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flag_scope, flags, here, map_text,
-    site_ahead, step_lands, viewport,
+    EdgeView, Here, ViewTile, ViewportModel, automap, door_broken, door_open, flag_scope, flags,
+    here, map_text, site_ahead, step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::save::{

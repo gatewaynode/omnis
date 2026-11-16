@@ -189,18 +189,29 @@ fn hand_rows(world: &World, data: &Data, targeting: Targeting) -> Vec<Row> {
                     .as_ref()
                     != Some(&nothing)
             }),
+            // A broken door is nothing for a hand.
+            Target::Door { x, y, facing } => {
+                let at = omnis_core::Position {
+                    facing: *facing,
+                    ..world.position.at(*x, *y)
+                };
+                !crate::apply::door_broken(world, at)
+            }
             _ => true,
         })
         .map(|(target, spot)| (target, spot.distance, spot.sight))
         .collect()
 }
 
-/// The objects among `things` that can be damaged and are not broken.
+/// The objects and doors among `things` that can be damaged and are not broken.
 fn durable(world: &World, data: &Data, things: Vec<(Target, map::Spot)>) -> Vec<Row> {
     let things = things.into_iter();
     things
         .filter(|(target, _)| match target {
             Target::Object { object } => crate::breaking::thing(world, data, object).is_ok(),
+            Target::Door { x, y, facing } => {
+                crate::breaking::door(world, data, (*x, *y, *facing)).is_ok()
+            }
             _ => false,
         })
         .map(|(target, spot)| (target, spot.distance, spot.sight))

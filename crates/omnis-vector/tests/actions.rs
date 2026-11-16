@@ -94,7 +94,11 @@ fn space_opens_the_squares_actions_and_a_choice_runs_and_closes_it() {
     tap(&mut app, KeyCode::Space);
     assert!(open(&app));
     assert!(app.world().resource::<Showing>().0, "the panel is up");
-    assert_eq!(labels(&app), ["Open the door", "Search here", "Close"]);
+    // A door can be struck as well as opened (combat in feet step 9).
+    assert_eq!(
+        labels(&app),
+        ["Open the door", "Attack...", "Search here", "Close"]
+    );
     tap(&mut app, KeyCode::Digit1);
     assert!(door_open(&app), "the door opened");
     assert!(!open(&app), "choosing closes the menu");
@@ -186,7 +190,11 @@ fn a_right_click_is_the_action_key() {
     let mut app = at_the_door();
     right_click(&mut app);
     assert!(open(&app), "a right click opens the menu");
-    assert_eq!(labels(&app), ["Open the door", "Search here", "Close"]);
+    // A door can be struck as well as opened (combat in feet step 9).
+    assert_eq!(
+        labels(&app),
+        ["Open the door", "Attack...", "Search here", "Close"]
+    );
     right_click(&mut app);
     assert!(!open(&app), "and closes it");
     // With Shift it runs the default action.

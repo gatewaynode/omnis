@@ -10,7 +10,7 @@
 use crate::command::Command;
 use crate::objects::ObjectState;
 use crate::save::{Owner, owner_of, stream_owner};
-use crate::world::{MapState, World};
+use crate::world::{DoorWear, MapState, World};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -42,6 +42,15 @@ pub enum Change {
         edge: (Level, u16, u16, Facing),
         /// Open now.
         open: bool,
+    },
+    /// What a door has suffered now, on any level (combat in feet step 9).
+    DoorWear {
+        /// The map.
+        map: MapId,
+        /// The level and edge.
+        edge: (Level, u16, u16, Facing),
+        /// Its wear; `None` whole.
+        wear: Option<DoorWear>,
     },
     /// A fixed encounter, by its id in the map (M8.5 7h2; before, `index`, its row).
     Cleared {
@@ -275,6 +284,9 @@ fn map_changes(map: MapId, was: &MapState, is: &MapState, out: &mut Vec<Change>)
     diff(&was.ground, &is.ground, |at, pile| {
         out.push(Change::Ground { map, at, pile });
     });
+    diff(&was.worn_doors, &is.worn_doors, |edge, wear| {
+        out.push(Change::DoorWear { map, edge, wear });
+    });
 }
 
 /// Each key whose value differs between `was` and `is`, with its value in `is`.
@@ -326,6 +338,9 @@ pub fn apply_changes(world: &mut World, changes: &[Change]) {
             }
             Change::LevelDoor { map, edge, open } => {
                 mark(&mut world.map_state(map).level_doors, edge, open);
+            }
+            Change::DoorWear { map, edge, wear } => {
+                put(&mut world.map_state(map).worn_doors, edge, wear);
             }
             Change::Cleared { map, id, cleared } => {
                 mark(&mut world.map_state(map).cleared, id, cleared);

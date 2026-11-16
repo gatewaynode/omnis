@@ -196,7 +196,9 @@ fn each_screen_is_dim_with_its_reason_until_it_can_open() {
             ("Sheet".into(), None),
             ("Inventory".into(), None),
             ("Spells".into(), Some("No spells for the road".into())),
-            ("Attack".into(), Some("No one in sight".into())),
+            // A door stands in sight of the start, and a door can be struck (combat in feet
+            // step 9); "No one in sight" is read in `map_targets.rs`.
+            ("Attack".into(), None),
             ("Journal".into(), Some("No quests yet".into())),
         ]
     );

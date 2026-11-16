@@ -492,6 +492,11 @@ fn the_long_hall_is_a_fight_at_a_distance() {
     };
     let fighter = world.party.members[FIGHTER].id;
     let rows = targets(&world, &data, fighter, &Chosen::Attack).unwrap();
+    // The gate behind the party is a thing to strike too (step 9); the groups are these.
+    let rows: Vec<_> = rows
+        .into_iter()
+        .filter(|row| matches!(row.target, Target::Being { .. }))
+        .collect();
     assert_eq!(rows.len(), 1, "seen from end to end");
     assert_eq!(
         (rows[0].target.clone(), rows[0].distance),

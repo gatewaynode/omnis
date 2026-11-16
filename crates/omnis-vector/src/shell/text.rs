@@ -272,6 +272,27 @@ pub fn searched(events: &[Event], views: &Views, data: &Data, door: Option<bool>
     lines
 }
 
+/// A blow at a thing from the road, landed or not: "Bryn hits the door (17 against AC 15): 6
+/// slashing, 12 HP left". `attack` is the roll to hit when one was made: hit, total, armor class.
+fn blow(
+    who: &str,
+    thing: &str,
+    attack: Option<(bool, i64, i64)>,
+    (kind, amount, left): (omnis_sim::omnis_data::DamageType, u16, u16),
+) -> String {
+    let kind = format!("{kind:?}").to_lowercase();
+    let dealt = if amount == 0 {
+        "no damage".to_owned()
+    } else {
+        format!("{amount} {kind}, {left} HP left")
+    };
+    match attack {
+        Some((false, roll, ac)) => format!("{who} misses {thing} ({roll} against AC {ac})"),
+        Some((true, roll, ac)) => format!("{who} hits {thing} ({roll} against AC {ac}): {dealt}"),
+        None => format!("{who} strikes {thing}: {dealt}"),
+    }
+}
+
 /// A line for what the party does with objects and finds in the world (M8.5 step 2b), each
 /// object by its name in the pack. A use that worked says nothing of its own: its effects do.
 fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
@@ -306,27 +327,28 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
             amount,
             left,
             ..
-        } => {
-            let (who, thing) = (names.member(*by), object(id));
-            let kind = format!("{kind:?}").to_lowercase();
-            let dealt = if *amount == 0 {
-                "no damage".to_owned()
-            } else {
-                format!("{amount} {kind}, {left} HP left")
-            };
-            match attack {
-                Some(roll) if !roll.hit => format!(
-                    "{who} misses {thing} ({} against AC {})",
-                    roll.roll.total, roll.ac
-                ),
-                Some(roll) => format!(
-                    "{who} hits {thing} ({} against AC {}): {dealt}",
-                    roll.roll.total, roll.ac
-                ),
-                None => format!("{who} strikes {thing}: {dealt}"),
-            }
-        }
+        } => blow(
+            &names.member(*by),
+            &object(id),
+            attack.as_ref().map(|r| (r.hit, r.roll.total, r.ac)),
+            (*kind, *amount, *left),
+        ),
         Event::ObjectBroken { object: id } => format!("{} breaks", object(id)),
+        // And at a door (step 9).
+        Event::DoorDamaged {
+            by,
+            attack,
+            kind,
+            amount,
+            left,
+            ..
+        } => blow(
+            &names.member(*by),
+            "the door",
+            attack.as_ref().map(|r| (r.hit, r.roll.total, r.ac)),
+            (*kind, *amount, *left),
+        ),
+        Event::DoorBroken { .. } => "The door breaks".to_owned(),
         // A search's lore: its text, as the pack writes it.
         Event::Lore { key, .. } => labels::text(data, key).to_owned(),
         Event::Searched { member, roll } => {

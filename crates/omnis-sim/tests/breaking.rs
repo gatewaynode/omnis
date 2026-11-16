@@ -238,10 +238,6 @@ fn a_whole_crate_is_listed_for_the_bolt_and_for_a_weapon_and_a_statue_is_not() {
             !rows.iter().any(|r| r.target == thing("statue_1")),
             "what cannot be damaged is not offered"
         );
-        assert!(
-            !rows.iter().any(|r| matches!(r.target, Target::Door { .. })),
-            "doors come with step 9"
-        );
     }
     // The object's view says how well it stands, whole.
     let view = objects_view(&world, &data);

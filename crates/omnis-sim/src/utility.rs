@@ -46,10 +46,16 @@ pub(crate) fn check<'d>(
     }
     in_range(world, data, None, own, targeting, target)?;
     match target {
-        Target::Door { x, y, facing } => Ok(Hand::Door(Position {
-            facing: *facing,
-            ..world.position.at(*x, *y)
-        })),
+        Target::Door { x, y, facing } => {
+            let at = Position {
+                facing: *facing,
+                ..world.position.at(*x, *y)
+            };
+            if crate::apply::door_broken(world, at) {
+                return Err(Rejection::Broken);
+            }
+            Ok(Hand::Door(at))
+        }
         Target::Object { object } => {
             let gone = || Rejection::NoSuchObject {
                 object: object.clone(),

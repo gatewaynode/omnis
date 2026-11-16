@@ -1,7 +1,8 @@
 //! Things that break (PRD §8.3; `tasks/plans/combat-in-feet.md` step 8): an object whose kind
 //! has a durability is struck from the road by a spell that may strike objects or by a weapon,
 //! loses hit points, and at none is broken. A broken container spills what it held, less the
-//! fragile items a destructive kind of damage destroys.
+//! fragile items a destructive kind of damage destroys. A door of a map whose doors have a
+//! durability is struck the same way (step 9); broken, it stands open for good.
 
 use crate::combat::Roller;
 use crate::command::Rejection;
@@ -12,7 +13,7 @@ use crate::targets::map::{self, Spot};
 use crate::world::World;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Dice};
+use omnis_core::{CharacterId, Dice, Facing};
 use omnis_data::placement::ResolvedPlacement;
 use omnis_data::{DamageType, Data, ObjectKind, SpellEffect};
 use omnis_rules::{
@@ -42,13 +43,54 @@ pub(crate) fn make(kind: &ObjectKind) -> Option<Make> {
     })
 }
 
-/// An object a blow may be aimed at: it stands where the party knows of it, its kind can be
-/// damaged, and it is not broken already.
+/// What a blow at a thing lands on.
+pub(crate) enum Struck<'d> {
+    /// An object, by its placement and kind.
+    Object {
+        placement: &'d ResolvedPlacement,
+        kind: &'d ObjectKind,
+    },
+    /// A door of the party's level, by its edge.
+    Door { edge: (u16, u16, Facing) },
+}
+
+/// A thing a blow may be aimed at: it stands where the party knows of it, it can be damaged,
+/// and it is not broken already.
 pub(crate) struct Thing<'d> {
-    pub placement: &'d ResolvedPlacement,
-    pub kind: &'d ObjectKind,
+    pub what: Struck<'d>,
     pub make: Make,
     pub spot: Spot,
+}
+
+/// The door on the `facing` edge of `(x, y)` as a blow's target, or why it is none.
+pub(crate) fn door<'d>(
+    world: &World,
+    data: &'d Data,
+    (x, y, facing): (u16, u16, Facing),
+) -> Result<Thing<'d>, Rejection> {
+    let pos = world.position;
+    let spot = map::door(world, data, x, y, facing).ok_or(Rejection::NoDoor)?;
+    let numbers = data.maps.get(&pos.map).and_then(|m| {
+        let (armor_class, hit_points) = m.def.door_make.numbers()?;
+        let threshold = m.def.door_make.durability.as_ref()?.threshold;
+        Some(Make {
+            armor_class,
+            hit_points,
+            threshold,
+        })
+    });
+    let make = numbers.ok_or(Rejection::CannotBeDamaged)?;
+    let wear = world.maps.get(&pos.map);
+    if wear.is_some_and(|s| s.door_wear(pos.level, x, y, facing).broken) {
+        return Err(Rejection::Broken);
+    }
+    Ok(Thing {
+        what: Struck::Door {
+            edge: (x, y, facing),
+        },
+        make,
+        spot,
+    })
 }
 
 /// The object `id` as a blow's target, or why it is none.
@@ -63,8 +105,7 @@ pub(crate) fn thing<'d>(world: &World, data: &'d Data, id: &str) -> Result<Thing
         return Err(Rejection::Broken);
     }
     Ok(Thing {
-        placement,
-        kind,
+        what: Struck::Object { placement, kind },
         make,
         spot,
     })
@@ -173,8 +214,7 @@ pub(crate) fn strike(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let by: CharacterId = world.party.members[own].id;
-    let map = world.position.map;
-    let p = thing.placement;
+    let (map, level) = (world.position.map, world.position.level);
     let landed = roll(world, data, own, thing.make, blow, roller)?;
     let immune = matches!(landed.kind, DamageType::Poison | DamageType::Psychic);
     let amount = u16::try_from(landed.raw).unwrap_or(u16::MAX);
@@ -183,21 +223,59 @@ pub(crate) fn strike(
     } else {
         amount
     };
-    let before = objects::saved(world, map, &p.id).map_or(0, |s| s.damage);
-    let damage = before.saturating_add(amount).min(thing.make.hit_points);
-    objects::edit(world, map, &p.id, |s| s.damage = damage);
-    events.push(Event::ObjectDamaged {
-        object: p.id.clone(),
-        by,
-        attack: landed.attack,
-        kind: landed.kind,
-        rolls: landed.rolls,
-        raw: landed.raw,
-        amount,
-        left: thing.make.hit_points - damage,
-    });
-    if damage >= thing.make.hit_points {
-        shatter(world, data, thing, landed.kind, events);
+    let whole = thing.make.hit_points;
+    let worn = |before: u16| before.saturating_add(amount).min(whole);
+    match thing.what {
+        Struck::Object { placement: p, kind } => {
+            let damage = worn(objects::saved(world, map, &p.id).map_or(0, |s| s.damage));
+            objects::edit(world, map, &p.id, |s| s.damage = damage);
+            events.push(Event::ObjectDamaged {
+                object: p.id.clone(),
+                by,
+                attack: landed.attack,
+                kind: landed.kind,
+                rolls: landed.rolls,
+                raw: landed.raw,
+                amount,
+                left: whole - damage,
+            });
+            if damage >= whole {
+                shatter(world, data, p, kind, landed.kind, events);
+            }
+        }
+        Struck::Door { edge } => {
+            let (x, y, facing) = edge;
+            let state = world.map_state(map);
+            let damage = worn(state.door_wear(level, x, y, facing).damage);
+            let broken = damage >= whole;
+            state.wear_door(level, edge, |w| {
+                w.damage = damage;
+                w.broken = broken;
+            });
+            events.push(Event::DoorDamaged {
+                map: id_of(&data.registry.maps, map),
+                level,
+                x,
+                y,
+                facing,
+                by,
+                attack: landed.attack,
+                kind: landed.kind,
+                rolls: landed.rolls,
+                raw: landed.raw,
+                amount,
+                left: whole - damage,
+            });
+            if broken {
+                events.push(Event::DoorBroken {
+                    map: id_of(&data.registry.maps, map),
+                    level,
+                    x,
+                    y,
+                    facing,
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -207,14 +285,14 @@ pub(crate) fn strike(
 fn shatter(
     world: &mut World,
     data: &Data,
-    thing: &Thing,
+    p: &ResolvedPlacement,
+    of: &ObjectKind,
     kind: DamageType,
     events: &mut Vec<Event>,
 ) {
     let map = world.position.map;
-    let p = thing.placement;
     let held = Vec::from(objects::contents(world, p));
-    let state = thing.kind.attributes.durability.as_ref();
+    let state = of.attributes.durability.as_ref();
     let state = state.and_then(|d| d.broken_state.clone());
     let emptied = !p.contents.is_empty();
     objects::edit(world, map, &p.id, |s| {

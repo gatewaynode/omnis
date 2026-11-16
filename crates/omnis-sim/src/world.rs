@@ -57,6 +57,21 @@ pub struct MapState {
     /// placed pile is kept with no items. Unwritten when none, so a save reads as before.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ground: BTreeMap<(Level, u16, u16), Pile>,
+    /// The doors that have taken damage, by level and canonical edge (combat in feet step 9);
+    /// unwritten when none, so a save reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub worn_doors: BTreeMap<(Level, u16, u16, Facing), DoorWear>,
+}
+
+/// What a door has suffered.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoorWear {
+    /// Hit points lost.
+    #[serde(default)]
+    pub damage: u16,
+    /// Broken: it stands open and cannot be shut.
+    #[serde(default)]
+    pub broken: bool,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
@@ -70,9 +85,41 @@ pub fn door_key(x: u16, y: u16, facing: Facing) -> (u16, u16, Facing) {
 }
 
 impl MapState {
-    /// Whether the door on `facing` of tile `(x, y)` of `level` is open.
+    /// What the door on `facing` of tile `(x, y)` of `level` has suffered.
+    #[must_use]
+    pub fn door_wear(&self, level: Level, x: u16, y: u16, facing: Facing) -> DoorWear {
+        let (x, y, facing) = door_key(x, y, facing);
+        self.worn_doors
+            .get(&(level, x, y, facing))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Change what that door has suffered; a door back to whole is forgotten.
+    pub fn wear_door(
+        &mut self,
+        level: Level,
+        (x, y, facing): (u16, u16, Facing),
+        change: impl FnOnce(&mut DoorWear),
+    ) {
+        let (x, y, facing) = door_key(x, y, facing);
+        let key = (level, x, y, facing);
+        let mut wear = self.worn_doors.get(&key).copied().unwrap_or_default();
+        change(&mut wear);
+        if wear == DoorWear::default() {
+            self.worn_doors.remove(&key);
+        } else {
+            self.worn_doors.insert(key, wear);
+        }
+    }
+
+    /// Whether the door on `facing` of tile `(x, y)` of `level` is open. A broken door is
+    /// open: this is the one place that says so, for steps, sight, reach and the views.
     #[must_use]
     pub fn door_open(&self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        if self.door_wear(level, x, y, facing).broken {
+            return true;
+        }
         let (x, y, facing) = door_key(x, y, facing);
         if level.is_ground() {
             self.open_doors.contains(&(x, y, facing))
@@ -507,6 +554,7 @@ impl World {
     pub(crate) fn prune(&mut self) {
         for state in self.maps.values_mut() {
             state.objects.retain(|_, o| *o != ObjectState::default());
+            state.worn_doors.retain(|_, d| *d != DoorWear::default());
         }
         self.maps.retain(|_, s| *s != MapState::default());
     }

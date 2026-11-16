@@ -73,6 +73,14 @@ pub(crate) fn validate<'a>(
             let spot = thing.spot;
             (At::Thing(thing), spot)
         }
+        Target::Door { x, y, facing } => {
+            let thing = breaking::door(world, data, (*x, *y, *facing))?;
+            if thing.spot.sight != crate::targets::Sight::Clear {
+                return Err(Rejection::OutOfSight);
+            }
+            let spot = thing.spot;
+            (At::Thing(thing), spot)
+        }
         _ => return Err(Rejection::WrongTarget),
     };
     // A thing within the party's reach is touched, wherever in the two cells it stands.

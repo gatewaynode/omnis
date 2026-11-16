@@ -933,7 +933,15 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         weapon blow at a thing rolls on a new `strike` stream; bless does not add to a roll at a thing; the
         client already lists and strikes such objects through `targets` (the row reads "Crate, west"), with
         no damaged or broken mark until step 12.
-  - [ ] 9. Doors the same.
+  - [x] 9. Doors the same (2026-11-15; plan approved in plan mode the same day). `MapState.worn_doors`
+        (`DoorWear { damage, broken }` by level and canonical edge), `door_open` true for a broken door,
+        `Change::DoorWear`, `breaking::Struck::{Object, Door}` and `breaking::door`, Cast and Attack at
+        `Target::Door`, `targets::durable` lists whole doors, `Door`/Interact/mage hand refuse or omit a
+        broken one, `DoorDamaged`/`DoorBroken` (80 events), `EdgeView::Door { damage, broken }`,
+        `ViewportModel.door`, `query::door_broken`. Client in the same commit: the row's command, the
+        log lines, `reshapes`, a broken door drawn as two stumps, no "Open the door". Seventeen mutants
+        caught. Consequence said to the owner: every door is breakable by default, so "Attack" is lit
+        wherever a door is in sight.
   - [ ] 10. Repair: mending and `Command::Repair`.
   - [ ] 11. Repair service.
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.

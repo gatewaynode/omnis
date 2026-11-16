@@ -398,7 +398,8 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(
     if service::enter_here(world, data, events) {
         return Ok(());
     }
-    let faced = faced_door(world, data).then_some(Choice::Door);
+    // A broken door is nothing to open or shut.
+    let faced = (faced_door(world, data) && !faced_broken(world)).then_some(Choice::Door);
     let standing = beings::in_reach(world, data)
         .into_iter()
         .map(|being| Choice::Being { being });
@@ -434,10 +435,24 @@ fn faced_door(world: &World, data: &Data) -> bool {
         .is_some_and(|c| c.doors.has(pos.facing))
 }
 
+/// Whether the door on the faced edge is broken.
+fn faced_broken(world: &World) -> bool {
+    door_broken(world, world.position)
+}
+
+/// Whether the door on the edge the tile `at` faces is broken.
+pub(crate) fn door_broken(world: &World, at: Position) -> bool {
+    let state = world.maps.get(&at.map);
+    state.is_some_and(|s| s.door_wear(at.level, at.x, at.y, at.facing).broken)
+}
+
 /// Open or close the door on the faced edge.
 fn door(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
     if !faced_door(world, data) {
         return Err(Rejection::NoDoor);
+    }
+    if faced_broken(world) {
+        return Err(Rejection::Broken);
     }
     toggle_door(world, data, world.position, events);
     advance(world, data, INTERACT_MINUTES, events);

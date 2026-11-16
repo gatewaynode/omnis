@@ -95,6 +95,15 @@ pub(crate) fn validate<'a>(
             thing = Some(breaking::thing(world, data, object)?);
             None
         }
+        // And at a door, when the map's doors can be damaged (step 9). A hand is no strike.
+        Target::Door { x, y, facing } if effect.strikes() => {
+            if !def.objects {
+                return Err(Rejection::CannotBeDamaged);
+            }
+            crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
+            thing = Some(breaking::door(world, data, (*x, *y, *facing))?);
+            None
+        }
         _ if effect.strikes() => return Err(Rejection::WrongTarget),
         _ => None,
     };

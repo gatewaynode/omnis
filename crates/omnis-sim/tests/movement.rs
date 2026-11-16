@@ -437,7 +437,14 @@ fn doors_block_until_opened_and_pillars_always() {
         facing: Facing::East,
     };
     let view = query::viewport(&world, &data).unwrap();
-    assert_eq!(view.tiles[0].front, query::EdgeView::Door { open: false });
+    assert_eq!(
+        view.tiles[0].front,
+        query::EdgeView::Door {
+            open: false,
+            damage: 0,
+            broken: false,
+        }
+    );
     assert!(
         view.tiles.iter().all(|t| t.depth == 0),
         "a closed door ends the cone"
@@ -474,7 +481,14 @@ fn doors_block_until_opened_and_pillars_always() {
         "an open door lets the cone through: {}",
         view.tiles.len()
     );
-    assert_eq!(view.tiles[0].front, query::EdgeView::Door { open: true });
+    assert_eq!(
+        view.tiles[0].front,
+        query::EdgeView::Door {
+            open: true,
+            damage: 0,
+            broken: false,
+        }
+    );
     step(&mut world, &data);
     assert_eq!((world.position.x, world.position.y), (6, 3));
 
@@ -482,7 +496,11 @@ fn doors_block_until_opened_and_pillars_always() {
     turn(&mut world, &data, Rotation::Around);
     assert_eq!(
         query::viewport(&world, &data).unwrap().tiles[0].front,
-        query::EdgeView::Door { open: true }
+        query::EdgeView::Door {
+            open: true,
+            damage: 0,
+            broken: false,
+        }
     );
     let events = without_visible(interact(&mut world, &data));
     assert_eq!(

@@ -135,9 +135,15 @@ fn a_harmful_spell_s_target_is_the_group_in_sight_and_the_screen_gives_way() {
         .iter()
         .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
         .collect();
-    // The group first, then the thing in sight that can be damaged (step 8 of combat in feet).
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[1].spans[0].text, "Crate, west");
+    // The group first, then the things in sight that can be damaged: the crate (step 8 of
+    // combat in feet) and a door (step 9).
+    let named: Vec<&str> = rows.iter().map(|r| r.spans[0].text.as_str()).collect();
+    assert_eq!(rows.len(), 3, "{named:?}");
+    assert!(named[1..].contains(&"Crate, west"), "{named:?}");
+    assert!(
+        named[1..].iter().any(|n| n.starts_with("Door")),
+        "{named:?}"
+    );
     let rat = labels::monster(&data, "objects:monster:pack_rat");
     assert_eq!(
         (
@@ -303,9 +309,15 @@ fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
         .iter()
         .filter(|r| r.controls.first().is_some_and(|c| c.label == "Choose"))
         .collect();
-    // The group first, then the thing in sight that can be damaged (step 8 of combat in feet).
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[1].spans[0].text, "Crate, west");
+    // The group first, then the things in sight that can be damaged: the crate (step 8 of
+    // combat in feet) and a door (step 9).
+    let named: Vec<&str> = rows.iter().map(|r| r.spans[0].text.as_str()).collect();
+    assert_eq!(rows.len(), 3, "{named:?}");
+    assert!(named[1..].contains(&"Crate, west"), "{named:?}");
+    assert!(
+        named[1..].iter().any(|n| n.starts_with("Door")),
+        "{named:?}"
+    );
     let rat = labels::monster(&data, "objects:monster:pack_rat");
     assert_eq!(
         rows[0].spans[0].text,
@@ -353,6 +365,9 @@ fn the_square_s_attack_asks_who_and_at_what_and_opens_the_fight() {
     let mut bare = common::objects_data();
     for kind in bare.objects.values_mut() {
         kind.attributes.durability = None;
+    }
+    for map in bare.maps.values_mut() {
+        map.def.door_make.durability = None;
     }
     assert!(!offered(&bare));
 }
@@ -416,6 +431,9 @@ fn a_member_s_attack_in_the_column_opens_the_target_step_and_the_fight() {
     let mut bare = common::objects_data();
     for kind in bare.objects.values_mut() {
         kind.attributes.durability = None;
+    }
+    for map in bare.maps.values_mut() {
+        map.def.door_make.durability = None;
     }
     let world = crate::loot::yard(&bare, 5, 4, Facing::North);
     let views = common::views(&world, &bare);
@@ -576,4 +594,105 @@ fn choosing_an_object_s_row_strikes_it_with_a_weapon_or_a_spell_and_the_blow_is_
         object: "crate_1".into(),
     };
     assert_eq!(told(&broken).as_deref(), Some("Crate breaks"));
+}
+
+/// Combat in feet step 9: a door's row strikes it, with a weapon and with a spell, every blow
+/// is told, the breaking is told, and the view shows the door broken at once: two stumps where
+/// the frame and its cross stood. Broken, it is no row and nothing to open.
+#[test]
+fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_stumps() {
+    use omnis_sim::Event;
+    use omnis_vector::geometry::SegKind;
+    use omnis_vector::rolllog::Names;
+    use omnis_vector::scene::Scene;
+    use omnis_vector::shell::session::reshapes;
+    use omnis_vector::shell::text;
+    let data = common::objects_data();
+    // Facing the torch's door, on the south edge of (6, 3).
+    let start = crate::loot::yard(&data, 6, 3, Facing::South);
+    let views = common::views(&start, &data);
+    let (brenna, ilvara) = (views.party.members[0].member, views.party.members[2].member);
+    let door = Target::Door {
+        x: 6,
+        y: 3,
+        facing: Facing::South,
+    };
+    let mut names = Names::default();
+    names.observe(&views.party);
+    names.locate(views.position.map);
+    let bolt = Aim {
+        member: ilvara,
+        option: omnis_sim::Chosen::Spell {
+            spell: "base:spell:fire_bolt".into(),
+            pay: omnis_sim::Pay::default(),
+        },
+    };
+    let map = views.position.map;
+    // The door's own lines: on the edge between the rows 3 and 4 of column 6.
+    let leaf = |world: &omnis_vector::sim::SimWorld| {
+        let scene = Scene::build(&data, map, Level::GROUND, world);
+        let on_edge = |p: [f32; 3]| (p[2] - 4.0).abs() < 1e-5 && (6.0..=7.0).contains(&p[0]);
+        let lines = scene.own.iter();
+        lines
+            .filter(|s| s.kind == SegKind::Door && on_edge(s.a) && on_edge(s.b))
+            .count()
+    };
+    assert_eq!(leaf(&start), 5, "shut: two posts, a head and a cross");
+    for (aim, who) in [(Aim::attack(brenna), "Brenna"), (bolt, "Ilvara")] {
+        let mut world = start.clone();
+        let context = ctx(&data, &world, &views);
+        let game = context.game.unwrap();
+        let rows = aim.targets(&data, game);
+        let at = rows.iter().position(|r| r.target == door).expect("listed");
+        let at = u8::try_from(at).unwrap();
+        let screen = omnis_vector::targeting::content(&data, game, &aim, ScreenId::Actions);
+        let named = screen.panels.iter().flat_map(|p| &p.rows).find(|r| {
+            let first = r.controls.first();
+            first.is_some_and(|c| c.id == ControlId::Target(at))
+        });
+        let named = &named.expect("a row").spans[0].text;
+        assert!(named.starts_with("Door"), "{named}");
+        let command = aim
+            .chosen(&data, game, at)
+            .unwrap_or_else(|| panic!("{who}: Choose sends a command"));
+        let (mut broke, mut lines) = (false, Vec::new());
+        for _ in 0..200 {
+            let events = world.apply(&data, command.clone()).expect("a blow");
+            for event in &events {
+                if let Event::DoorDamaged { amount, .. } = event {
+                    let line = text::describe(event, &names, &data).expect("told");
+                    assert!(line.starts_with(&format!("{who} ")), "{line}");
+                    assert!(
+                        line.contains("the door") && line.contains("AC 15"),
+                        "{line}"
+                    );
+                    assert_eq!(line.contains("HP left"), *amount > 0, "{line}");
+                    lines.push(line);
+                }
+                if matches!(event, Event::DoorBroken { .. }) {
+                    assert_eq!(
+                        text::describe(event, &names, &data).as_deref(),
+                        Some("The door breaks")
+                    );
+                    assert!(reshapes(event), "the view is drawn anew");
+                    broke = true;
+                }
+            }
+            if broke {
+                break;
+            }
+        }
+        assert!(broke, "{who}: {lines:?}");
+        assert_eq!(leaf(&world), 2, "{who}: two stumps");
+        let views = common::views(&world, &data);
+        let context = ctx(&data, &world, &views);
+        let rows = aim.targets(&data, context.game.unwrap());
+        assert!(!rows.iter().any(|r| r.target == door), "no row once broken");
+        let offers = omnis_vector::screen::actions::available(&world, &data);
+        assert!(
+            !offers.iter().any(|o| o.label.contains("door")),
+            "nothing to open or shut: {:?}",
+            offers.iter().map(|o| &o.label).collect::<Vec<_>>()
+        );
+    }
 }

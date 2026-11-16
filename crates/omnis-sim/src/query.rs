@@ -25,8 +25,14 @@ pub enum EdgeView {
     Wall,
     /// A door.
     Door {
-        /// Whether it stands open.
+        /// Whether it stands open; a broken door does.
         open: bool,
+        /// Hit points it has lost (combat in feet step 9); unwritten when none.
+        #[serde(default, skip_serializing_if = "crate::world::is_zero")]
+        damage: u16,
+        /// Broken: open for good. Unwritten when whole.
+        #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+        broken: bool,
     },
     /// A ramp or stair: open, and walkable across a height difference up to two walls.
     Ramp,
@@ -87,6 +93,10 @@ pub struct ViewportModel {
     /// not once beaten for good, nor while met. Unwritten when there are none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub beings: Vec<BeingView>,
+    /// The armor class and whole hit points of the map's doors, when they can be damaged
+    /// (combat in feet step 9). Unwritten when they cannot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub door: Option<(u8, u16)>,
 }
 
 /// Where the party is and what it is doing: the cheap read a client makes every frame (M8 step 8).
@@ -176,8 +186,12 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
         if cell.walls.has(facing) {
             EdgeView::Wall
         } else if cell.doors.has(facing) {
+            let wear = state.map(|s| s.door_wear(pos.level, x, y, facing));
+            let wear = wear.unwrap_or_default();
             EdgeView::Door {
                 open: state.is_some_and(|s| s.door_open(pos.level, x, y, facing)),
+                damage: wear.damage,
+                broken: wear.broken,
             }
         } else if cell.ramps.has(facing) {
             EdgeView::Ramp
@@ -223,6 +237,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
         objects,
         piles,
         beings,
+        door: map.def.door_make.numbers(),
     })
 }
 
@@ -328,6 +343,20 @@ pub fn door_open(world: &World, map: MapId, level: Level, x: u16, y: u16, facing
         .maps
         .get(&map)
         .is_some_and(|state| state.door_open(level, x, y, facing))
+}
+
+/// Whether that door is broken (combat in feet step 9): open for good, and drawn so.
+#[must_use]
+pub fn door_broken(
+    world: &World,
+    map: MapId,
+    level: Level,
+    x: u16,
+    y: u16,
+    facing: Facing,
+) -> bool {
+    let state = world.maps.get(&map);
+    state.is_some_and(|state| state.door_wear(level, x, y, facing).broken)
 }
 
 /// The service a step in `direction` would go into, if it lands on a site.

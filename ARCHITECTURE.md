@@ -139,7 +139,7 @@ A character's save and the world it plays in are kept apart, so a world outlives
   - `archive`: the archive segments before the bases (7e), each `save::Segment { world, name }`: its hash, and the world folder it lies in when that is not the save's own (7h2: a world whose packs changed saves into a new folder);
   - `log`: the party's log, the events a full log tells (7f, §4.2);
   - `migrated`: the pack migration files the world went through (`save::Migrated { pack, file }`, 7h6), left out when none.
-- **The journal** (`journal::Journal`) holds interactions only: a command that changed what the world holds. `apply` finds a command's changes by comparing that state before and after it, so no writer can be missed: map states, world flags, the clocks, contacts and streams of holders other than the party. Each entry is the command, the party's minute and place, and each change as the value after it (`journal::Change`: `Door`, `LevelDoor`, `Cleared`, `Object`, `Ground`, `Flag`, `Clock`, `Contact`, `Stream`), so laying an entry twice is harmless. Moving, turning, resting and buying change only the party and are not journaled.
+- **The journal** (`journal::Journal`) holds interactions only: a command that changed what the world holds. `apply` finds a command's changes by comparing that state before and after it, so no writer can be missed: map states, world flags, the clocks, contacts and streams of holders other than the party. Each entry is the command, the party's minute and place, and each change as the value after it (`journal::Change`: `Door`, `LevelDoor`, `DoorWear`, `Cleared`, `Object`, `Ground`, `Flag`, `Clock`, `Contact`, `Stream`), so laying an entry twice is harmless. Moving, turning, resting and buying change only the party and are not journaled.
 - **The world folder** `.omnis/worlds/<id>/` belongs to the simulation:
   - `manifest.ron`: the seed, the packs, and the name table (`save::NameTable`, 7h2): each saved kind's string ids by number, the party-scoped flags, each map's terrain names by row and each object kind's `once` interactions by row (verb, label, state), what the folder's numbers stand for;
   - `world/<hash>.ron`: world-scoped flags and any holder that is neither party nor region;
@@ -195,7 +195,7 @@ pub enum Command {                  // 17 variants
     Attack { member, target },      // a weapon's opening strike at a standing group in sight (combat in feet, step 6)
 }
 
-pub enum Event {                    // 78 variants, integers, ids and roll traces only
+pub enum Event {                    // 80 variants, integers, ids and roll traces only
     // Exploration and time: Moved, Blocked, Visible, Door, Message { key: MessageKey }, PartyChanged,
     //   TimeAdvanced { holder, minutes, day_rolled }, Reconciled { a, b, delta_a, delta_b, era_b } (M8),
     //   SignalsDropped { count } (M8, §4.8)

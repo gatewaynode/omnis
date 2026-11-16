@@ -757,6 +757,7 @@ pub fn reshapes(event: &Event) -> bool {
         | Event::ObjectState { .. }
         | Event::ObjectRemoved { .. }
         | Event::ObjectBroken { .. }
+        | Event::DoorBroken { .. }
         | Event::Noticed { .. }
         | Event::EncounterStarted { .. }
         | Event::Bribed { .. }
@@ -890,6 +891,13 @@ mod tests {
             // The owner, 2026-11-15: a broken crate stayed whole until the view changed.
             Event::ObjectBroken {
                 object: object("crate_1"),
+            },
+            Event::DoorBroken {
+                map: "objects:map:yard".into(),
+                level: omnis_sim::omnis_core::Level::GROUND,
+                x: 6,
+                y: 3,
+                facing: omnis_sim::omnis_core::Facing::South,
             },
             moved(member.clone(), ItemPlace::Ground),
             moved(ItemPlace::Ground, member.clone()),

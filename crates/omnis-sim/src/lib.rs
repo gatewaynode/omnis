@@ -104,7 +104,8 @@ pub use view::{
 };
 pub use word::{ScriptError, Word, parse_script};
 pub use world::{
-    Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
+    Automap, DoorWear, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule,
+    Settings, World,
 };
 
 use omnis_core::{HolderId, PartyId};

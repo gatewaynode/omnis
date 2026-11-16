@@ -193,6 +193,10 @@ fn move_place(
             } else {
                 state.level_doors.remove(&(from.0, fx, fy, ff))
             };
+            if let Some(wear) = state.worn_doors.remove(&(from.0, fx, fy, ff)) {
+                state.worn_doors.insert((to.0, tx, ty, tf), wear);
+                found = true;
+            }
             if moved {
                 if to.0.is_ground() {
                     state.open_doors.insert((tx, ty, tf));

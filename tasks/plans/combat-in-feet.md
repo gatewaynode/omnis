@@ -178,6 +178,11 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
   saves on Constitution; the SRD has objects in its area take the damage). `ObjectDamaged` is the event of
   every blow at a thing, a miss included (`amount` 0).
 
+- **Step 9** (2026-11-15): one field, `MapState.worn_doors: BTreeMap<(Level, x, y, Facing), DoorWear>`,
+  in place of `door_damage` and `broken_doors` (the same data in one place); the journal's change
+  is `DoorWear`. No new rejection. `ViewportModel.door` says the map's door numbers. A broken door
+  is drawn as two stumps. A per-door make (some doors of a map unbreakable) is not built: the make
+  is the map's.
 - **Step 12, in part, before step 9** (owner, 2026-11-15): a broken object is drawn as a wreck in
   the 3D view (a low heap in its footprint, crossed over its top), whatever its kind's shape and
   whether or not the kind names a broken state. The engine's look is not changed.

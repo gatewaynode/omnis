@@ -285,7 +285,15 @@ fn doors(world: &mut World, id: MapId, map: &MapData, name: &str, out: &mut Vec<
         }
         keep
     });
+    state.worn_doors.retain(|&(level, x, y, facing), _| {
+        let keep = is_door(level, x, y, facing);
+        if !keep {
+            gone.push((level, x, y, facing));
+        }
+        keep
+    });
     gone.sort_unstable();
+    gone.dedup();
     out.extend(gone.into_iter().map(|(level, x, y, facing)| PlaceWarning {
         map: name.into(),
         fix: PlaceFix::DoorForgotten {

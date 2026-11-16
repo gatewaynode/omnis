@@ -49,6 +49,10 @@ fn faced_door(world: &SimWorld, data: &Data) -> Option<bool> {
     if !map.cell(p.level, p.x, p.y)?.doors.has(p.facing) {
         return None;
     }
+    // A broken door is nothing to open or shut.
+    if world.door_broken(p.map, p.level, p.x, p.y, p.facing) {
+        return None;
+    }
     Some(world.door_open(p.map, p.level, p.x, p.y, p.facing))
 }
 
