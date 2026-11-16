@@ -862,6 +862,18 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         (`edit_extend.rs::yard`).
   - [x] 7. Documents: `tasks/acceptance/editor-resize.md`, the code map, continuity. **Built, not yet
         tried by the owner.**
+- [x] **A spell that pushes** (owner, 2026-11-16: "thunderwave does not seem to push back foes"; the plan
+  approved in plan mode with the owner's choices "Split the stack" and "Line driven back"). Built, awaiting
+  the owner's try. `SpellEffect::Save.push_feet` (thunderwave 10; base 0.1.5); `combat/push.rs`: those of the
+  stack caught who fail and live are thrown back, the whole stack when that is all of it (`StackMoved`), else
+  as a new last stack (`StackSplit`) with a turn after its parent's; 12 stacks at most in a fight; a
+  monster's push sends every stack further when half of those caught fail (`PartyDrivenBack`); melee squares
+  fill nearest first. 82 events. Review: 24 mutants caught. Departures from the plan as worded: the opening
+  strike's "nearest" was left by index (a fight starts in distance order, so it cannot differ there); for a
+  monster's push everyone caught counts, not the front row only (those caught are always the standing line);
+  the client's proof that the new stack can be chosen is at the view and target rows the client reads, not a
+  pressed button; the touch-out-of-reach test was dropped (a touch advances the line by an older rule).
+  Not done, said to the owner: stacks do not rejoin; the boom; other SRD pushes.
 - [ ] **Combat in feet, and things that break** (owner, 2026-11-14, on accepting the targeting sheet:
   "We'll need to work on combat to fix the opening strike, lack of range calculation, reach and such. One
   thing to note, the destructive spells like flame bolt need to be able to target objects, and we'll need

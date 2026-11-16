@@ -1,5 +1,14 @@
 # Continuity notes
 
+**2026-11-16, later.** The owner: the gate fix "seems to have fixed the breaking an object on the other side
+of the wall", and "thunderwave does not seem to push back foes?". Planned in plan mode (choices: split the
+stack; a monster's push drives the line back) and built, awaiting the owner's try: see TODO "A spell that
+pushes" and the code-map's entry. 82 events, base 0.1.5 (hash 16768748016642705028), replays rebaselined for
+the hash alone, `SAVE_SCHEMA` 9. A cast in a fight ends the caster's turn, so tests judge a cast by the
+events before the next `Turn`. Open with the owner: stacks rejoining; whether "blocks movement" should imply
+"blocks sight" for object kinds; whether aiming needs the thing in the faced view. Step 9 (doors) still
+awaits the owner's try. **Next: step 10 (repair), plan mode.**
+
 **2026-11-16.** The owner tried the redraw fix ("crates do react immediately upon destruction") and reported
 "I can destroy crates on the other side of walls". Cause: an object's sight was its cell's
 (`line_of_sight`, true when any corner of the cell shows). Built, awaiting the owner's try:

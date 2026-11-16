@@ -976,7 +976,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 80 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 82 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1013,7 +1013,9 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `RoundStarted` | `round` | A round began (from 1). |
 | `Turn` | `actor` | A turn began; on a member's turn the engine waits for a command. |
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
-| `StackMoved` | `stack`, `from`, `to` | A stack closed on the party: its distance in feet before and after. |
+| `StackMoved` | `stack`, `from`, `to` | A stack moved: its distance in feet before and after. Nearer when it closed on the party; further when a spell that pushes threw the whole of it back. |
+| `StackSplit` | `stack`, `into` (the new stack's index), `moved` (indices in `stack` among its living as the split was made, ascending), `from`, `to` (feet) | Some of a stack failed the save of a spell that pushes and are a stack of their own from now on: the last of the fight's stacks, at `to`, with their hit points, spent points and shields, a turn straight after the stack they left and its reactions left. A fight's stack list grows by this event only; `combat.get` shows the new stack. |
+| `PartyDrivenBack` | `feet` | A monster's spell that pushes was failed by at least half of the front row it caught: every stack that stands is `feet` further off. |
 | `PartyAdvanced` | `feet` | The party's line advanced (`Advance`, or a melee attack or touch at a stack just out of reach): every stack is `feet` nearer, none nearer than 5. |
 | `Dodging` | `actor` | A member dodges until the round ends. |
 | `Exchanged` | `member`, `with` (`CharacterId`s) | The acting member and `with` swapped marching places. |
@@ -1287,7 +1289,17 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-16 (latest, sight to an object; the owner's report "I can destroy crates on the other side of
+- 2026-11-16 (latest, a spell that pushes; the owner: "thunderwave does not seem to push back foes", and the
+  choices "Split the stack" and "Line driven back"): `SpellEffect::Save` gains `push_feet` (a multiple of 5,
+  0 to 30; 0 and unwritten for none). In a fight, the individuals of the stack caught who fail the save and
+  live are thrown that far back: the whole stack when that is all of it (`StackMoved` with `to` above `from`),
+  else they leave it as a new last stack (`StackSplit`). A fight holds 12 stacks at most; a full one moves
+  the stack whole when half of those caught failed. A monster's push sends every stack further off when at
+  least half of the front row it caught failed (`PartyDrivenBack`). A push draws no reaction. The stacks
+  within melee reach fill the front's squares nearest first (it was by index, the same until a split).
+  82 events. No state shape changed and `SAVE_SCHEMA` stays 9. Base is 0.1.5 (hash 16768748016642705028):
+  thunderwave pushes 10 ft; the golden replays are rebaselined for the hash alone.
+- 2026-11-16 (sight to an object; the owner's report "I can destroy crates on the other side of
   walls"): no wire shape changed. `targets.get` and the commands that aim at an `Object` (`Cast`, `Attack`)
   judge sight to the object's own footprint, not to its tile: a tile counts as seen when one of its corners
   shows, and an object in it was `Clear` with it. Such an object is now `Obscured` and refused `OutOfSight`.

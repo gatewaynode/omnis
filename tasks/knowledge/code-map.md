@@ -137,6 +137,11 @@ old saves only).
   a site (no encounter roll) or triggers the tile's encounter; `step_out` leaves only when the
   step goes somewhere. `World::may_save` counts an inn; a saved `Town` must match the tile
   (`LoadError::BadTown`).
+- A spell that pushes (2026-11-16): `combat/push.rs` (`thrown`: none, the stack moved, or `split`, which
+  is the one place a stack is added to a fight in progress and fixes `order`, `current`, `reactions`,
+  `monster_shields`, `spent` and `initial`; `driven_back` for a monster's push), called from
+  `combat/cast.rs::cast_save` and `combat/monster_cast.rs`; `encounter::MAX_FIGHT_STACKS`; the client's
+  `rolllog::Names` follows `StackSplit`.
 - Fights: `encounter.rs`, `combat/{mod,state,turn,resolve,cast,reaction}.rs` (`CombatCommand::
   {Attack, Cast { pay }, Use, Dodge, Exchange, Run, EndTurn, Feature}`, `Plan`, `Roller::take`/
   `take_stream`, `run_until_member`, `end_of_round`, `settle`; `payable`, the one answer to "can

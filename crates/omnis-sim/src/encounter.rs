@@ -67,6 +67,8 @@ pub struct Stack {
 
 /// The distance of a stack that is engaged: one five-foot square.
 pub const ENGAGED_FEET: u16 = omnis_data::SQUARE_FEET;
+/// The most stacks a fight holds: past it a push no longer splits a stack.
+pub const MAX_FIGHT_STACKS: usize = 12;
 /// How far each later stack stands behind the one before, unless the rules say
 /// (`stack_spacing_feet`).
 pub const DEFAULT_STACK_SPACING: u16 = 10;

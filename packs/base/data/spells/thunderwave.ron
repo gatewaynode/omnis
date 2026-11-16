@@ -2,7 +2,8 @@
 // Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
 // `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
 // Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
-// The cube is the whole stack: one damage roll, one save per individual. Deviation: the push
-// and the boom are dropped (rows have no distance).
+// The cube catches as many of one stack as fit its squares: one damage roll, one save per
+// individual, and those who fail are thrown back ten feet (`push_feet`). Deviation: the boom is
+// dropped (noise is not modelled).
 // `targeting` is the SRD's range at five feet a tile (PRD §7.3, §8.3): Own, Touch, Tiles(n), `sees` for "that you can see".
-(schema: 1, id: "base:spell:thunderwave", name: "base:text:spell.thunderwave.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.thunderwave.description", effect: Some(Save(ability: Constitution, dice: (count: 2, sides: 8, modifier: 0), damage_type: Thunder, half_on_save: true)), reach: Area(squares: 9), targeting: Some((range: Touch)))
+(schema: 1, id: "base:spell:thunderwave", name: "base:text:spell.thunderwave.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.thunderwave.description", effect: Some(Save(ability: Constitution, dice: (count: 2, sides: 8, modifier: 0), damage_type: Thunder, half_on_save: true, push_feet: 10)), reach: Area(squares: 9), targeting: Some((range: Touch)))

@@ -309,6 +309,7 @@ fn a_thing_makes_no_save_and_shrugs_off_poison_psychic_and_what_is_under_its_thr
         dice,
         damage_type: DamageType::Thunder,
         half_on_save: true,
+        push_feet: 0,
     });
     let auto = remade(|dice| SpellEffect::AutoHit {
         dice,

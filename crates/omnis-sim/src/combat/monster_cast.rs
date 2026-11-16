@@ -249,6 +249,7 @@ fn cast(
             dice,
             damage_type,
             half_on_save,
+            push_feet,
         }) => {
             let targets = match def.reach {
                 Reach::One => reached(world, data, false, &mut roller.rng)
@@ -272,6 +273,10 @@ fn cast(
                 &mut roller.rng,
                 &roller.stream,
             )?;
+            // Those caught are the party's line (its front row, or the rest once that has
+            // fallen): half of them failing sends the line back.
+            let caught = targets.len();
+            let mut failed = 0_usize;
             for target in targets {
                 let member = &world.party.members[target];
                 let id = member.id;
@@ -285,6 +290,7 @@ fn cast(
                 )?;
                 let dc = i64::from(casting.save_dc);
                 let success = roll.total >= dc;
+                failed += usize::from(!success);
                 events.push(Event::Check {
                     actor: ActorRef::Member(id),
                     kind: CheckKind::Save(ability),
@@ -312,6 +318,9 @@ fn cast(
                     adjust,
                 });
                 harm_member(world, data, state, target, (amount, false), roller, events)?;
+            }
+            if failed > 0 && failed * 2 >= caught {
+                super::push::driven_back(state, u16::from(push_feet), events);
             }
             Ok(())
         }

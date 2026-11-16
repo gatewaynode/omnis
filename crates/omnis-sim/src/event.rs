@@ -371,7 +371,28 @@ pub enum Event {
         /// Feet advanced.
         feet: u16,
     },
-    /// A stack closed on the party: its distance in feet before and after.
+    /// The party's line was driven back by a spell that pushes: every stack that stands is
+    /// `feet` further off.
+    PartyDrivenBack {
+        /// Feet driven back.
+        feet: u16,
+    },
+    /// Some of a stack were thrown back by a spell that pushes and are a stack of their own from
+    /// now on, the last of the fight's stacks, with a turn straight after the one they left.
+    StackSplit {
+        /// The stack they left.
+        stack: u8,
+        /// The new stack's index.
+        into: u8,
+        /// Who left: their indices in `stack` among its living as the split was made, ascending.
+        moved: Vec<u8>,
+        /// Feet from the party's front line the stack stands at.
+        from: u16,
+        /// And the new stack.
+        to: u16,
+    },
+    /// A stack moved: its distance in feet before and after. Nearer when it closed on the
+    /// party, further when a spell that pushes threw the whole of it back.
     StackMoved {
         /// Which.
         stack: u8,

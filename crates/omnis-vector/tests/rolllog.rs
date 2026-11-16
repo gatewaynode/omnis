@@ -182,3 +182,62 @@ fn the_log_tells_the_moves_in_feet() {
         "The party advances 10 ft"
     );
 }
+
+/// A spell that pushes (owner, 2026-11-16): the log says who was thrown back, and those thrown
+/// out of a stack keep the numbers they were met with in the stack they become.
+#[test]
+fn the_log_tells_who_is_thrown_back_and_keeps_their_numbers() {
+    use omnis_sim::{ActorRef, Event};
+    use omnis_vector::rolllog::{Names, describe};
+    let data = crate::common::data();
+    let mut names = Names::default();
+    let met = Event::EncounterStarted {
+        source: omnis_sim::EncounterSource::Random,
+        stacks: vec![("base:monster:giant_rat".into(), 4)],
+        disposition: omnis_sim::omnis_data::Disposition::Hostile,
+        counts: Vec::new(),
+        stealth: None,
+        perception: 10,
+        noticed: true,
+    };
+    names.follow(&met, &data);
+    let whole = Event::StackMoved {
+        stack: 0,
+        from: 5,
+        to: 15,
+    };
+    let line = |names: &Names, event: &Event| describe(event, names, &data).expect("a line");
+    assert_eq!(line(&names, &whole), "Giant Rat is thrown back to 15 ft");
+    assert_eq!(
+        line(&names, &Event::PartyDrivenBack { feet: 10 }),
+        "The party is thrown back 10 ft"
+    );
+    // The second and the fourth rat are thrown out of the stack.
+    let split = |moved: Vec<u8>| Event::StackSplit {
+        stack: 0,
+        into: 1,
+        moved,
+        from: 5,
+        to: 15,
+    };
+    let one = split(vec![2]);
+    assert_eq!(line(&names, &one), "Giant Rat 3 is thrown back to 15 ft");
+    let two = split(vec![1, 3]);
+    assert_eq!(
+        line(&names, &two),
+        "Giant Rat 2 and Giant Rat 4 are thrown back to 15 ft"
+    );
+    names.follow(&two, &data);
+    let rat = |stack: u8, index: u8| names.actor(ActorRef::Monster { stack, index });
+    assert_eq!(
+        [rat(0, 0), rat(0, 1), rat(1, 0), rat(1, 1)],
+        ["Giant Rat 1", "Giant Rat 3", "Giant Rat 2", "Giant Rat 4"]
+    );
+    assert_eq!(names.actor(ActorRef::Stack(1)), "Giant Rat");
+    let closes = Event::StackMoved {
+        stack: 1,
+        from: 15,
+        to: 5,
+    };
+    assert_eq!(line(&names, &closes), "Giant Rat closes with the party");
+}

@@ -303,6 +303,7 @@ pub(crate) fn resolve(
                 dice,
                 damage_type,
                 half_on_save,
+                push_feet,
             },
             Aim::Stack(stack),
         ) => {
@@ -312,6 +313,7 @@ pub(crate) fn resolve(
                 dice,
                 damage_type: *damage_type,
                 half_on_save: *half_on_save,
+                push_feet: u16::from(*push_feet),
                 reach: spell.reach,
             };
             cast_save(world, data, state, plan, stack, &save, roller, events)
@@ -560,6 +562,7 @@ struct SaveSpell {
     dice: omnis_core::Dice,
     damage_type: omnis_data::DamageType,
     half_on_save: bool,
+    push_feet: u16,
     reach: Reach,
 }
 
@@ -607,6 +610,10 @@ fn cast_save(
                 (0..count.min(fit)).rev().collect()
             }
         };
+        // Who failed and lives, by index among the living; the walk runs from the last index
+        // down, so a death lowers those recorded above it.
+        let caught = individuals.len();
+        let (mut failed, mut thrown) = (0, Vec::new());
         for index in individuals {
             let actor = ActorRef::Monster {
                 stack,
@@ -637,8 +644,20 @@ fn cast_save(
                 amount,
                 adjust: damage.adjust,
             });
+            let living = state.encounter.stacks[usize::from(stack)].hp.len();
             hurt_individual(state, data, stack, index, amount, roller, events)?;
+            let died = state.encounter.stacks[usize::from(stack)].hp.len() < living;
+            failed += usize::from(!success);
+            if died {
+                for above in &mut thrown {
+                    *above -= 1;
+                }
+            } else if !success {
+                thrown.insert(0, u8::try_from(index).unwrap_or(u8::MAX));
+            }
         }
+        let half = failed * 2 >= caught;
+        super::push::thrown(state, stack, &thrown, half, save.push_feet, events);
     }
     Ok(())
 }

@@ -162,11 +162,13 @@ fn scaled(
             dice,
             damage_type,
             half_on_save,
+            push_feet,
         } => SpellEffect::Save {
             ability,
             dice: at(dice)?,
             damage_type,
             half_on_save,
+            push_feet,
         },
         other => other,
     })

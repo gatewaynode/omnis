@@ -64,8 +64,9 @@ impl Names {
             )
     }
 
-    /// Follow an event already described: meeting monsters numbers them afresh, and a death
-    /// takes its number out of the living.
+    /// Follow an event already described: meeting monsters numbers them afresh, a death takes
+    /// its number out of the living, and those thrown out of a stack keep their numbers in the
+    /// stack they become.
     pub fn follow(&mut self, event: &Event, data: &Data) {
         match event {
             Event::EncounterStarted { stacks, .. } => {
@@ -87,6 +88,22 @@ impl Names {
                 {
                     s.living.remove(usize::from(*index));
                 }
+            }
+            Event::StackSplit { stack, moved, .. } => {
+                let Some(parent) = self.stacks.get_mut(usize::from(*stack)) else {
+                    return;
+                };
+                let leaves = |place: usize| moved.iter().any(|m| usize::from(*m) == place);
+                let numbered = parent.living.iter().copied().enumerate();
+                let (gone, kept): (Vec<_>, Vec<_>) =
+                    numbered.partition(|(place, _)| leaves(*place));
+                parent.living = kept.into_iter().map(|(_, n)| n).collect();
+                let thrown = Stack {
+                    name: parent.name.clone(),
+                    initial: parent.initial,
+                    living: gone.into_iter().map(|(_, n)| n).collect(),
+                };
+                self.stacks.push(thrown);
             }
             _ => {}
         }
@@ -193,14 +210,32 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         }
         Event::RoundStarted { round } => format!("Round {round}"),
         Event::Waited { actor } => format!("{} waits", names.actor(*actor)),
-        Event::StackMoved { stack, to, .. } => {
+        Event::StackMoved { stack, from, to } => {
             let who = names.actor(ActorRef::Stack(*stack));
-            if *to <= 5 {
+            if to > from {
+                format!("{who} is thrown back to {to} ft")
+            } else if *to <= 5 {
                 format!("{who} closes with the party")
             } else {
                 format!("{who} closes to {to} ft")
             }
         }
+        Event::StackSplit {
+            stack, moved, to, ..
+        } => {
+            let who: Vec<String> = moved
+                .iter()
+                .map(|index| {
+                    names.actor(ActorRef::Monster {
+                        stack: *stack,
+                        index: *index,
+                    })
+                })
+                .collect();
+            let verb = if who.len() == 1 { "is" } else { "are" };
+            format!("{} {verb} thrown back to {to} ft", listed(&who))
+        }
+        Event::PartyDrivenBack { feet } => format!("The party is thrown back {feet} ft"),
         Event::PartyAdvanced { feet } => format!("The party advances {feet} ft"),
         Event::Dodging { actor } => format!("{} dodges", names.actor(*actor)),
         Event::Exchanged { member, with } => {
@@ -364,4 +399,13 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         }
         _ => return None,
     })
+}
+
+/// Names in a row: "A", "A and B", "A, B and C".
+fn listed(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => one.clone(),
+        [most @ .., last] => format!("{} and {last}", most.join(", ")),
+    }
 }

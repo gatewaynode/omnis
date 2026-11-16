@@ -141,12 +141,16 @@ impl CombatState {
     }
 
     /// How many of `stack` may attack in melee this round: the front row presents one
-    /// five-foot square a member, the stacks within their melee reach fill those squares in
-    /// order, and a longer reach lets further ranks strike past the first.
+    /// five-foot square a member, the stacks within their melee reach fill those squares
+    /// nearest first (the earlier stack of two as near), and a longer reach lets further ranks
+    /// strike past the first.
     #[must_use]
     pub fn melee_slots(&self, party: &Party, data: &Data, stack: u8) -> u16 {
         let mut left = frontage(party, data);
-        for (index, s) in self.encounter.stacks.iter().enumerate() {
+        // A split leaves the stacks out of the order they stand in.
+        let mut nearest: Vec<_> = self.encounter.stacks.iter().enumerate().collect();
+        nearest.sort_by_key(|(index, s)| (s.distance, *index));
+        for (index, s) in nearest {
             let Some(monster) = data.monsters.get(&s.monster) else {
                 continue;
             };

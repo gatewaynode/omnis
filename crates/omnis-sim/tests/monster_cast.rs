@@ -556,3 +556,64 @@ fn points_and_shields_stay_with_their_individual_when_the_lead_dies() {
         "the fallen one's shield goes, the survivor's moves up one"
     );
 }
+
+/// A monster's wave drives the party's line back when half of the front row it caught fails
+/// (owner, 2026-11-16: "Line driven back"): every stack is ten feet further, the caster's too.
+#[test]
+fn thunderwave_drives_the_line_back_when_half_the_front_row_fails() {
+    let mut data = data();
+    bob_casting(&mut data, &["thunderwave"], false);
+    let (mut driven, mut held) = (0, 0);
+    for seed in 0..40 {
+        let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});
+        let events = bob_turn(&mut world, &data, &start);
+        let failed = events
+            .iter()
+            .filter(|e| matches!(e, Event::Check { success: false, .. }))
+            .count();
+        let back: Vec<u16> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::PartyDrivenBack { feet } => Some(*feet),
+                _ => None,
+            })
+            .collect();
+        // Three stand in front: two failing is half and more.
+        if failed >= 2 {
+            driven += 1;
+            assert_eq!(back, [10], "seed {seed}: {failed} failed");
+        } else {
+            held += 1;
+            assert!(back.is_empty(), "seed {seed}: {failed} failed");
+        }
+    }
+    assert!(driven > 3 && held > 3, "{driven} {held}");
+    // The distance itself: a lone failure in a front row of one is all of it.
+    let (mut world, _) = (0..40)
+        .map(|seed| {
+            against_bob(&data, seed, (1, 1, 200), |world| {
+                world.party.members[0].hp = 500;
+                world.party.members[0].hp_max = 500;
+            })
+        })
+        .find(|(_, start)| {
+            !start
+                .iter()
+                .any(|e| matches!(e, Event::PartyDrivenBack { .. }))
+        })
+        .expect("a start Bob has not yet cast in");
+    let mut feet = 5;
+    for _ in 0..6 {
+        let events = act(&mut world, &data, Command::Combat(CombatCommand::EndTurn)).unwrap();
+        let back = events
+            .iter()
+            .filter(|e| matches!(e, Event::PartyDrivenBack { feet: 10 }))
+            .count();
+        feet += 10 * u16::try_from(back).unwrap();
+        let Mode::Combat(state) = &world.mode else {
+            panic!("the fight goes on");
+        };
+        assert_eq!(state.encounter.stacks[0].distance, feet);
+    }
+    assert!(feet > 5, "Bob's wave never threw the one member back");
+}
