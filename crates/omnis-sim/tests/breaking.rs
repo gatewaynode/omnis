@@ -425,6 +425,78 @@ fn a_weapon_strikes_a_thing_it_reaches_and_a_bow_one_it_sees() {
     );
 }
 
+/// Sight is to the thing, not to a corner of its cell (owner, 2026-11-16: "I can destroy crates
+/// on the other side of walls"). From (5, 3) a line through the hedge's gap grazes the south
+/// west corner of the crate's cell and no line reaches the crate; from (4, 3) one does.
+#[test]
+fn a_thing_behind_a_wall_is_not_seen_by_a_corner_of_its_cell() {
+    let data = objects();
+    let from = |x: u16, y: u16| stand(&data, x, y);
+    let sight = |world: &World| sight_of(world, &data, BOLT, "crate_1");
+    let hidden = from(5, 3);
+    assert_eq!(sight(&hidden), Some(omnis_sim::Sight::Obscured));
+    assert_eq!(
+        cast(&mut hidden.clone(), &data, "crate_1"),
+        Err(Rejection::OutOfSight)
+    );
+    for slot in 0..hidden.party.members.len() {
+        let blow = strike(&mut hidden.clone(), &data, slot, "crate_1");
+        assert_eq!(blow, Err(Rejection::OutOfSight), "slot {slot}");
+    }
+    // Through the gap, past the gate's bars: the crate itself is in the line.
+    let seen = from(4, 3);
+    assert_eq!(sight(&seen), Some(omnis_sim::Sight::Clear));
+    assert!(cast(&mut seen.clone(), &data, "crate_1").is_ok());
+    // Its own cell and the one beside it: nothing has changed where no wall stands between.
+    assert_eq!(sight(&from(2, 1)), Some(omnis_sim::Sight::Clear));
+    assert_eq!(sight(&from(1, 1)), Some(omnis_sim::Sight::Clear));
+    // The lever in the corner (0, 0) is seen along the north side, and from (2, 1) the crate
+    // stands in every line to it though a corner of its cell shows past the crate.
+    let lever = |world: &World| sight_of(world, &data, HAND, "lever_1");
+    assert_eq!(lever(&from(2, 0)), Some(omnis_sim::Sight::Clear));
+    assert_eq!(lever(&from(2, 1)), Some(omnis_sim::Sight::Obscured));
+    // Sight has a depth: where the grass lets the party see two cells, a crate three off in the
+    // open is known of and not seen.
+    let mut dim = data.clone();
+    let yard = yard(&dim);
+    for terrain in &mut dim.maps.get_mut(&yard).unwrap().def.terrains {
+        terrain.visibility_depth = 2;
+    }
+    let near = sight_of(&stand(&dim, 3, 1), &dim, BOLT, "crate_1");
+    let far = sight_of(&stand(&dim, 4, 1), &dim, BOLT, "crate_1");
+    assert_eq!(near, Some(omnis_sim::Sight::Clear));
+    assert_ne!(far, Some(omnis_sim::Sight::Clear));
+}
+
+const HAND: &str = "base:spell:mage_hand";
+
+/// The party of `at`, stood at `(x, y)` of the yard's ground, facing north.
+fn stand(data: &Data, x: u16, y: u16) -> World {
+    let mut world = at(data, 2, 1, Facing::West);
+    let teleport = omnis_sim::DevCommand::Teleport {
+        map: "objects:map:yard".into(),
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        facing: Facing::North,
+    };
+    apply(&mut world, data, Command::Dev(teleport)).expect("a cell of the yard");
+    world
+}
+
+/// How the wizard's `spell` sees the object `id`, when it is among the spell's rows.
+fn sight_of(world: &World, data: &Data, spell: &str, id: &str) -> Option<omnis_sim::Sight> {
+    let chosen = Chosen::Spell {
+        spell: spell.into(),
+        pay: omnis_sim::Pay::default(),
+    };
+    targets(world, data, world.party.members[WIZARD].id, &chosen)
+        .expect("rows")
+        .into_iter()
+        .find(|row| row.target == thing(id))
+        .map(|row| row.sight)
+}
+
 /// The yard with a potion of healing beside the dagger in the chest.
 fn with_a_potion() -> Data {
     let mut data = objects();

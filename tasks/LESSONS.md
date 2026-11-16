@@ -886,3 +886,15 @@ among them; a test that calls `Scene::build` itself never asks whether anything 
   the drawing. Each new event is asked: does the picture change? does the log say it? does a list change?
 - A drawing test that builds the picture by hand proves the picture, not that the player sees it. Pair it
   with the trigger's test.
+
+## 2026-11-16: a rule borrowed from drawing is not a rule for aiming
+
+Objects became targets in step 8 and I asked "does the party see it?" with the function that decides whether
+a cell is drawn. That function passes when a line reaches any corner of the cell, which is right for drawing
+(the walls hide the rest) and wrong for striking. The owner: "I can destroy crates on the other side of
+walls." My one test of sight stood the party far from any gap, where no corner showed either.
+
+- Before reusing a predicate, read what it was written to answer. "Is this cell drawn" and "can this thing be
+  hit" differ exactly at walls' ends and gaps.
+- A sight or range rule is tested at its edge: beside a gap, at a wall's end, one cell past the limit. A case
+  deep inside "no" proves little. A scan of every standing cell of a fixture finds the edge cases in minutes.

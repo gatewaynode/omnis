@@ -24,6 +24,11 @@
 //! line passes over an object's footprint, it is blocked if the object's top (its height above
 //! the floor of the cell it stands in) rises above the line where it enters or leaves the
 //! footprint. An object does not hide the cell it stands in.
+//!
+//! Whether an object is seen ([`object_in_sight`], what aiming asks) is stricter than whether
+//! its cell is: the line must reach the object, at the middle of its footprint or just inside a
+//! corner of it. A cell is drawn when one of its corners shows; a thing in it is not struck or
+//! worked on that account.
 
 use crate::event::SeenTile;
 use crate::objects;
@@ -34,6 +39,7 @@ use omnis_core::ObjectKindId;
 use omnis_core::{Facing, Level, Position};
 use omnis_data::footprint::Footprint;
 use omnis_data::limits::MAX_VISIBILITY_DEPTH;
+use omnis_data::placement::ResolvedPlacement;
 use omnis_data::{Data, MapData, ObjectKind};
 use omnis_rules::light_depth;
 
@@ -145,7 +151,58 @@ pub fn line_of_sight(
         (tx + 2, ty + 2),
     ];
     ends.iter().any(|&end| {
-        walk(&sheet, from, to, start, end, true) || walk(&sheet, from, to, start, end, false)
+        walk(&sheet, from, to, (start, end), HALF_CELLS, true)
+            || walk(&sheet, from, to, (start, end), HALF_CELLS, false)
+    })
+}
+
+/// Whether the object `placement` can be seen from `from`: a line from the centre of `from`
+/// reaches the object itself, at the middle of its footprint or just inside one of its corners
+/// (the part of the footprint in the cell it stands in). A corner of the cell is not the
+/// object: one standing behind a wall is not seen because the wall's end is.
+#[must_use]
+pub fn object_in_sight(
+    map: &MapData,
+    kinds: &Kinds,
+    state: Option<&MapState>,
+    from: (u16, u16),
+    placement: &ResolvedPlacement,
+) -> bool {
+    let Some(kind) = kinds.get(&placement.kind) else {
+        return false;
+    };
+    let sheet = Sheet {
+        map,
+        kinds,
+        state,
+        level: placement.level,
+    };
+    let to = (placement.x, placement.y);
+    let (look, _, _) = objects::standing(kind, state, placement);
+    let footprint = placement.footprint(look);
+    // The footprint within its cell, a sixteenth in from each side where it is wide enough.
+    let inner = |lo: i32, hi: i32, cell: u16| {
+        let west = 16 * i32::from(cell);
+        let (lo, hi) = (lo.max(west), hi.min(west + 16));
+        if hi - lo >= 2 {
+            (lo + 1, hi - 1)
+        } else {
+            ((lo + hi) / 2, (lo + hi) / 2)
+        }
+    };
+    let (x0, x1) = inner(footprint.x0, footprint.x1, to.0);
+    let (y0, y1) = inner(footprint.y0, footprint.y1, to.1);
+    let start = (16 * i32::from(from.0) + 8, 16 * i32::from(from.1) + 8);
+    let ends = [
+        ((x0 + x1) / 2, (y0 + y1) / 2),
+        (x0, y0),
+        (x1, y0),
+        (x0, y1),
+        (x1, y1),
+    ];
+    ends.iter().any(|&end| {
+        walk(&sheet, from, to, (start, end), SIXTEENTHS, true)
+            || walk(&sheet, from, to, (start, end), SIXTEENTHS, false)
     })
 }
 
@@ -224,8 +281,14 @@ impl Sheet<'_> {
     }
 }
 
-/// One supercover walk from the point `start` (a tile centre) to the point `end`, in half-tile
-/// coordinates where tile `(x, y)` spans `[2x, 2x + 2]`. Every boundary crossing checks the
+/// A walk's unit: half a cell, the grid a cell's centre and corners lie on.
+const HALF_CELLS: i32 = 1;
+/// A walk's unit: a sixteenth of a cell, the grid an object's footprint lies on.
+const SIXTEENTHS: i32 = 8;
+
+/// One supercover walk from the point `start` (a tile centre) to the point `end`, in units of
+/// which `unit` make half a tile: in half-tile coordinates tile `(x, y)` spans `[2x, 2x + 2]`.
+/// Every boundary crossing checks the
 /// edge it passes; a tile other than the origin blocks further travel when it is opaque.
 /// `x_first` decides which way round an exact corner crossing goes. Succeeds on entering
 /// `target`, or on arriving at `end` (a point on the target's boundary) unblocked. Height is
@@ -234,14 +297,15 @@ fn walk(
     sheet: &Sheet<'_>,
     from: (u16, u16),
     target: (u16, u16),
-    start: (i32, i32),
-    end: (i32, i32),
+    (start, end): ((i32, i32), (i32, i32)),
+    unit: i32,
     x_first: bool,
 ) -> bool {
     let (dx, dy) = (end.0 - start.0, end.1 - start.1);
     let (nx, ny) = (dx.abs(), dy.abs());
-    // Boundaries lie at even coordinates; from an odd start they sit at distances 1, 3, 5, ...
-    let (crossings_x, crossings_y) = ((nx + 1) / 2, (ny + 1) / 2);
+    // Boundaries lie at even half-tiles; from a tile's centre they sit at distances 1, 3, 5, ...
+    // half-tiles, and one reached exactly is crossed.
+    let (crossings_x, crossings_y) = ((nx / unit + 1) / 2, (ny / unit + 1) / 2);
     let step_x = if dx > 0 { Facing::East } else { Facing::West };
     let step_y = if dy > 0 { Facing::South } else { Facing::North };
     let (mut x, mut y) = from;
@@ -254,8 +318,9 @@ fn walk(
         floor: sheet.floor(target.0, target.1),
     };
     // The ray in sixteenths of a cell, for the objects' footprints.
-    let s16 = (8 * i64::from(start.0), 8 * i64::from(start.1));
-    let e16 = (8 * i64::from(end.0), 8 * i64::from(end.1));
+    let fine = i64::from(SIXTEENTHS / unit);
+    let s16 = (fine * i64::from(start.0), fine * i64::from(start.1));
+    let e16 = (fine * i64::from(end.0), fine * i64::from(end.1));
     if sheet.object_hides(from, target, sight, s16, e16) {
         return false;
     }
@@ -268,10 +333,10 @@ fn walk(
             || (ix < crossings_x && (toward_x < toward_y || (toward_x == toward_y && x_first)));
         let (facing, at) = if step_x_now {
             ix += 1;
-            (step_x, (i64::from(2 * ix - 1), i64::from(nx)))
+            (step_x, (i64::from(unit * (2 * ix - 1)), i64::from(nx)))
         } else {
             iy += 1;
-            (step_y, (i64::from(2 * iy - 1), i64::from(ny)))
+            (step_y, (i64::from(unit * (2 * iy - 1)), i64::from(ny)))
         };
         let floor = sheet.floor(x, y);
         if (x, y) != from

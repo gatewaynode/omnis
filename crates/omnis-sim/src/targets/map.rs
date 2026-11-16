@@ -159,7 +159,11 @@ pub(crate) fn object<'d>(
         return None;
     }
     let tile = (placement.x, placement.y);
-    let clear = sees(world, data, tile);
+    let map = data.maps.get(&pos.map)?;
+    let state = world.maps.get(&pos.map);
+    // The thing itself, not a corner of its cell: nothing is struck through a wall's end.
+    let clear = distance(world, tile) <= u16::from(visibility::depth(world, data, map))
+        && visibility::object_in_sight(map, &data.objects, state, (pos.x, pos.y), placement);
     let mapped = world.automap.tiles(pos.map, pos.level);
     let known = mapped.is_some_and(|m| m.contains_key(&tile));
     (clear || known).then(|| {

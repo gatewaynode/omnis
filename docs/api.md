@@ -630,7 +630,9 @@ distance: `{"Door": ...}` and `{"Object": ...}` rows with their `distance` and `
 it faces); `Tiles(n)` is everything within `n` tiles as a king moves; `Sight` is everything
 within the party's sight depth. Sight is asked in every direction from the party's tile, not
 only the way it faces, and is `Clear` when the thing is within the sight depth by a clear
-line (for a door, to either tile of its edge). A thing the line does not reach is listed
+line (for a door, to either tile of its edge; for an object, to the object itself, the
+middle of its footprint or just inside a corner of it, so an object behind a wall is not seen
+because a corner of its tile is). A thing the line does not reach is listed
 only if the party knows of it (its tile is on the automap; a door's edge is recorded there),
 with `sight: "Obscured"`, and with the refusal `OutOfSight` when the `targeting` asks a
 clear line. A thing the party neither sees nor knows of is not listed and is refused as if
@@ -1285,7 +1287,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-13 (latest, a terrain's face; the owner's choice "Terrain picks its face"): a pack format addition,
+- 2026-11-16 (latest, sight to an object; the owner's report "I can destroy crates on the other side of
+  walls"): no wire shape changed. `targets.get` and the commands that aim at an `Object` (`Cast`, `Attack`)
+  judge sight to the object's own footprint, not to its tile: a tile counts as seen when one of its corners
+  shows, and an object in it was `Clear` with it. Such an object is now `Obscured` and refused `OutOfSight`.
+  Objects that block sight hide other objects behind them the same way. Doors and groups are judged as before.
+- 2026-11-13 (a terrain's face; the owner's choice "Terrain picks its face"): a pack format addition,
   no wire shape changed. `Terrain` gains `face` (`Face`: `Plain`, the default, or `Hatched`): how its block is
   drawn in the 3D view, hatched as a cliff's face is, which tells trees or rock from a wall where the two
   share a colour role. Left out of a file when plain, so no pack's seal moves. Presentation data: no rule,

@@ -1,5 +1,14 @@
 # Continuity notes
 
+**2026-11-16.** The owner tried the redraw fix ("crates do react immediately upon destruction") and reported
+"I can destroy crates on the other side of walls". Cause: an object's sight was its cell's
+(`line_of_sight`, true when any corner of the cell shows). Built, awaiting the owner's try:
+`visibility::object_in_sight` (lines to the object's footprint within its cell, the walk given a unit so it
+runs in sixteenths), used by `targets/map.rs::object`; red test
+`breaking::a_thing_behind_a_wall_is_not_seen_by_a_corner_of_its_cell` (from (5, 3) of the yard the crate is
+`Obscured`). Doors and groups are still judged by cell. Sight is still all round, not only the way faced
+(said to the owner as a question). Step 9 (doors) still awaits the owner's try. **Next: step 10, plan mode.**
+
 **2026-11-15, evening.** The owner tried the object targeting fix ("Object targeting and damage tracking is
 working") and the Resize form ("worked but was strange": one field writable, the cursor lost on a click, no Tab
 or arrows). Built since, awaiting the owner's try: `540aee75` (gate 1473), `shell/focus.rs`: every text field
