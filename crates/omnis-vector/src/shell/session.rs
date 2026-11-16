@@ -748,7 +748,7 @@ pub fn finds(event: &Event) -> bool {
 }
 
 /// Whether an event changes what the view draws of the map: a door, an object's state, an
-/// object taken away or found, items laid on or taken from the ground, loot left by a fight, or
+/// object taken away, broken or found, items laid on or taken from the ground, loot left by a fight, or
 /// a standing group met, bought off, hidden from or run from (M8.5 step 2c).
 #[must_use]
 pub fn reshapes(event: &Event) -> bool {
@@ -756,6 +756,7 @@ pub fn reshapes(event: &Event) -> bool {
         Event::Door { .. }
         | Event::ObjectState { .. }
         | Event::ObjectRemoved { .. }
+        | Event::ObjectBroken { .. }
         | Event::Noticed { .. }
         | Event::EncounterStarted { .. }
         | Event::Bribed { .. }
@@ -885,6 +886,10 @@ mod tests {
             Event::Noticed {
                 object: object("lever_1"),
                 how: Notice::Passive,
+            },
+            // The owner, 2026-11-15: a broken crate stayed whole until the view changed.
+            Event::ObjectBroken {
+                object: object("crate_1"),
             },
             moved(member.clone(), ItemPlace::Ground),
             moved(ItemPlace::Ground, member.clone()),

@@ -874,3 +874,15 @@ click on any field took the keyboard from all of them. Screens with one field ne
 - After an engine upgrade, list what the engine now does itself on a click or a key (focus, hover, press)
   and check each against a screen that has two of the thing, not one.
 - A form is not done until Tab, Shift+Tab and the arrows have been pressed in it.
+
+## 2026-11-15: a new look is tested through what makes the view redraw, not only through the picture
+
+I drew a broken object as a wreck and tested it by building the scene directly after the crate broke. The
+owner: "Object destruction works, but it lagged until I changed my view even though the crate was already in
+the viewport." The view is rebuilt only for the events `session::reshapes` lists, and `ObjectBroken` was not
+among them; a test that calls `Scene::build` itself never asks whether anything would call it.
+
+- When an event changes what is drawn, it goes into `reshapes` (and its test's list) in the same commit as
+  the drawing. Each new event is asked: does the picture change? does the log say it? does a list change?
+- A drawing test that builds the picture by hand proves the picture, not that the player sees it. Pair it
+  with the trigger's test.
