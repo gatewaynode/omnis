@@ -309,3 +309,93 @@ fn the_loft_s_crate_is_drawn_with_its_level() {
         "on the loft's floor, a wall up: {low}"
     );
 }
+
+/// The owner, 2026-11-15: "there should be a visual representation of a destroyed object when
+/// hitpoints are exhausted." A broken thing is drawn as a wreck: a low heap in its footprint,
+/// `WRECK` of its height, crossed over its top; never the whole shape.
+#[test]
+fn a_broken_object_is_drawn_as_a_low_crossed_wreck_in_its_footprint() {
+    use omnis_vector::shapes::WRECK;
+    let ground = Ground::default();
+    for shape in SHAPES {
+        let look = Look {
+            shape,
+            width: 6,
+            depth: 4,
+            height: 8,
+        };
+        let whole = object(3, 4, (1, -1), Facing::East, look, true);
+        let wreck = SeenObject {
+            broken: true,
+            ..whole.clone()
+        };
+        let (lines, fills) = shapes(&[wreck], &[], &ground);
+        let f = footprint_of(&whole);
+        assert!(
+            close(of_lines(&lines), expected(&f, 0.0, WRECK)),
+            "{shape:?}: {:?}",
+            of_lines(&lines)
+        );
+        assert!(close(of_fills(&fills), expected(&f, 0.0, WRECK)));
+        // A frustum's twelve edges and the two lines of the cross, which lie on its top.
+        assert_eq!(lines.len(), 14, "{shape:?}");
+        let on_top = |s: &&Segment| (s.a[1] - WRECK).abs() < 1e-5 && (s.b[1] - WRECK).abs() < 1e-5;
+        assert_eq!(lines.iter().filter(on_top).count(), 6, "{shape:?}");
+        assert!(lines.iter().all(|s| s.kind == SegKind::Object));
+    }
+}
+
+/// The crate in the yard, struck until the engine says it broke, is the wreck in the scene.
+#[test]
+fn the_yard_s_crate_struck_until_it_breaks_is_drawn_as_a_wreck() {
+    use omnis_vector::shapes::WRECK;
+    let data = objects_data();
+    let mut world = yard_world(&data);
+    let yard = map(&data, "objects:map:yard");
+    // Beside the crate at (1, 1).
+    common::place(&mut world, yard, 2, 1, Facing::West);
+    let of = |w: &SimWorld| {
+        let (objects, _) = w.objects_on(&data, yard, Level::GROUND);
+        objects
+            .into_iter()
+            .find(|o| o.object == "crate_1")
+            .expect("the crate")
+    };
+    let whole = of(&world);
+    let f = footprint_of(&whole);
+    let top = |w: &SimWorld| {
+        let scene = Scene::build(&data, yard, Level::GROUND, w);
+        let b = expected(&f, 0.0, 0.0);
+        scene
+            .own
+            .iter()
+            .filter(|s| s.kind == SegKind::Object)
+            .flat_map(|s| [s.a, s.b])
+            .filter(|p| {
+                (b[0] - 1e-5..=b[2] + 1e-5).contains(&p[0])
+                    && (b[1] - 1e-5..=b[3] + 1e-5).contains(&p[2])
+            })
+            .fold(0.0f32, |m, p| m.max(p[1]))
+    };
+    let height = f32::from(whole.look.height) / 8.0;
+    assert!((top(&world) - height).abs() < 1e-5, "whole");
+    let member = world.party.members[0].id;
+    let blow = omnis_sim::Command::Attack {
+        member,
+        target: omnis_sim::Target::Object {
+            object: "crate_1".into(),
+        },
+    };
+    for _ in 0..200 {
+        if of(&world).broken {
+            break;
+        }
+        world.apply(&data, blow.clone()).expect("a blow");
+    }
+    assert!(of(&world).broken, "the crate broke");
+    assert!(
+        (top(&world) - height * WRECK).abs() < 1e-5,
+        "{}",
+        top(&world)
+    );
+}

@@ -64,6 +64,15 @@ pack. Open any map.
 - The map's other fields (name, tileset, tile size in feet, what doors are made of) and New map
   still have no form.
 
+## From your try (2026-11-15)
+
+"Resizing the map canvas worked but was strange, I could only write in one direction field, the
+cursor disappeared if I tried to choose any other field, I couldn't tab or arrow through the form
+fields." Built since (`540aee75`): the form opens with the keyboard in North; a click on any
+field, or on the box around it, gives it the keyboard; Tab and Shift+Tab, Down and Up step through
+the four fields. The same holds for every other form with text fields (the inspector's forms, the
+debug page), which had the same fault since the move to Bevy 0.20. Buttons are not reached by Tab.
+
 ## Decisions for you
 
 1. **Typed fields, not steppers.** Each side is a text field. Say if you want +/- buttons as well.

@@ -937,6 +937,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [ ] 10. Repair: mending and `Command::Repair`.
   - [ ] 11. Repair service.
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.
+        Pulled forward at the owner's word (2026-11-15, "a visual representation of a destroyed
+        object"): a broken object is drawn as a wreck (`shapes::WRECK`, a quarter of its height,
+        a heap crossed over its top). A damaged mark, doors, Repair and the service row remain.
   - [ ] 13. Documents: acceptance sheet, code map, continuity. Report.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the
   owner 2026-11-14**: "I went through the targeting acceptance doc, everything seems to work."; owner, 2026-11-14;

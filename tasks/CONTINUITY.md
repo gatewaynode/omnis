@@ -1,5 +1,15 @@
 # Continuity notes
 
+**2026-11-15, evening.** The owner tried the object targeting fix ("Object targeting and damage tracking is
+working") and the Resize form ("worked but was strange": one field writable, the cursor lost on a click, no Tab
+or arrows). Built since, awaiting the owner's try: `540aee75` (gate 1473), `shell/focus.rs`: every text field
+carries a `TabIndex` (Bevy 0.20 gives a click's focus to nothing else), a screen's first field alone takes the
+keyboard, a field's box passes a click to its field, Tab / Shift+Tab / Up / Down step fields (the screen root a
+modal `TabGroup`, the editor's columns groups 0 to 3; Bevy's own Tab handler left out). Then, at the owner's
+word ("a visual representation of a destroyed object"), part of step 12 pulled forward: a broken object is a
+wreck in the 3D view (`shapes::WRECK`, `Out::wreck`). Not seen on screen by me. **Next: step 9 (doors), plan
+mode first**; the notes for it are in the paragraph below.
+
 **2026-11-15, afternoon. Combat in feet resumes at step 9 (doors).** The owner tried Part I ("Tested ranged advance
 and combat, seems to work well") and the rebuilt minimap ("That fixed the minimap usability"): `0b78b7ef`, one
 192-pixel square centred on the party, `minimap::Zoom` over `ZOOMS` (12 px a cell first), `Zooming` resource,

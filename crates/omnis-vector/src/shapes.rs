@@ -35,6 +35,9 @@ const SIGN_POST: f32 = 0.25;
 
 /// A heap's top, as a share of its base.
 const HEAP_TOP: f32 = 0.5;
+/// A broken thing lies this share of its height high (owner, 2026-11-15: a destroyed object
+/// is seen to be destroyed).
+pub const WRECK: f32 = 0.25;
 
 /// A figure (M8.5 step 2c): a body narrowing from its whole footprint to this share of it at the
 /// shoulders, which stand at `SHOULDER` of its height, and a head this share of its width above.
@@ -116,7 +119,11 @@ pub fn shapes(
     for o in objects {
         let body = Body::of(o.x, o.y, o.pos, o.facing, &o.look, ground);
         out.kind = SegKind::Object;
-        out.look(&body, o.look.shape, o.blocks);
+        if o.broken {
+            out.wreck(&body);
+        } else {
+            out.look(&body, o.look.shape, o.blocks);
+        }
     }
     for p in piles {
         let body = Body::of(p.x, p.y, p.pos, Facing::North, &PILE_LOOK, ground);
@@ -158,6 +165,22 @@ struct Frustum {
 }
 
 impl Out {
+    /// A broken thing, whatever it was: a low heap in its footprint, crossed over its top.
+    fn wreck(&mut self, body: &Body) {
+        self.frustum(
+            body,
+            &Frustum {
+                u: (-1.0, 1.0),
+                v: (-1.0, 1.0),
+                h: (0.0, WRECK),
+                top: HEAP_TOP,
+            },
+        );
+        let corner = |u: f32, v: f32| body.at(u * HEAP_TOP, v * HEAP_TOP, WRECK);
+        self.line(corner(-1.0, -1.0), corner(1.0, 1.0));
+        self.line(corner(1.0, -1.0), corner(-1.0, 1.0));
+    }
+
     fn look(&mut self, body: &Body, shape: Shape, shut: bool) {
         let block = |u, v, h| Frustum { u, v, h, top: 1.0 };
         match shape {

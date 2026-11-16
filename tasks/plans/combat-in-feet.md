@@ -178,6 +178,10 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
   saves on Constitution; the SRD has objects in its area take the damage). `ObjectDamaged` is the event of
   every blow at a thing, a miss included (`amount` 0).
 
+- **Step 12, in part, before step 9** (owner, 2026-11-15): a broken object is drawn as a wreck in
+  the 3D view (a low heap in its footprint, crossed over its top), whatever its kind's shape and
+  whether or not the kind names a broken state. The engine's look is not changed.
+
 ## Not in this plan
 A fight grid, member positions, cover, flanking, retreating or kiting monsters, thrown weapons and
 ammunition, choosing the stack an opening strike lands on, attacking things during a fight,
