@@ -108,10 +108,21 @@ fn a_harmful_spell_lists_the_groups_in_sight() {
         }
     }
     // Three tiles south of them, behind the hedge, the rats are not seen: no row, no group.
-    // (From the far corner they are seen through the gap in the hedge.)
+    // From the far corner the line runs through the gap in the hedge, where the gate stands:
+    // shut, it hides them; open, they are seen.
     let world = at(&data, 5, 4, Facing::North);
     assert!(listed(&world, &data, BOLT).is_empty());
-    assert_eq!(listed(&at(&data, 0, 4, Facing::East), &data, BOLT).len(), 1);
+    let mut corner = at(&data, 0, 4, Facing::East);
+    assert!(listed(&corner, &data, BOLT).is_empty());
+    corner
+        .maps
+        .entry(crate::objects::yard(&data))
+        .or_default()
+        .objects
+        .entry("gate_1".into())
+        .or_default()
+        .state = Some("open".into());
+    assert_eq!(listed(&corner, &data, BOLT).len(), 1);
     let no_such = |being: &str| Rejection::NoSuchBeing {
         being: being.into(),
     };

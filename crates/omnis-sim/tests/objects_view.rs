@@ -347,7 +347,17 @@ fn a_placement_s_own_name_wins_over_its_kind_s() {
 #[test]
 fn the_viewport_lists_a_spanning_object_once_and_a_taken_one_never() {
     let data = objects();
-    let gate = in_yard(&data, 0, 3, 1, Facing::South);
+    let mut gate = in_yard(&data, 0, 3, 1, Facing::South);
+    // Shut, the gate hides the cell beyond it; open, both of its cells are seen.
+    let shut = query::viewport(&gate, &data).expect("the yard");
+    assert!(shut.tiles.iter().all(|t| (t.x, t.y) != (3, 3)));
+    gate.maps
+        .entry(crate::objects::yard(&data))
+        .or_default()
+        .objects
+        .entry("gate_1".into())
+        .or_default()
+        .state = Some("open".into());
     let viewport = query::viewport(&gate, &data).expect("the yard");
     assert!(
         viewport.tiles.iter().any(|t| (t.x, t.y) == (3, 3)),

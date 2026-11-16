@@ -443,8 +443,22 @@ fn a_thing_behind_a_wall_is_not_seen_by_a_corner_of_its_cell() {
         let blow = strike(&mut hidden.clone(), &data, slot, "crate_1");
         assert_eq!(blow, Err(Rejection::OutOfSight), "slot {slot}");
     }
-    // Through the gap, past the gate's bars: the crate itself is in the line.
-    let seen = from(4, 3);
+    // Through the gap the crate itself is in the line, and the shut gate stands in the gap
+    // (owner, 2026-11-16: "behind the door, that shouldn't be possible"); open, it hides nothing.
+    let mut seen = from(4, 3);
+    assert_eq!(sight(&seen), Some(omnis_sim::Sight::Obscured));
+    assert_eq!(
+        cast(&mut seen.clone(), &data, "crate_1"),
+        Err(Rejection::OutOfSight)
+    );
+    let yard_id = yard(&data);
+    seen.maps
+        .entry(yard_id)
+        .or_default()
+        .objects
+        .entry("gate_1".into())
+        .or_default()
+        .state = Some("open".into());
     assert_eq!(sight(&seen), Some(omnis_sim::Sight::Clear));
     assert!(cast(&mut seen.clone(), &data, "crate_1").is_ok());
     // Its own cell and the one beside it: nothing has changed where no wall stands between.

@@ -898,3 +898,8 @@ walls." My one test of sight stood the party far from any gap, where no corner s
   hit" differ exactly at walls' ends and gaps.
 - A sight or range rule is tested at its edge: beside a gap, at a wall's end, one cell past the limit. A case
   deep inside "no" proves little. A scan of every standing cell of a fixture finds the edge cases in minutes.
+- The first fix left the case the owner was in: lines through the gap where the shut gate stands, which the
+  fixture's data called see-through. I had found it and reported it as a caveat instead of settling it. When a
+  scan shows a second way to the reported result, it is part of the bug: fix it or ask before reporting.
+- A thing an author draws as a door or gate is read by the player as one. A kind that fills an opening and
+  blocks movement while shut blocks sight while shut unless its data says bars on purpose.

@@ -6,9 +6,9 @@
     initial_state: "shut",
     states: {
         "shut": (),
-        "open": (blocks_movement: Some(false)),
+        "open": (blocks_movement: Some(false), blocks_sight: Some(false)),
     },
-    attributes: (blocks_movement: true, material: Some(Metal)),
+    attributes: (blocks_movement: true, blocks_sight: true, material: Some(Metal)),
     interactions: [
         (
             verb: Push,

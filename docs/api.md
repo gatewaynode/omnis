@@ -1292,6 +1292,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   judge sight to the object's own footprint, not to its tile: a tile counts as seen when one of its corners
   shows, and an object in it was `Clear` with it. Such an object is now `Obscured` and refused `OutOfSight`.
   Objects that block sight hide other objects behind them the same way. Doors and groups are judged as before.
+  The fixture pack `objects` is 0.1.10 (hash 9169258786753955413): its gate blocks sight while shut (the
+  owner: "behind the door, that shouldn't be possible"), so nothing is seen or struck through the hedge's gap
+  until the gate is open.
 - 2026-11-13 (a terrain's face; the owner's choice "Terrain picks its face"): a pack format addition,
   no wire shape changed. `Terrain` gains `face` (`Face`: `Plain`, the default, or `Hatched`): how its block is
   drawn in the 3D view, hatched as a cliff's face is, which tells trees or rock from a wall where the two

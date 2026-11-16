@@ -7,7 +7,10 @@
 runs in sixteenths), used by `targets/map.rs::object`; red test
 `breaking::a_thing_behind_a_wall_is_not_seen_by_a_corner_of_its_cell` (from (5, 3) of the yard the crate is
 `Obscured`). Doors and groups are still judged by cell. Sight is still all round, not only the way faced
-(said to the owner as a question). Step 9 (doors) still awaits the owner's try. **Next: step 10, plan mode.**
+(said to the owner as a question). The owner tried it: "I can still destroy the crate on the other side of
+the wall and behind the door". Taken as the gate in the hedge's gap, which did not block sight: fixture
+`objects` 0.1.10 (hash 9169258786753955413), the gate blocks sight while shut, not when open; two tests that
+saw through the shut gate now open it first. Awaiting the owner's try. Step 9 (doors) still awaits the owner's try. **Next: step 10, plan mode.**
 
 **2026-11-15, evening.** The owner tried the object targeting fix ("Object targeting and damage tracking is
 working") and the Resize form ("worked but was strange": one field writable, the cursor lost on a click, no Tab
