@@ -11,7 +11,7 @@ Bugs: `tasks/BUGS.md` (B1 to B7, all closed).
 The MVP is proven: a party is created, walks a 3D world drawn in lines, fights, levels, shops, rests, saves and
 loads by name across changed packs, and every system is driven by data, by the CLI and by an agent over MCP. The
 next goal is that the owner builds Toel's first locality, **the Three Kingdoms of the lower Blood Sea**
-(`docs/locations/`: Karinguard, Shoentran and Resdie; Foloen and the Sunken Grove uncharted; the Old Dam, the
+(`docs/locations/`: Kuringuard, Shoentran and Resdie; Foloen and the Sunken Grove uncharted; the Old Dam, the
 Great Goblin Head, the ruins and the catacombs; biospheres piedmont, coastline and mountains), with the shipped
 tools and in pack data, nothing hard-coded (PRD goals 2, 3 and 6, D4, §11.3).
 
@@ -1039,7 +1039,7 @@ quests appear in every generated town.
   reconciliation catch-up; derived outputs (encounter weights, prices, rumours, quest availability); the fold
   thresholds of D28; `eco.*` ops and `bench eco`; the biosphere's living things and resources (split from M8.5
   step 5). The lore's factions come first: the Wardens, House Tourien, the merchants guilds, the clans of
-  Karinguard, the Van Trahruns.
+  Kuringuard, the Van Trahruns.
 - [ ] The bus's designed expansions (ARCHITECTURE §4.8), each with its first consumer: a topic hierarchy with the
   first topic below a region (a map section or a city district); saved deferred signals with the first news that
   waits for the party (event rumours or M10's catch-up); pack-declared subscribers with the Rhai `Script` profile.

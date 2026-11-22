@@ -5,8 +5,8 @@
 (
     schema: 1,
     id: "the_lower_kingdoms",
-    version: "0.2.27",
-    hash: 8372529765830048292,
+    version: "0.2.28",
+    hash: 8478378370546685541,
     name: "The Lower Kingdoms",
     license: "MIT OR Apache-2.0",
     attribution: [
