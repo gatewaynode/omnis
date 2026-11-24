@@ -36,7 +36,7 @@ fn the_rules_button_lists_every_rule_with_its_file_and_a_search_narrows_it() {
     press_edit(&mut app, EditAct::Rules);
     assert_eq!(top_screen(&app), Some(ScreenId::EditorRules));
     let text = screen_text(app.world());
-    assert!(text.contains("69 rules, 0 overriding another"), "{text}");
+    assert!(text.contains("70 rules, 0 overriding another"), "{text}");
     assert!(text.contains("slot attack.total"), "{text}");
     assert!(text.contains("value death_save_dc"), "{text}");
     assert!(text.contains("table run_dc"), "{text}");
@@ -104,7 +104,7 @@ fn a_rule_that_beat_another_is_marked_with_what_it_beat_and_its_file_opens() {
 
     press_edit(&mut app, EditAct::Rules);
     let text = screen_text(app.world());
-    assert!(text.contains("69 rules, 1 overriding another"), "{text}");
+    assert!(text.contains("70 rules, 1 overriding another"), "{text}");
     assert!(text.contains("OVERRIDES  slot attack.total"), "{text}");
     assert!(text.contains("test:rules:house  priority 200"), "{text}");
     assert!(

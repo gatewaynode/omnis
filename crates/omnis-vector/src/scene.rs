@@ -28,6 +28,11 @@ pub trait Occupancy {
     fn door_broken(&self, _: MapId, _: Level, _: u16, _: u16, _: Facing) -> bool {
         false
     }
+    /// Whether the doorway on this edge fell in with its door: rubble, not open. A map as
+    /// placed has none.
+    fn door_collapsed(&self, _: MapId, _: Level, _: u16, _: u16, _: Facing) -> bool {
+        false
+    }
     /// Every object and pile on the level, as drawn.
     fn objects_on(&self, data: &Data, map: MapId, level: Level)
     -> (Vec<SeenObject>, Vec<PileView>);

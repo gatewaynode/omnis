@@ -195,6 +195,7 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
         "use" => Command::Interact,
         "door" => Command::Door,
         "search" => Command::Search,
+        "clear" => Command::Clear,
         "climb-up" => Command::Climb(Vertical::Up),
         "climb-down" => Command::Climb(Vertical::Down),
         "fight" => Command::Encounter(EncounterChoice::Attack),

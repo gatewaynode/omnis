@@ -13,7 +13,7 @@ use crate::targets::map::{self, Spot};
 use crate::world::World;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Dice, Facing};
+use omnis_core::{CharacterId, Dice, Facing, RollTrace};
 use omnis_data::placement::ResolvedPlacement;
 use omnis_data::{DamageType, Data, ObjectKind, SpellEffect};
 use omnis_rules::{
@@ -245,12 +245,20 @@ pub(crate) fn strike(
         }
         Struck::Door { edge } => {
             let (x, y, facing) = edge;
-            let state = world.map_state(map);
-            let damage = worn(state.door_wear(level, x, y, facing).damage);
+            let damage = worn(world.map_state(map).door_wear(level, x, y, facing).damage);
             let broken = damage >= whole;
+            // A frame bears its wall: broken, the doorway may fall in (the map's odds).
+            let frame = if broken {
+                frame(data, map, roller)?
+            } else {
+                None
+            };
+            let collapsed = frame.as_ref().is_some_and(|(_, fell)| *fell);
+            let state = world.map_state(map);
             state.wear_door(level, edge, |w| {
                 w.damage = damage;
                 w.broken = broken;
+                w.collapsed = collapsed;
             });
             events.push(Event::DoorDamaged {
                 map: id_of(&data.registry.maps, map),
@@ -275,8 +283,73 @@ pub(crate) fn strike(
                     facing,
                 });
             }
+            if let Some((roll, collapsed)) = frame {
+                events.push(Event::DoorFrame {
+                    map: id_of(&data.registry.maps, map),
+                    level,
+                    x,
+                    y,
+                    facing,
+                    roll,
+                    collapsed,
+                });
+            }
         }
     }
+    Ok(())
+}
+
+/// Minutes clearing a fallen doorway takes when the rules do not say.
+const CLEAR_MINUTES: u32 = 60;
+
+/// The d100 of a door that broke against its map's `collapse_percent`, and whether the doorway
+/// fell in; nothing is rolled for a map whose doorways never do.
+fn frame(
+    data: &Data,
+    map: omnis_core::MapId,
+    roller: &mut Roller,
+) -> Result<Option<(RollTrace, bool)>, RuleError> {
+    let percent = data
+        .maps
+        .get(&map)
+        .map_or(0, |m| m.def.door_make.collapse_percent);
+    if percent == 0 {
+        return Ok(None);
+    }
+    let roll = Dice::new(1, 100)
+        .roll(&mut roller.rng, &roller.stream)
+        .map_err(|e| RuleError::new("frame", alloc::format!("{e}")))?;
+    let fell = roll.total <= i32::from(percent);
+    Ok(Some((roll, fell)))
+}
+
+/// `Command::Clear`: the rubble of the fallen doorway on the faced edge is cleared, for the
+/// rules' `rubble_clear_minutes`, and the doorway stands open for good.
+pub(crate) fn clear(
+    world: &mut World,
+    data: &Data,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let pos = world.position;
+    let (x, y, facing) = (pos.x, pos.y, pos.facing);
+    let wear = world.maps.get(&pos.map);
+    if !wear.is_some_and(|s| s.door_wear(pos.level, x, y, facing).collapsed) {
+        return Err(Rejection::NothingToClear);
+    }
+    let edge = (x, y, facing);
+    world
+        .map_state(pos.map)
+        .wear_door(pos.level, edge, |w| w.collapsed = false);
+    events.push(Event::DoorCleared {
+        map: id_of(&data.registry.maps, pos.map),
+        level: pos.level,
+        x,
+        y,
+        facing,
+    });
+    let minutes = data.rules.value("rubble_clear_minutes");
+    let minutes = minutes.map_or(CLEAR_MINUTES, |v| u32::try_from(v).unwrap_or(0));
+    crate::apply::advance(world, data, minutes, events);
     Ok(())
 }
 

@@ -30,9 +30,13 @@ pub enum EdgeView {
         /// Hit points it has lost (combat in feet step 9); unwritten when none.
         #[serde(default, skip_serializing_if = "crate::world::is_zero")]
         damage: u16,
-        /// Broken: open for good. Unwritten when whole.
+        /// Broken: open for good, unless `collapsed`. Unwritten when whole.
         #[serde(default, skip_serializing_if = "core::ops::Not::not")]
         broken: bool,
+        /// Its doorway fell in when it broke: rubble, not open, until cleared. Unwritten when
+        /// it stood.
+        #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+        collapsed: bool,
     },
     /// A ramp or stair: open, and walkable across a height difference up to two walls.
     Ramp,
@@ -192,6 +196,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
                 open: state.is_some_and(|s| s.door_open(pos.level, x, y, facing)),
                 damage: wear.damage,
                 broken: wear.broken,
+                collapsed: wear.collapsed,
             }
         } else if cell.ramps.has(facing) {
             EdgeView::Ramp
@@ -266,7 +271,9 @@ pub fn map_text(world: &World, data: &Data, map_id: MapId, level: Level) -> Opti
         if cell.walls.has(facing) {
             glyphs[0]
         } else if cell.doors.has(facing) {
-            if state.is_some_and(|s| s.door_open(level, x, y, facing)) {
+            if state.is_some_and(|s| s.door_wear(level, x, y, facing).collapsed) {
+                'x'
+            } else if state.is_some_and(|s| s.door_open(level, x, y, facing)) {
                 glyphs[2]
             } else {
                 glyphs[1]
@@ -357,6 +364,20 @@ pub fn door_broken(
 ) -> bool {
     let state = world.maps.get(&map);
     state.is_some_and(|state| state.door_wear(level, x, y, facing).broken)
+}
+
+/// Whether that door's doorway fell in and is rubble still: not open, and nothing to open.
+#[must_use]
+pub fn door_collapsed(
+    world: &World,
+    map: MapId,
+    level: Level,
+    x: u16,
+    y: u16,
+    facing: Facing,
+) -> bool {
+    let state = world.maps.get(&map);
+    state.is_some_and(|state| state.door_wear(level, x, y, facing).collapsed)
 }
 
 /// The service a step in `direction` would go into, if it lands on a site.

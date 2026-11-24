@@ -607,7 +607,15 @@ fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_stumps() {
     use omnis_vector::scene::Scene;
     use omnis_vector::shell::session::reshapes;
     use omnis_vector::shell::text;
-    let data = common::objects_data();
+    let mut data = common::objects_data();
+    // This doorway stands when its door breaks (`collapse.rs` is of those that fall in).
+    let yard = data.registry.maps.get("objects:map:yard").unwrap();
+    data.maps
+        .get_mut(&yard)
+        .unwrap()
+        .def
+        .door_make
+        .collapse_percent = 0;
     // Facing the torch's door, on the south edge of (6, 3).
     let start = crate::loot::yard(&data, 6, 3, Facing::South);
     let views = common::views(&start, &data);

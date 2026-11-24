@@ -84,6 +84,9 @@ pub enum Command {
         /// damaged, `{"Object": {object}}`, which costs a minute and starts no fight.
         target: Target,
     },
+    /// Clear the rubble of the fallen doorway on the faced edge (owner, 2026-11-24): it takes
+    /// the rules' `rubble_clear_minutes` and the doorway stands open for good.
+    Clear,
 }
 
 impl Command {
@@ -102,6 +105,7 @@ impl Command {
             Command::Interact => "use",
             Command::Door => "door",
             Command::Search => "search",
+            Command::Clear => "clear",
             Command::Climb(Vertical::Up) => "climb-up",
             Command::Climb(Vertical::Down) => "climb-down",
             Command::Party(_) => "party",
@@ -181,6 +185,8 @@ pub enum Rejection {
     CannotBeDamaged,
     /// The thing is broken: it offers nothing until it is repaired.
     Broken,
+    /// No fallen doorway is on the faced edge.
+    NothingToClear,
     /// No member has that identity.
     NoSuchMember {
         /// The member asked for.
@@ -495,6 +501,7 @@ impl Rejection {
             Rejection::AlreadyEngaged => f.write_str("the party is engaged already"),
             Rejection::CannotBeDamaged => f.write_str("that cannot be damaged"),
             Rejection::Broken => f.write_str("it is broken"),
+            Rejection::NothingToClear => f.write_str("there is no rubble to clear that way"),
             Rejection::NoSuchMember {
                 member: CharacterId(member),
             } => write!(f, "there is no member {member}"),

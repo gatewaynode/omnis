@@ -443,6 +443,7 @@ fn doors_block_until_opened_and_pillars_always() {
             open: false,
             damage: 0,
             broken: false,
+            collapsed: false,
         }
     );
     assert!(
@@ -487,6 +488,7 @@ fn doors_block_until_opened_and_pillars_always() {
             open: true,
             damage: 0,
             broken: false,
+            collapsed: false,
         }
     );
     step(&mut world, &data);
@@ -500,6 +502,7 @@ fn doors_block_until_opened_and_pillars_always() {
             open: true,
             damage: 0,
             broken: false,
+            collapsed: false,
         }
     );
     let events = without_visible(interact(&mut world, &data));

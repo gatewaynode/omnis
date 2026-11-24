@@ -72,6 +72,10 @@ pub struct DoorWear {
     /// Broken: it stands open and cannot be shut.
     #[serde(default)]
     pub broken: bool,
+    /// Its frame gave way with it: the doorway is rubble, which nothing passes or sees
+    /// through until it is cleared. Only a broken door's; unwritten when it stood.
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub collapsed: bool,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
@@ -114,11 +118,13 @@ impl MapState {
     }
 
     /// Whether the door on `facing` of tile `(x, y)` of `level` is open. A broken door is
-    /// open: this is the one place that says so, for steps, sight, reach and the views.
+    /// open, unless its doorway fell in: this is the one place that says so, for steps, sight,
+    /// reach and the views.
     #[must_use]
     pub fn door_open(&self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
-        if self.door_wear(level, x, y, facing).broken {
-            return true;
+        let wear = self.door_wear(level, x, y, facing);
+        if wear.broken {
+            return !wear.collapsed;
         }
         let (x, y, facing) = door_key(x, y, facing);
         if level.is_ground() {

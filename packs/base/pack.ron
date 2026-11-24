@@ -4,8 +4,8 @@
 (
     schema: 1,
     id: "base",
-    version: "0.1.9",
-    hash: 45611842806912938,
+    version: "0.1.10",
+    hash: 4946681130225111986,
     name: "Omnis base content",
     license: "CC-BY-4.0",
     attribution: [

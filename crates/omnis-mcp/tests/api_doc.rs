@@ -30,7 +30,7 @@ macro_rules! variants {
 
 variants!(Command, COMMANDS, command_name:
     Step Turn Interact Door Search Climb Party Encounter Combat Cast Item Service Rest Dev Act
-    Approach Attack);
+    Approach Attack Clear);
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
@@ -45,7 +45,7 @@ variants!(Event, EVENTS, event_name:
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
     Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
     ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore
-    Folded ObjectDamaged ObjectBroken DoorDamaged DoorBroken);
+    Folded ObjectDamaged ObjectBroken DoorDamaged DoorBroken DoorFrame DoorCleared);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -58,7 +58,7 @@ variants!(Rejection, REJECTIONS, rejection_name:
     CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
     NotABonusAction NeedsPreparation NoSuchFeature NoUsesLeft WrongChoice Tactics CannotReact
     NoSuchEntry Rule NoSuchObject VerbRefused ChooseVerb NoDoor NotOnGround NotInObject PileFull NotFromThere
-    NoSuchBeing CannotBeDamaged Broken);
+    NoSuchBeing CannotBeDamaged Broken NothingToClear);
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot UnknownId TooLong TooMany HostOnly NoEncounter NoService
@@ -334,10 +334,10 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     );
     // The counts the document states are the types' counts.
     for (count, what) in [
-        (COMMANDS.len(), "`Command` (17 variants)"),
+        (COMMANDS.len(), "`Command` (18 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (16 variants"),
-        (EVENTS.len(), "`Event` has 83 variants"),
-        (REJECTIONS.len(), "`Rejection` (77 variants)"),
+        (EVENTS.len(), "`Event` has 85 variants"),
+        (REJECTIONS.len(), "`Rejection` (78 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
         (OPS.len(), "49 ops."),
     ] {
@@ -382,7 +382,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             COMMANDS.len(),
-            "pub enum Command {                  // 17 variants",
+            "pub enum Command {                  // 18 variants",
         ),
         (
             &architecture,
@@ -394,13 +394,13 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             EVENTS.len(),
-            "pub enum Event {                    // 83 variants",
+            "pub enum Event {                    // 85 variants",
         ),
         (
             &architecture,
             "ARCHITECTURE.md",
             REJECTIONS.len(),
-            "A `Rejection` (77 variants",
+            "A `Rejection` (78 variants",
         ),
         (
             &readme,
@@ -415,7 +415,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             DEV_COMMANDS.len(),
             "`DevCommand`, 16 variants",
         ),
-        (&map, "code-map.md", COMMANDS.len(), "17 variants"),
+        (&map, "code-map.md", COMMANDS.len(), "18 variants"),
     ] {
         assert_eq!(
             count,

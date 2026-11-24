@@ -140,6 +140,14 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
             does: Does::Attack,
         });
     }
+    // A fallen doorway ahead: an hour's work, so it is asked for by name with its time.
+    if world.trial(data, &Command::Clear).is_ok() {
+        let minutes = data.rules.value("rubble_clear_minutes").unwrap_or(60);
+        offers.push(Offer {
+            label: format!("Clear the rubble ({minutes} min)"),
+            does: Does::Command(Command::Clear),
+        });
+    }
     let search = Command::Search;
     let mut commands: Vec<(Command, &str)> =
         [(Vertical::Up, "Climb up"), (Vertical::Down, "Climb down")]
@@ -157,14 +165,19 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     offers
 }
 
-/// What Shift+Space does, if anything: the first available action, never a search (it spends
-/// ten minutes, so it is asked for by name).
+/// What Shift+Space does, if anything: the first available action, never a search or the
+/// clearing of rubble (they spend ten minutes and an hour, so they are asked for by name).
 #[must_use]
 pub fn default_action(world: &SimWorld, data: &Data) -> Option<Does> {
     available(world, data)
         .into_iter()
         .map(|o| o.does)
-        .find(|d| *d != Does::Command(Command::Search) && *d != Does::Attack)
+        .find(|d| {
+            !matches!(
+                d,
+                Does::Command(Command::Search | Command::Clear) | Does::Attack
+            )
+        })
 }
 
 /// The screen: the square, its actions, and Close last.

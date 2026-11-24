@@ -9,6 +9,7 @@ mod beings;
 mod binding;
 mod camp;
 mod cast;
+mod collapse;
 mod column;
 mod combat;
 mod combat_menu;

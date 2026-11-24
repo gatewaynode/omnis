@@ -149,7 +149,9 @@ pub fn extract(
         } else {
             Facing::West
         };
-        let broken = kind == SegKind::Door && world.door_broken(map_id, level, col, row, side);
+        // A doorway that fell in is not open: until its own picture, it is drawn shut.
+        let broken =
+            kind == SegKind::Door && open && world.door_broken(map_id, level, col, row, side);
         let leaf = (open, broken);
         edge(&mut out, [x0, z0], [x1, z1], kind, leaf, role, feet, top);
     }

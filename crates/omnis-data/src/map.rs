@@ -336,6 +336,12 @@ impl MapDef {
                 format!("tile_feet must be a multiple of {square}, {square}..={MAX_TILE_FEET}"),
             ));
         }
+        if self.door_make.collapse_percent > 100 {
+            errors.push(DataError::new(
+                file,
+                "door_make: collapse_percent must be 0..=100",
+            ));
+        }
         if let Some(durability) = &self.door_make.durability {
             for problem in
                 durability.problems(Some(self.door_make.material), Some(self.door_make.size))
@@ -588,6 +594,20 @@ mod tests {
         map.door_make.durability = None;
         assert_eq!(problems(&map), 0, "unless it cannot be damaged");
         assert_eq!(map.door_make.numbers(), None);
+        // One doorway in four falls in unless the map says; written only when it says.
+        let mut make = crate::DoorMake::default();
+        assert_eq!(make.collapse_percent, 25);
+        assert!(!ron::to_string(&make).unwrap().contains("collapse"));
+        let read: crate::DoorMake = ron::from_str("(material: Stone)").unwrap();
+        assert_eq!(read.collapse_percent, 25);
+        make.collapse_percent = 0;
+        let text = ron::to_string(&make).unwrap();
+        assert!(text.contains("collapse_percent:0"), "{text}");
+        assert_eq!(ron::from_str::<crate::DoorMake>(&text).unwrap(), make);
+        for (percent, wrong) in [(0, 0), (100, 0), (101, 1), (255, 1)] {
+            map.door_make.collapse_percent = percent;
+            assert_eq!(problems(&map), wrong, "{percent}%");
+        }
     }
 
     #[test]

@@ -980,7 +980,12 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         levels, rounded up (my reading: 1d4 at levels 1 and 2), none on a save; base 0.1.7. Seven mutants.
         Corrected by the owner the same day: whole steps with a floor of 1d4 (1d4 to level 3, 2d4 at 4), and
         one who dies of it is told as thrown (`Event::Thrown`, 83 events); base 0.1.9. Six mutants.
-  - [ ] 4. Doorways that fall in: the rule, clearing, the client's words.
+  - [x] 4. Doorways that fall in: the rule, clearing, the client's words. Built 2026-11-24:
+        `DoorMake.collapse_percent` (25), `DoorWear.collapsed`, `Event::DoorFrame` (the d100, told for both
+        outcomes; the plan named `DoorCollapsed`) and `DoorCleared`, `Command::Clear`, `BlockReason::Rubble`,
+        `Rejection::NothingToClear`; 18 commands, 85 events, 78 rejections; base 0.1.10 with
+        `rubble_clear_minutes` 60. Departure: `Interact` does not clear (no `Choice::Rubble`), so Space never
+        spends an hour unasked; the Actions row does. Drawn shut until step 5. Seventeen mutants.
   - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the
   owner 2026-11-14**: "I went through the targeting acceptance doc, everything seems to work."; owner, 2026-11-14;

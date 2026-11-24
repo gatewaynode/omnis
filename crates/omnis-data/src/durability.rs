@@ -142,6 +142,15 @@ impl Durability {
     }
 }
 
+/// How often, in a hundred, a doorway falls in when its door is broken, unless the map says
+/// (owner, 2026-11-24).
+pub const DEFAULT_COLLAPSE_PERCENT: u8 = 25;
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn usual_collapse(percent: &u8) -> bool {
+    *percent == DEFAULT_COLLAPSE_PERCENT
+}
+
 /// What a map's doors are made of. Doors are wooden, Medium and resilient unless the map says
 /// otherwise; `durability: None` makes them unbreakable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +162,11 @@ pub struct DoorMake {
     pub size: Size,
     /// How they stand damage; `None` and they cannot be damaged.
     pub durability: Option<Durability>,
+    /// A frame bears its wall: how often in a hundred the doorway falls in when its door is
+    /// broken, and is rubble until it is cleared. 0 for doorways that never do; unwritten at
+    /// the usual 25.
+    #[serde(skip_serializing_if = "usual_collapse")]
+    pub collapse_percent: u8,
 }
 
 impl Default for DoorMake {
@@ -161,6 +175,7 @@ impl Default for DoorMake {
             material: Material::Wood,
             size: Size::Medium,
             durability: Some(Durability::default()),
+            collapse_percent: DEFAULT_COLLAPSE_PERCENT,
         }
     }
 }

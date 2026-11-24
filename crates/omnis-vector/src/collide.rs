@@ -31,6 +31,9 @@ pub fn blocks(
     if cell.walls.has(heading) {
         return Some(BlockReason::Wall);
     }
+    if cell.doors.has(heading) && world.door_collapsed(map, level, x, y, heading) {
+        return Some(BlockReason::Rubble);
+    }
     if cell.doors.has(heading) && !world.door_open(map, level, x, y, heading) {
         return Some(BlockReason::ClosedDoor);
     }

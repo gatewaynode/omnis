@@ -20,6 +20,8 @@ pub enum BlockReason {
     Wall,
     /// A closed door on the edge.
     ClosedDoor,
+    /// A doorway that fell in when its door was broken: rubble, until it is cleared.
+    Rubble,
     /// The target terrain cannot be entered.
     Impassable,
     /// The target is off the map or the map is unknown.
@@ -626,6 +628,40 @@ pub enum Event {
     },
     /// A door broke: it stands open and can be neither opened nor shut.
     DoorBroken {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+    },
+    /// A door broke and its frame was tried (owner, 2026-11-24): the d100 against the map's
+    /// `collapse_percent`. Collapsed, the doorway is rubble: nothing passes or sees through
+    /// until it is cleared. Not told for a map whose doorways never fall in.
+    DoorFrame {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+        /// The d100.
+        roll: RollTrace,
+        /// Whether the doorway fell in: the roll was the map's percent or under.
+        collapsed: bool,
+    },
+    /// A fallen doorway was cleared (`Command::Clear`): it stands open for good.
+    DoorCleared {
         /// The map's string id.
         map: String,
         /// The level; unwritten when it is the ground.

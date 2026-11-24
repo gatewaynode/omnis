@@ -758,6 +758,8 @@ pub fn reshapes(event: &Event) -> bool {
         | Event::ObjectRemoved { .. }
         | Event::ObjectBroken { .. }
         | Event::DoorBroken { .. }
+        | Event::DoorFrame { .. }
+        | Event::DoorCleared { .. }
         | Event::Noticed { .. }
         | Event::EncounterStarted { .. }
         | Event::Bribed { .. }

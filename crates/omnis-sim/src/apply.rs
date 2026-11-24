@@ -34,6 +34,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events)?,
         (Mode::Explore, Command::Door) => door(world, data, &mut events)?,
         (Mode::Explore, Command::Search) => objects::search(world, data, &mut events)?,
+        (Mode::Explore, Command::Clear) => crate::breaking::clear(world, data, &mut events)?,
         (
             Mode::Explore,
             Command::Act {
@@ -229,13 +230,15 @@ pub(crate) fn landing(
     if cell.walls.has(facing) {
         return Err(BlockReason::Wall);
     }
-    if cell.doors.has(facing)
-        && !world
-            .maps
-            .get(&pos.map)
-            .is_some_and(|s| s.door_open(pos.level, pos.x, pos.y, facing))
-    {
-        return Err(BlockReason::ClosedDoor);
+    if cell.doors.has(facing) {
+        let state = world.maps.get(&pos.map);
+        let wear = state.map(|s| s.door_wear(pos.level, pos.x, pos.y, facing));
+        if wear.is_some_and(|w| w.collapsed) {
+            return Err(BlockReason::Rubble);
+        }
+        if !state.is_some_and(|s| s.door_open(pos.level, pos.x, pos.y, facing)) {
+            return Err(BlockReason::ClosedDoor);
+        }
     }
     let (x, y) = pos
         .neighbour(facing)

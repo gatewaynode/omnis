@@ -437,7 +437,8 @@ fn next(command: &Command) -> Option<Command> {
         Command::Turn(rotation) => next_turn(*rotation),
         Command::Interact => Command::Door,
         Command::Door => Command::Search,
-        Command::Search => Command::Act {
+        Command::Search => Command::Clear,
+        Command::Clear => Command::Act {
             object: "chest_1".into(),
             verb: Verb::ALL[0],
             option: 0,

@@ -3,27 +3,37 @@
 //! the yard: the torch's door on the south edge of (6, 3) and the hall's gate on the east edge
 //! of (6, 2), wood and Medium by the default make: armor class 15, 18 hit points.
 
-use crate::objects::{objects, yard};
+use crate::objects::yard;
 use crate::opening_strike::at;
 use omnis_core::{Direction, Facing, Level};
 use omnis_data::Data;
 use omnis_sim::query::EdgeView;
 use omnis_sim::{Chosen, Command, Event, Mode, Rejection, Target, World, apply, query, targets};
 
-const FIGHTER: usize = 0;
+pub(crate) const FIGHTER: usize = 0;
 const WIZARD: usize = 2;
-const BOLT: &str = "base:spell:fire_bolt";
-const HAND: &str = "base:spell:mage_hand";
+pub(crate) const BOLT: &str = "base:spell:fire_bolt";
+pub(crate) const HAND: &str = "base:spell:mage_hand";
 /// The torch's door, named from the tile north of it.
-const TORCH: (u16, u16, Facing) = (6, 3, Facing::South);
+pub(crate) const TORCH: (u16, u16, Facing) = (6, 3, Facing::South);
 /// The hall's gate, named from the yard's side.
-const GATE: (u16, u16, Facing) = (6, 2, Facing::East);
+pub(crate) const GATE: (u16, u16, Facing) = (6, 2, Facing::East);
 
-fn door((x, y, facing): (u16, u16, Facing)) -> Target {
+/// The yard with doorways that never fall in: these tests are of the breaking, and
+/// `collapse.rs` is of the fall.
+fn objects() -> Data {
+    let mut data = crate::objects::objects();
+    let yard = yard(&data);
+    let map = data.maps.get_mut(&yard).unwrap();
+    map.def.door_make.collapse_percent = 0;
+    data
+}
+
+pub(crate) fn door((x, y, facing): (u16, u16, Facing)) -> Target {
     Target::Door { x, y, facing }
 }
 
-fn spell(world: &World, spell: &str, at: (u16, u16, Facing)) -> Command {
+pub(crate) fn spell(world: &World, spell: &str, at: (u16, u16, Facing)) -> Command {
     Command::Cast {
         caster: world.party.members[WIZARD].id,
         spell: spell.into(),
@@ -31,7 +41,7 @@ fn spell(world: &World, spell: &str, at: (u16, u16, Facing)) -> Command {
     }
 }
 
-fn attack(world: &World, slot: usize, at: (u16, u16, Facing)) -> Command {
+pub(crate) fn attack(world: &World, slot: usize, at: (u16, u16, Facing)) -> Command {
     Command::Attack {
         member: world.party.members[slot].id,
         target: door(at),
@@ -59,7 +69,7 @@ fn broke(events: &[Event]) -> bool {
 }
 
 /// Strike with `command` until the door breaks.
-fn until_broken(world: &mut World, data: &Data, command: &Command) {
+pub(crate) fn until_broken(world: &mut World, data: &Data, command: &Command) {
     for _ in 0..200 {
         if broke(&apply(world, data, command.clone()).expect("a blow")) {
             return;
@@ -77,13 +87,13 @@ fn wear(world: &World, data: &Data, (x, y, facing): (u16, u16, Facing)) -> (u16,
     (wear.damage, wear.broken)
 }
 
-fn rows(world: &World, data: &Data, chosen: &Chosen) -> Vec<Target> {
+pub(crate) fn rows(world: &World, data: &Data, chosen: &Chosen) -> Vec<Target> {
     let wizard = world.party.members[WIZARD].id;
     let rows = targets(world, data, wizard, chosen).unwrap();
     rows.into_iter().map(|r| r.target).collect()
 }
 
-fn the_bolt() -> Chosen {
+pub(crate) fn the_bolt() -> Chosen {
     Chosen::Spell {
         spell: BOLT.into(),
         pay: omnis_sim::Pay::default(),
@@ -140,6 +150,7 @@ fn a_broken_door_stands_open_for_good_and_is_nothing_to_open_shut_or_strike() {
         open: false,
         damage: 0,
         broken: false,
+        collapsed: false,
     };
     assert_eq!(view.tiles[0].front, whole);
     let command = attack(&world, FIGHTER, TORCH);
@@ -149,6 +160,7 @@ fn a_broken_door_stands_open_for_good_and_is_nothing_to_open_shut_or_strike() {
         open: true,
         damage: 18,
         broken: true,
+        collapsed: false,
     };
     let view = query::viewport(&world, &data).unwrap();
     assert_eq!(view.tiles[0].front, broken);

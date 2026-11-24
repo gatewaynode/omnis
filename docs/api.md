@@ -294,7 +294,7 @@ Notes:
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
-`_` `'`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`, and `_` for a tile with no ground on
+`_` `'`, a doorway that fell in `x`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`, and `_` for a tile with no ground on
 that level. One level is drawn; the party is marked only on its own level.
 
 ## 7. Views
@@ -731,7 +731,7 @@ onto a seen tile is listed once; a hidden one only once found; a removed one nev
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
 `x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
 eighths of a cell; a wall is 8 tall), `front`, `left`, `right` (`EdgeView`: `"Open"`, `"Wall"`,
-`{"Door": {"open": bool, "damage": n, "broken": bool}}` (`damage` and `broken` left out at 0 and false; a broken door is `open`), `"Ramp"` (open, and walkable across up to 16), as seen from the
+`{"Door": {"open": bool, "damage": n, "broken": bool, "collapsed": bool}}` (`damage`, `broken` and `collapsed` left out at 0 and false; a broken door is `open` unless its doorway is `collapsed`: rubble, shut to steps and sight until cleared), `"Ramp"` (open, and walkable across up to 16), as seen from the
 party). `visibility_depth` counts the terrain, a light, and the party's height above the tiles
 around it; a tile behind higher ground is not in `tiles`.
 
@@ -838,7 +838,7 @@ origin says which file defined the slot, not that the formula is still that file
 
 ## 8. Commands
 
-`Command` (17 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (18 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -850,6 +850,7 @@ means the same thing after a reorder or a change to a list.
 | `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge, every group standing in reach (as `Approach`) and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door`, `Approach` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
 | `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. A broken door is refused (`Broken`) and is not among `Interact`'s choices. Costs 1 minute. Exploring only. |
 | `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
+| `Clear` | | Clear the rubble of the doorway on the faced edge that fell in when its door was broken (`DoorFrame` with `collapsed`): `DoorCleared`, then the rules value `rubble_clear_minutes` passes (60 in base, and when unwritten) and the doorway stands open for good. Refused `NothingToClear`. `Interact` never does it: an hour is asked for by name. Exploring only. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
@@ -976,7 +977,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 83 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 85 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -985,7 +986,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Event | Fields | Meaning |
 |---|---|---|
 | `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. A portal, a stair or a hole gives two: onto the tile, then to its far end. |
-| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`, `Object`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. `Object`: an object's footprint stands in the step's path (centre to centre, half a cell wide), in either cell. |
+| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Rubble`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`, `Object`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. `Object`: an object's footprint stands in the step's path (centre to centre, half a cell wide), in either cell. `Rubble`: a doorway that fell in. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
 | `Door` | `map` (id), `level` (left out when 0), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
@@ -1058,6 +1059,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ObjectBroken` | `object` | The object has no hit points left: it shows its kind's `broken_state` if it names one (else it lies as a heap that blocks nothing), offers nothing, and what it held follows as `ItemMoved` to the ground or `ItemDestroyed`. |
 | `DoorDamaged` | `map`, `level` (left out on the ground), `x`, `y`, `facing`, then `by`, `attack`, `kind`, `rolls`, `raw`, `amount`, `left` as `ObjectDamaged` | A blow at a door from the road (`Cast` or `Attack` at a `Door`), landed or not. The door's armor class and hit points are its map's (`door_make`; `ViewportModel.door`). |
 | `DoorBroken` | `map`, `level`, `x`, `y`, `facing` | The door has no hit points left: it counts as open for steps, sight and reach from then on, and can be neither opened nor shut. |
+| `DoorFrame` | `map`, `level`, `x`, `y`, `facing`, `roll` (`RollTrace`, the d100), `collapsed` | Told after `DoorBroken` on a map whose `door_make.collapse_percent` is above 0 (25 unless the map says): the frame's roll, on the stream of the blow. `collapsed` (the roll was the percent or under): the doorway is rubble, shut to steps (`Blocked` with `Rubble`), sight and reach, and still `Broken` to `Door`, mage hand and blows, until `Clear`. |
+| `DoorCleared` | `map`, `level`, `x`, `y`, `facing` | `Clear`: the rubble is gone and the doorway stands open for good. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1105,7 +1108,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (77 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (78 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1171,6 +1174,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
 | `CannotBeDamaged` | | `Cast` or `Attack` at an object or a door: its kind (or the map's `door_make`) has no `durability`, or the spell strikes creatures only (`Spell.objects` false). |
 | `Broken` | | The object is broken: `Cast` and `Attack` at it, `Act` on it and taking from or putting into it are refused until it is repaired. A broken door: `Cast` and `Attack` at it, `Door`, and mage hand. |
+| `NothingToClear` | | `Clear`: no fallen doorway is on the faced edge. |
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. `Cast` at a `Door`: no door on that edge that the party sees or knows of. |
@@ -1290,7 +1294,18 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-24 (latest, Push corrected; the owner: "it should always cause damage and always move those who
+- 2026-11-24 (latest, doorways that fall in; the owner: "destruction of the door could compromise the
+  frame and cause a collapse"): a map's `door_make.collapse_percent` (0..=100, 25 and unwritten by default,
+  so every map's doors now risk it; 0 for none). A door that breaks rolls a d100 on the blow's stream
+  (`Event::DoorFrame`; no roll and no event at 0); at the percent or under `DoorWear.collapsed` is set and
+  the doorway is rubble: `door_open` is false, a step is `Blocked` with `BlockReason::Rubble`, sight and
+  reach stop, and it stays `Broken` to `Door`, mage hand and blows. `Command::Clear` (18 commands; script
+  word `clear`) on the faced edge takes the rules value `rubble_clear_minutes` (base 60) and leaves the
+  doorway open for good (`Event::DoorCleared`; `Rejection::NothingToClear`). 85 events, 78 rejections.
+  `EdgeView::Door` gains `collapsed`; `map.text` shows `x`; Tier 1 gains `query::door_collapsed`.
+  `SAVE_SCHEMA` stays 9 (`collapsed` is unwritten when false). Base is 0.1.10 (hash 4946681130225111986),
+  the replays rebaselined for the hash alone.
+- 2026-11-24 (Push corrected; the owner: "it should always cause damage and always move those who
   fail a saving throw. So a damage floor of 1d4 and corpses get flung"): `Spell::dice_at` counts whole
   steps of `dice_every_levels` and never fewer than one (Push: 1d4 to level 3, 2d4 at 4 and 5), where it
   rounded up. `Event::Thrown { target, feet }` (83 events) is told before the `Damage` that kills one who

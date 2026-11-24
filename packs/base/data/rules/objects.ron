@@ -2,11 +2,14 @@
 // best passive Perception finds a hidden object whose cell is in sight within `notice_tiles`
 // cells (as a king moves). A search: one Investigation roll against hidden objects in the party's
 // cell and the one it faces, taking `search_minutes` whether or not anything is there.
+// A doorway that fell in when its door was broken (a map's `door_make.collapse_percent`) is cleared
+// in `rubble_clear_minutes`.
 (
     schema: 1,
     id: "base:rules:objects",
     values: {
         "notice_tiles": (priority: 0, value: 2),
         "search_minutes": (priority: 0, value: 10),
+        "rubble_clear_minutes": (priority: 0, value: 60),
     },
 )

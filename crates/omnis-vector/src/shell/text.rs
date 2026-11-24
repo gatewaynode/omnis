@@ -48,6 +48,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             match reason {
                 BlockReason::Wall => "a wall",
                 BlockReason::ClosedDoor => "a closed door",
+                BlockReason::Rubble => "rubble fills the doorway",
                 BlockReason::Impassable => "impassable ground",
                 BlockReason::MapEdge => "the map edge",
                 BlockReason::Cliff => "too steep",
@@ -349,6 +350,11 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
             (*kind, *amount, *left),
         ),
         Event::DoorBroken { .. } => "The door breaks".to_owned(),
+        Event::DoorFrame {
+            collapsed: true, ..
+        } => "The frame gives way: the doorway is buried".to_owned(),
+        Event::DoorFrame { .. } => "The frame holds".to_owned(),
+        Event::DoorCleared { .. } => "The rubble is cleared".to_owned(),
         // A search's lore: its text, as the pack writes it.
         Event::Lore { key, .. } => labels::text(data, key).to_owned(),
         Event::Searched { member, roll } => {
