@@ -1,5 +1,28 @@
 # Continuity notes
 
+**2026-11-24.** The owner tried step 9 (doors: "do break with ranged and melee attacks") and the thunderwave
+push ("does push"), and asked for four things, planned in plan mode and approved
+(`tasks/plans/order-look-push-collapse.md`; the TODO item of that name in W2). **Steps 1 to 3 are built,
+committed and tried by the owner** ("marching order, push spell and mouse look focus appears to be working as
+described"): `f14d3b9f` (the look comes back: `movement::Resume`, the rule `look`, `Screens.resets`),
+`53098e18` (`screen/order.rs`, the column's Order... button, the engine's `Reorder`), `f784b6f6` (Push,
+base 0.1.6, `monster_front_stacks` gone, `SPELLS_SINCE_NAMES`), then at the owner's word `db29f69c` (Push
+hurts: `Spell.dice_every_levels`, `Spell::dice_at`, 1d4 for every two caster levels rounded up, base 0.1.7,
+hash 520674701000266426; **not yet tried by the owner**). Gate 1510 passed, 17 ignored. Pins: 17 commands,
+82 events, 77 rejections, 20 base spells, 28 rule values, 69 rules in the editor's list, `SAVE_SCHEMA` 9.
+**Next: step 4, doorways that fall in** (no code yet; the plan has the design). Read while planning:
+a collapsed door keeps `broken: true` and gains `collapsed: true`, so every "broken" check already refuses
+it and only `MapState::door_open` (world.rs) must answer false first; the roll goes in `breaking::strike`'s
+door arm inside `if broken`, on the roller in hand; `apply::landing` needs `BlockReason::Rubble` before its
+closed-door answer; `rubble_clear_minutes` goes in base's `objects.ron` (a reseal, 29 rule values and 70
+rules again); existing door tests that walk through a broken door must set `collapse_percent` 0 first.
+Then step 5 (the line art in `geometry.rs::edge`, `fill.rs`, the minimap's marks), then combat in feet's
+steps 10 to 13. The scratchpad was emptied between sessions: the mutation runner is now
+`<scratchpad>/mut.py <spec.py>` (spec: `CMD`, `MUTANTS = [(file, name, old, new)]`), rewritten 2026-11-24;
+write it again if it is gone. The owner asked mid-run whether they could build: a gate or a mutation run
+holds the build lock, so say when the tree is still. Open with the owner: a party-chosen front row size;
+stacks rejoining; "blocks movement" implying "blocks sight"; aiming by the faced view; per-door make.
+
 **2026-11-16, later.** The owner: the gate fix "seems to have fixed the breaking an object on the other side
 of the wall", and "thunderwave does not seem to push back foes?". Planned in plan mode (choices: split the
 stack; a monster's push drives the line back) and built, awaiting the owner's try: see TODO "A spell that
