@@ -281,7 +281,7 @@ fn the_base_pack_states_every_rule_once_at_priority_zero() {
             count(RuleKind::Value),
             count(RuleKind::Table)
         ),
-        (36, 29, 5)
+        (36, 28, 5)
     );
     assert_eq!(count(RuleKind::Slot), data.rules.slot_names().count());
     for ((_, name), stands) in &data.standings {

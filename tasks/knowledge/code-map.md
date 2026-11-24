@@ -603,3 +603,6 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
 - `omnis-vector/src/shell/movement.rs`: `Resume` and the rule `look(looking, resume, input)`; a screen,
   the fight or the editor lends the pointer and the look returns on a bare view; `Screens.resets`
   forgets it at a new start.
+- Push (2026-11-24): `packs/base/data/spells/push.ron`; a `SpellEffect::Save` with a dice count of 0 rolls
+  and tells no damage (`combat/cast.rs::cast_save`, `combat/monster_cast.rs`); a spell added to a shipped
+  pack goes in `save/names.rs::SPELLS_SINCE_NAMES`, as an item does in `ITEMS_SINCE_NAMES`.

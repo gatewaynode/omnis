@@ -84,7 +84,8 @@ pub enum SpellEffect {
     Save {
         /// The saving throw.
         ability: Ability,
-        /// Damage dice.
+        /// Damage dice; a count of 0 for a spell that only pushes (it needs `push_feet`), which
+        /// rolls no damage and tells none.
         dice: Dice,
         /// Damage type.
         damage_type: DamageType,
@@ -133,7 +134,7 @@ pub enum SpellEffect {
 }
 
 /// The furthest a spell throws a target back, in feet.
-pub const MAX_PUSH_FEET: u8 = 30;
+pub const MAX_PUSH_FEET: u8 = 60;
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
 const fn no_push(feet: &u8) -> bool {
@@ -190,8 +191,11 @@ impl SpellEffect {
     }
 
     fn validate(&self, file: &Path, reach: Reach, errors: &mut Vec<DataError>) {
+        // A save that pushes may do no damage at all: no dice, written as a count of 0.
+        let only_pushes = matches!(self, SpellEffect::Save { dice, push_feet, .. } if dice.count == 0 && *push_feet > 0);
         if let Some(dice) = self.dice()
             && (dice.count == 0 || dice.sides == 0)
+            && !only_pushes
         {
             errors.push(DataError::new(file, "spell effect dice need dice"));
         }
@@ -620,7 +624,7 @@ mod tests {
             push_feet: 0,
         };
         assert!(problems(&spell(Some(area), Reach::Stack)).is_empty());
-        // A push is whole squares, six at the most; none is not written.
+        // A push is whole squares, twelve at the most; none is not written.
         let pushing = |push_feet: u8| {
             let effect = SpellEffect::Save {
                 ability: Ability::Constitution,
@@ -633,9 +637,22 @@ mod tests {
             (problems(&spell(Some(effect), Reach::Stack)).len(), text)
         };
         assert_eq!(pushing(10).0, 0);
-        assert_eq!(pushing(30).0, 0);
+        assert_eq!(pushing(60).0, 0);
         assert_eq!(pushing(3).0, 1);
-        assert_eq!(pushing(35).0, 1);
+        assert_eq!(pushing(65).0, 1);
+        // A save that pushes may roll no damage; one that does neither is nothing.
+        let harmless = |push_feet: u8| {
+            let effect = SpellEffect::Save {
+                ability: Ability::Strength,
+                dice: Dice::new(0, 0),
+                damage_type: DamageType::Force,
+                half_on_save: false,
+                push_feet,
+            };
+            problems(&spell(Some(effect), Reach::One)).len()
+        };
+        assert_eq!(harmless(50), 0);
+        assert_eq!(harmless(0), 1);
         assert!(pushing(10).1.contains("push_feet:10"), "{}", pushing(10).1);
         assert!(!pushing(0).1.contains("push_feet"), "{}", pushing(0).1);
     }

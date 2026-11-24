@@ -263,16 +263,21 @@ fn cast(
                     caught
                 }
             };
-            let dice = scale(dice, roller)?;
-            let damage = damage_roll(
-                data,
-                Some(dice),
-                0,
-                false,
-                Defenses::default(),
-                &mut roller.rng,
-                &roller.stream,
-            )?;
+            // A spell that only pushes has no dice: no damage is rolled or told.
+            let damage = if dice.count == 0 {
+                None
+            } else {
+                let dice = scale(dice, roller)?;
+                Some(damage_roll(
+                    data,
+                    Some(dice),
+                    0,
+                    false,
+                    Defenses::default(),
+                    &mut roller.rng,
+                    &roller.stream,
+                )?)
+            };
             // Those caught are the party's line (its front row, or the rest once that has
             // fallen): half of them failing sends the line back.
             let caught = targets.len();
@@ -298,6 +303,9 @@ fn cast(
                     dc,
                     success,
                 });
+                let Some(damage) = &damage else {
+                    continue;
+                };
                 let defenses = member_defenses(member, data, damage_type);
                 let (amount, adjust) =
                     adjusted(data, damage.raw, defenses, &mut roller.rng, &roller.stream)?;

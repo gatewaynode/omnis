@@ -972,7 +972,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 2. The marching order screen (2026-11-24). `screen/order.rs`, the column's Order... button. Eight
         mutants caught. Departure: allowed on the road only, not inside a town service (the column does
         not stand there). The front row's size stays the rule `front_row`. Tests written with the code.
-  - [ ] 3. Push, base resealed, `monster_front_stacks` gone.
+  - [x] 3. Push, base resealed, `monster_front_stacks` gone (2026-11-24). `base:spell:push`; a `Save` with a
+        dice count of 0 only pushes; `MAX_PUSH_FEET` 60; `SPELLS_SINCE_NAMES`; base 0.1.6. Tests red first;
+        six mutants caught. A new wizard knows nine spells (six of the first level). PRD 8.1 gains the line.
   - [ ] 4. Doorways that fall in: the rule, clearing, the client's words.
   - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the

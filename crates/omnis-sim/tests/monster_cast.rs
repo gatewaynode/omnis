@@ -617,3 +617,50 @@ fn thunderwave_drives_the_line_back_when_half_the_front_row_fails() {
     }
     assert!(feet > 5, "Bob's wave never threw the one member back");
 }
+
+/// A monster's Push (owner, 2026-11-24) catches one member: failing, the whole line is driven
+/// fifty feet back; no damage is rolled or told either way.
+#[test]
+fn a_monster_s_push_drives_the_line_back_fifty_feet_and_harms_no_one() {
+    let mut data = data();
+    bob_casting(&mut data, &["push"], false);
+    let (mut driven, mut held) = (0, 0);
+    for seed in 0..40 {
+        let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});
+        let events = bob_turn(&mut world, &data, &start);
+        let saves: Vec<bool> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Check {
+                    kind: omnis_sim::CheckKind::Save(_),
+                    success,
+                    ..
+                } => Some(*success),
+                _ => None,
+            })
+            .collect();
+        if saves.is_empty() {
+            continue;
+        }
+        assert_eq!(saves.len(), 1, "seed {seed}: one member is caught");
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Damage { .. })),
+            "seed {seed}: no damage"
+        );
+        let back: Vec<u16> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::PartyDrivenBack { feet } => Some(*feet),
+                _ => None,
+            })
+            .collect();
+        if saves[0] {
+            held += 1;
+            assert!(back.is_empty(), "seed {seed}");
+        } else {
+            driven += 1;
+            assert_eq!(back, [50], "seed {seed}");
+        }
+    }
+    assert!(driven > 2 && held > 2, "{driven} {held}");
+}

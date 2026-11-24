@@ -90,6 +90,9 @@ const ITEMS_SINCE_NAMES: [&str; 6] = [
     "base:item:timber",
 ];
 
+/// Spells the base pack gained since, as the items above.
+const SPELLS_SINCE_NAMES: [&str; 1] = ["base:spell:push"];
+
 impl NameTable {
     /// The table a save from before name tables was numbered by, on these packs: today's
     /// without what was added since. `None` when nothing was, and its numbers are today's.
@@ -100,7 +103,11 @@ impl NameTable {
         table
             .items
             .retain(|name| !ITEMS_SINCE_NAMES.contains(&name.as_str()));
-        (table.items.len() != had).then_some(table)
+        let knew = table.spells.len();
+        table
+            .spells
+            .retain(|name| !SPELLS_SINCE_NAMES.contains(&name.as_str()));
+        (table.items.len() != had || table.spells.len() != knew).then_some(table)
     }
 
     /// The table of the loaded packs.

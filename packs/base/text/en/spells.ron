@@ -30,6 +30,8 @@
         "base:text:spell.magic_missile.name": "Magic Missile",
         "base:text:spell.prayer_of_healing.description": "Up to six creatures each regain 2d8 + your spellcasting modifier hit points; a ten-minute prayer.",
         "base:text:spell.prayer_of_healing.name": "Prayer of Healing",
+        "base:text:spell.push.description": "A shove of force at one creature within 60 feet: it is thrown 50 feet back unless it succeeds on a Strength save. No damage.",
+        "base:text:spell.push.name": "Push",
         "base:text:spell.sacred_flame.description": "Radiance descends on a creature; it takes 1d8 radiant damage unless it succeeds on a Dexterity save. Scales like Fire Bolt.",
         "base:text:spell.sacred_flame.name": "Sacred Flame",
         "base:text:spell.shatter.description": "A ringing burst in a 10-foot sphere: 3d8 thunder damage, half on a successful Constitution save; +1d8 per level above 2nd.",

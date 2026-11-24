@@ -30,7 +30,6 @@
         "turn.reactions": (priority: 0, inputs: ["level", "is_member"], expr: "1"),
     },
     values: {
-        "monster_front_stacks": (priority: 0, value: 2),
         "death_save_dc": (priority: 0, value: 10),
         "combat_round_minutes": (priority: 0, value: 1),
         // The quiet after an encounter (owner, 2026-11-12): for this many steps after one

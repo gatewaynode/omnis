@@ -211,7 +211,7 @@ fn rejections_leave_the_fight_untouched() {
         Err(Rejection::StackDead { stack: 1 })
     );
     let view = combat_view(&world, &data).unwrap();
-    assert_eq!(view.spells.len(), 8, "the wizard's eight spells");
+    assert_eq!(view.spells.len(), 9, "the wizard's nine spells");
     let row = |name: &str| {
         view.spells
             .iter()

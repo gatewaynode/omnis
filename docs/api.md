@@ -1289,7 +1289,15 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-16 (latest, a spell that pushes; the owner: "thunderwave does not seem to push back foes", and the
+- 2026-11-24 (latest, Push; the owner: "a 1st level wizard spell, 'Push', that is ranged and targets one
+  individual pushing them back 50ft"): `push_feet` runs to 60. A `Save` whose dice have a count of 0 is a
+  spell that only pushes (it must have `push_feet`): no damage is rolled and no `Damage` event is told, for
+  the party's cast and a monster's. `base:spell:push` (level 1, wizard, Strength save, 60 ft, one
+  individual, 50 ft back) is on the wizard's list and sold by the guild, so a new wizard knows nine spells.
+  The rules value `monster_front_stacks`, unread since combat in feet, leaves base. Base is 0.1.6 (hash
+  6288048151976795439); the replays are rebaselined for the hash alone. A save from before name tables is
+  numbered without the new spell. No enum or state shape changed.
+- 2026-11-16 (a spell that pushes; the owner: "thunderwave does not seem to push back foes", and the
   choices "Split the stack" and "Line driven back"): `SpellEffect::Save` gains `push_feet` (a multiple of 5,
   0 to 30; 0 and unwritten for none). In a fight, the individuals of the stack caught who fail the save and
   live are thrown that far back: the whole stack when that is all of it (`StackMoved` with `to` above `from`),

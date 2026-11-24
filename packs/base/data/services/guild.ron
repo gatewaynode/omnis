@@ -7,6 +7,7 @@
     kind: Guild,
     spells: [
         "base:spell:burning_hands", "base:spell:magic_missile", "base:spell:shield",
-        "base:spell:thunderwave", "base:spell:shatter", "base:spell:acid_arrow",
+        "base:spell:thunderwave", "base:spell:push", "base:spell:shatter",
+        "base:spell:acid_arrow",
     ],
 )

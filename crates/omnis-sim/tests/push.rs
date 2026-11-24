@@ -431,3 +431,99 @@ fn the_wave_from_the_road_throws_back_too() {
     }
     assert!(thrown > 0, "no seed threw a rat back from the road");
 }
+
+/// Push at `stack`, which stands `feet` off.
+fn shove(
+    world: &mut World,
+    data: &Data,
+    stack: u8,
+    feet: u16,
+) -> Result<Vec<Event>, omnis_sim::Rejection> {
+    common::stand_back(world, usize::from(stack), feet);
+    let cast = CombatCommand::Cast {
+        spell: "base:spell:push".into(),
+        target: Target::Stack(stack),
+        pay: Pay::Action,
+    };
+    apply(world, data, Command::Combat(cast))
+}
+
+/// The owner's Push (2026-11-24): a first-level wizard spell at range, one individual, fifty
+/// feet back on a failed Strength save, and no damage.
+#[test]
+fn push_throws_the_nearest_individual_fifty_feet_and_harms_no_one() {
+    let data = data();
+    let (mut thrown, mut held, mut lone) = (0, 0, 0);
+    for seed in 0..40 {
+        let count = if seed % 2 == 0 { 3 } else { 1 };
+        let before = vec![100; count];
+        let mut world = against(&data, seed, &[&before]);
+        let events = shove(&mut world, &data, 0, 30).expect("in range");
+        let own: Vec<&Event> = events
+            .iter()
+            .take_while(|e| !matches!(e, Event::Turn { .. }))
+            .collect();
+        assert!(
+            !own.iter().any(|e| matches!(e, Event::Damage { .. })),
+            "seed {seed}: no damage"
+        );
+        let saves: Vec<&&Event> = own
+            .iter()
+            .filter(|e| matches!(e, Event::Check { .. }))
+            .collect();
+        assert_eq!(saves.len(), 1, "seed {seed}: one individual saves");
+        let Event::Check {
+            actor,
+            kind,
+            success,
+            ..
+        } = **saves[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(actor, ActorRef::Monster { stack: 0, index: 0 });
+        assert_eq!(
+            kind,
+            omnis_sim::CheckKind::Save(omnis_data::Ability::Strength)
+        );
+        let moved = moves(&events);
+        match (success, count) {
+            (true, _) => {
+                held += 1;
+                assert!(moved.is_empty(), "seed {seed}: a save holds its ground");
+            }
+            (false, 1) => {
+                lone += 1;
+                let whole = Event::StackMoved {
+                    stack: 0,
+                    from: 30,
+                    to: 80,
+                };
+                assert_eq!(moved, [&whole], "seed {seed}");
+            }
+            (false, _) => {
+                thrown += 1;
+                let split = Event::StackSplit {
+                    stack: 0,
+                    into: 1,
+                    moved: vec![0],
+                    from: 30,
+                    to: 80,
+                };
+                assert_eq!(moved, [&split], "seed {seed}");
+            }
+        }
+    }
+    assert!(thrown > 0 && held > 0 && lone > 0, "{thrown} {held} {lone}");
+}
+
+#[test]
+fn push_reaches_sixty_feet_and_no_further() {
+    let data = data();
+    let mut world = against(&data, 1, &[&[100, 100]]);
+    assert_eq!(
+        shove(&mut world, &data, 0, 65).unwrap_err(),
+        omnis_sim::Rejection::BeyondRange
+    );
+    shove(&mut world, &data, 0, 60).expect("sixty feet is in range");
+}

@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 30, 16, 19, 3, 36, 7)
+        (4, 4, 3, 30, 16, 20, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -56,7 +56,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let casting = wizard.casting.as_ref().unwrap();
     assert_eq!(
         (wizard.hit_die, casting.ability, casting.list.len()),
-        (6, Ability::Intelligence, 10)
+        (6, Ability::Intelligence, 11)
     );
     assert!(
         casting
@@ -490,7 +490,6 @@ fn the_combat_rules_evaluate() {
         ),
         Value::Bool(true)
     );
-    assert_eq!(rules.value("monster_front_stacks"), Some(2));
     assert_eq!(rules.value("death_save_dc"), Some(10));
     assert_eq!(rules.value("combat_round_minutes"), Some(1));
     assert_eq!(rules.table("run_dc").unwrap(), [15, 12, 10, 0]);
@@ -677,7 +676,7 @@ fn the_base_pack_writes_every_targeting_in_srd_terms() {
         );
         spells += 1;
     }
-    assert_eq!(spells, 19);
+    assert_eq!(spells, 20);
     let seen = |tiles: u8| Targeting {
         range: Range::Tiles(tiles),
         sees: true,
@@ -687,6 +686,7 @@ fn the_base_pack_writes_every_targeting_in_srd_terms() {
         ("healing_word", seen(12)),
         ("bless", seen(6)),
         ("magic_missile", seen(24)),
+        ("push", seen(12)),
         ("sacred_flame", seen(12)),
         ("shatter", Targeting::of(Range::Tiles(12))),
         ("thunderwave", Targeting::TOUCH),

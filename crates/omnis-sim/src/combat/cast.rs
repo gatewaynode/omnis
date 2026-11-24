@@ -591,15 +591,20 @@ fn cast_save(
     };
     for stack in stacks {
         let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
-        let damage = damage_roll(
-            data,
-            Some(save.dice),
-            0,
-            false,
-            monster_defenses(monster, save.damage_type),
-            &mut roller.rng,
-            &roller.stream,
-        )?;
+        // A spell that only pushes has no dice: no damage is rolled or told.
+        let damage = if save.dice.count == 0 {
+            None
+        } else {
+            Some(damage_roll(
+                data,
+                Some(save.dice),
+                0,
+                false,
+                monster_defenses(monster, save.damage_type),
+                &mut roller.rng,
+                &roller.stream,
+            )?)
+        };
         let count = state.encounter.stacks[usize::from(stack)].hp.len();
         let individuals: Vec<usize> = match save.reach {
             Reach::One => alloc::vec![0],
@@ -628,24 +633,26 @@ fn cast_save(
                 dc,
                 success,
             });
-            let amount = saved_damage(
-                data,
-                damage.amount,
-                success,
-                save.half_on_save,
-                &mut roller.rng,
-                &roller.stream,
-            )?;
-            events.push(Event::Damage {
-                target: actor,
-                kind: save.damage_type,
-                rolls: damage.rolls.clone(),
-                raw: damage.raw,
-                amount,
-                adjust: damage.adjust,
-            });
             let living = state.encounter.stacks[usize::from(stack)].hp.len();
-            hurt_individual(state, data, stack, index, amount, roller, events)?;
+            if let Some(damage) = &damage {
+                let amount = saved_damage(
+                    data,
+                    damage.amount,
+                    success,
+                    save.half_on_save,
+                    &mut roller.rng,
+                    &roller.stream,
+                )?;
+                events.push(Event::Damage {
+                    target: actor,
+                    kind: save.damage_type,
+                    rolls: damage.rolls.clone(),
+                    raw: damage.raw,
+                    amount,
+                    adjust: damage.adjust,
+                });
+                hurt_individual(state, data, stack, index, amount, roller, events)?;
+            }
             let died = state.encounter.stacks[usize::from(stack)].hp.len() < living;
             failed += usize::from(!success);
             if died {

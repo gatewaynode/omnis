@@ -122,8 +122,8 @@ fn casters_get_their_spell_points_and_spells() {
     );
     assert_eq!(
         wizard.known_spells.len(),
-        8,
-        "three cantrips and five first-level spells"
+        9,
+        "three cantrips and six first-level spells"
     );
     assert!(
         wizard
