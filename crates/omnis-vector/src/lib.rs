@@ -19,6 +19,7 @@ pub mod cinema;
 pub mod collide;
 pub mod combat_menu;
 pub mod contrast;
+mod doorway;
 pub mod editor;
 pub mod fill;
 pub mod game_io;

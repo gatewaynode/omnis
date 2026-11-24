@@ -7,7 +7,7 @@ use super::controls::{Control, Pressing, pressable};
 use super::session::Session;
 use super::theme::{edge, fill, ink};
 use super::tips::Tip;
-use crate::minimap::{Raster, SIDE, Zoom, paint};
+use crate::minimap::{Raster, SIDE, Zoom, marks, paint_marked};
 use crate::style::Role;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
@@ -240,13 +240,15 @@ fn repaint(
         return;
     }
     *last = Some(shown);
-    let raster = paint(
-        map,
-        p.level,
-        session.world.automap(p.map, p.level),
-        pose,
-        scale,
-    );
+    let known = session.world.automap(p.map, p.level);
+    // A door the party broke, and a doorway that fell in, as the world has them now.
+    let worn = marks(known, |x, y, facing| {
+        (
+            session.world.door_broken(p.map, p.level, x, y, facing),
+            session.world.door_collapsed(p.map, p.level, x, y, facing),
+        )
+    });
+    let raster = paint_marked(map, p.level, known, pose, scale, &worn);
     #[allow(clippy::cast_precision_loss)]
     let w = raster.width as f32;
     if let Ok((mut text, mut place)) = caption.single_mut() {

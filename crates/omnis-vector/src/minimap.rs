@@ -75,6 +75,8 @@ pub const RAMP: [u8; 4] = [120, 220, 255, 255];
 pub const JOIN: [u8; 4] = [240, 215, 90, 255];
 /// A known hole's cross.
 pub const HOLE: [u8; 4] = [255, 90, 70, 255];
+/// A doorway that fell in: the danger colour, as a hole's.
+pub const RUBBLE: [u8; 4] = HOLE;
 /// The party.
 pub const MARKER: [u8; 4] = [255, 255, 255, 255];
 
@@ -138,10 +140,43 @@ fn rises(
     out
 }
 
-/// Paint the known tiles of a level of `map` (visited ones brighter than ones only seen), their
-/// cliffs and ramps (M8.5 step 4), their stairs, ladders and holes (step 1b), their walls and
-/// doors over those, then the party as a triangle pointing along the yaw: a square of [`SIDE`]
-/// at `scale` pixels a cell, the party at its middle.
+/// What the map shows of a known door that is whole no longer (owner, 2026-11-24).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mark {
+    /// Broken and passable: its bar is drawn with a gap.
+    Broken,
+    /// Its doorway fell in: its bar is crossed, in [`RUBBLE`].
+    Buried,
+}
+
+/// The marks of the known doors, by edge.
+pub type Marks = BTreeMap<EdgeKey, Mark>;
+
+/// The marks of the doors the party knows, as `state` has each: `(broken, collapsed)`. The
+/// party's own blow breaks a door, so the map shows it at once.
+#[must_use]
+pub fn marks(
+    known: Option<&BTreeMap<(u16, u16), Known>>,
+    state: impl Fn(u16, u16, Facing) -> (bool, bool),
+) -> Marks {
+    let mut out = Marks::new();
+    for (&(x, y), tile) in known.into_iter().flatten() {
+        for facing in Facing::ALL {
+            if !tile.doors.has(facing) {
+                continue;
+            }
+            let mark = match state(x, y, facing) {
+                (_, true) => Mark::Buried,
+                (true, false) => Mark::Broken,
+                (false, false) => continue,
+            };
+            out.insert(edge_key(i64::from(x), i64::from(y), facing), mark);
+        }
+    }
+    out
+}
+
+/// [`paint_marked`] with every door whole.
 #[must_use]
 pub fn paint(
     map: &MapData,
@@ -149,6 +184,23 @@ pub fn paint(
     known: Option<&BTreeMap<(u16, u16), Known>>,
     pose: Pose,
     scale: u32,
+) -> Raster {
+    paint_marked(map, level, known, pose, scale, &Marks::new())
+}
+
+/// Paint the known tiles of a level of `map` (visited ones brighter than ones only seen), their
+/// cliffs and ramps (M8.5 step 4), their stairs, ladders and holes (step 1b), their walls and
+/// doors over those, then the party as a triangle pointing along the yaw: a square of [`SIDE`]
+/// at `scale` pixels a cell, the party at its middle. A door in `marks` is drawn by its mark: a
+/// broken one as a bar with a gap, a buried doorway as a crossed bar in [`RUBBLE`].
+#[must_use]
+pub fn paint_marked(
+    map: &MapData,
+    level: Level,
+    known: Option<&BTreeMap<(u16, u16), Known>>,
+    pose: Pose,
+    scale: u32,
+    marks: &Marks,
 ) -> Raster {
     let size = (map.def.width, map.def.height);
     let mut shown = Raster::filled(SIDE, SIDE, scale, BACKGROUND);
@@ -224,8 +276,32 @@ pub fn paint(
     }
     for (edge, door) in edges(known) {
         let (inset, colour) = if door { (s / 4, DOOR) } else { (0, WALL) };
-        for (px, py) in edge_pixels(scale, (out.width, out.height), edge, inset) {
-            out.put(px, py, colour);
+        let mark = marks.get(&edge).filter(|_| door);
+        let colour = if mark == Some(&Mark::Buried) {
+            RUBBLE
+        } else {
+            colour
+        };
+        let bar = edge_pixels(scale, (out.width, out.height), edge, inset);
+        // A broken door's bar has lost its middle third.
+        let gap = if mark == Some(&Mark::Broken) {
+            bar.len() / 3..bar.len() - bar.len() / 3
+        } else {
+            0..0
+        };
+        for (i, &(px, py)) in bar.iter().enumerate() {
+            if !gap.contains(&i) {
+                out.put(px, py, colour);
+            }
+        }
+        // A buried doorway's bar is crossed at its middle.
+        if mark == Some(&Mark::Buried)
+            && let Some(&(mx, my)) = bar.get(bar.len() / 2)
+        {
+            for k in -(s / 4).max(1)..=(s / 4).max(1) {
+                let (px, py) = if edge.0 { (mx, my + k) } else { (mx + k, my) };
+                out.put(px, py, colour);
+            }
         }
     }
     #[allow(clippy::cast_precision_loss)]

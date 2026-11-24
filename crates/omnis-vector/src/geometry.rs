@@ -5,6 +5,7 @@
 //! row line `z` from `x` to `x + 1`, or a vertical edge at column line `x` from `z` to `z + 1`.
 //! On a flat map every line is where it was before height was drawn (M8.5 step 4).
 
+use crate::doorway::{Leaf, Place};
 use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::scene::Occupancy;
@@ -149,11 +150,23 @@ pub fn extract(
         } else {
             Facing::West
         };
-        // A doorway that fell in is not open: until its own picture, it is drawn shut.
-        let broken =
-            kind == SegKind::Door && open && world.door_broken(map_id, level, col, row, side);
-        let leaf = (open, broken);
-        edge(&mut out, [x0, z0], [x1, z1], kind, leaf, role, feet, top);
+        let door = kind == SegKind::Door;
+        let leaf = Leaf::of(
+            open,
+            door && world.door_broken(map_id, level, col, row, side),
+            door && world.door_collapsed(map_id, level, col, row, side),
+        );
+        // The doorway's own number: its debris lies the same way each time it is drawn.
+        let seed = (u32::from(col) << 17) ^ (u32::from(row) << 1) ^ u32::from(horizontal);
+        let place = Place {
+            a: [x0, z0],
+            b: [x1, z1],
+            feet,
+            top,
+            role,
+            seed,
+        };
+        edge(&mut out, kind, leaf, &place);
     }
     for (edge, split, role) in splits(map, level) {
         match split {
@@ -710,49 +723,25 @@ pub(crate) fn door_head(feet: [f32; 2], top: f32) -> f32 {
     high + (top - high) * 0.85
 }
 
-/// A wall's outline from its `feet` at each end up to `top`, or a door: the lintel over a frame,
-/// crossed while closed. A broken door (`leaf.1`) is its frame's two posts cut to stumps,
-/// `shapes::WRECK` of their height, with no head and no cross (owner, 2026-11-15: what is
-/// destroyed is seen to be).
-#[allow(clippy::too_many_arguments)]
-fn edge(
-    out: &mut Vec<Segment>,
-    a: [f32; 2],
-    b: [f32; 2],
-    kind: SegKind,
-    (open, broken): (bool, bool),
-    role: Named,
-    feet: [f32; 2],
-    top: f32,
-) {
+/// A wall's outline from its `feet` at each end up to `top`; a door's edge is that outline
+/// without its foot, and the doorway's own lines inside it by how the door stands
+/// (`doorway::Place::draw`).
+fn edge(out: &mut Vec<Segment>, kind: SegKind, leaf: Leaf, place: &Place) {
+    let Place {
+        a, b, feet, top, ..
+    } = *place;
+    let role = place.role;
     let at = |t: f32, y: f32| [a[0] + (b[0] - a[0]) * t, y, a[1] + (b[1] - a[1]) * t];
-    let foot = |t: f32| feet[0] + (feet[1] - feet[0]) * t;
-    match kind {
-        SegKind::Door => {
-            let ([l, r], head) = (DOOR, door_head(feet, top));
-            line(out, at(0.0, top), at(1.0, top), SegKind::Wall, role);
-            line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, role);
-            line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, role);
-            if broken {
-                let stump = |t: f32| foot(t) + (head - foot(t)) * crate::shapes::WRECK;
-                line(out, at(l, foot(l)), at(l, stump(l)), kind, role);
-                line(out, at(r, foot(r)), at(r, stump(r)), kind, role);
-                return;
-            }
-            line(out, at(l, foot(l)), at(l, head), kind, role);
-            line(out, at(r, foot(r)), at(r, head), kind, role);
-            line(out, at(l, head), at(r, head), kind, role);
-            if !open {
-                line(out, at(l, foot(l)), at(r, head), kind, role);
-                line(out, at(r, foot(r)), at(l, head), kind, role);
-            }
-        }
-        _ => {
-            line(out, at(0.0, feet[0]), at(1.0, feet[1]), kind, role);
-            line(out, at(0.0, top), at(1.0, top), kind, role);
-            line(out, at(0.0, feet[0]), at(0.0, top), kind, role);
-            line(out, at(1.0, feet[1]), at(1.0, top), kind, role);
-        }
+    if kind == SegKind::Door {
+        line(out, at(0.0, top), at(1.0, top), SegKind::Wall, role);
+        line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, role);
+        line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, role);
+        place.draw(out, leaf);
+    } else {
+        line(out, at(0.0, feet[0]), at(1.0, feet[1]), kind, role);
+        line(out, at(0.0, top), at(1.0, top), kind, role);
+        line(out, at(0.0, feet[0]), at(0.0, top), kind, role);
+        line(out, at(1.0, feet[1]), at(1.0, top), kind, role);
     }
 }
 
@@ -768,57 +757,36 @@ mod tests {
     }
 
     #[test]
-    fn a_closed_door_is_crossed_and_an_open_one_is_not() {
-        let mut closed = Vec::new();
-        edge(
-            &mut closed,
-            [0.0, 0.0],
-            [1.0, 0.0],
-            SegKind::Door,
-            (false, false),
-            None,
-            [0.0; 2],
-            1.0,
-        );
-        let mut open = Vec::new();
-        edge(
-            &mut open,
-            [0.0, 0.0],
-            [1.0, 0.0],
-            SegKind::Door,
-            (true, false),
-            None,
-            [0.0; 2],
-            1.0,
-        );
-        assert_eq!(closed.len(), open.len() + 2);
-    }
-
-    #[test]
-    fn a_broken_door_is_two_stumps_under_the_wall_s_outline() {
-        let mut broken = Vec::new();
-        edge(
-            &mut broken,
-            [0.0, 0.0],
-            [1.0, 0.0],
-            SegKind::Door,
-            (true, true),
-            None,
-            [0.0; 2],
-            1.0,
-        );
-        let leaf: Vec<&Segment> = broken.iter().filter(|s| s.kind == SegKind::Door).collect();
-        assert_eq!(leaf.len(), 2, "two posts: no head, no cross");
-        let top = door_head([0.0; 2], 1.0) * crate::shapes::WRECK;
-        for post in leaf {
-            assert!((post.a[0] - post.b[0]).abs() < 1e-6, "upright");
-            assert!(post.a[1].abs() < 1e-6 && (post.b[1] - top).abs() < 1e-6);
+    fn a_door_s_edge_is_the_wall_s_outline_around_the_doorway_s_own_lines() {
+        let place = Place {
+            a: [0.0, 0.0],
+            b: [1.0, 0.0],
+            feet: [0.0; 2],
+            top: 1.0,
+            role: None,
+            seed: 0,
+        };
+        let drawn = |kind, leaf| {
+            let mut out = Vec::new();
+            edge(&mut out, kind, leaf, &place);
+            out
+        };
+        let count = |lines: &[Segment], kind| lines.iter().filter(|s| s.kind == kind).count();
+        assert_eq!(drawn(SegKind::Wall, Leaf::Shut).len(), 4);
+        for (leaf, own) in [
+            (Leaf::Open, 3),
+            (Leaf::Shut, 5),
+            (Leaf::Broken, 10),
+            (Leaf::Buried, 28),
+        ] {
+            let lines = drawn(SegKind::Door, leaf);
+            assert_eq!(
+                count(&lines, SegKind::Wall),
+                3,
+                "{leaf:?}: around the opening"
+            );
+            assert_eq!(count(&lines, SegKind::Door), own, "{leaf:?}");
         }
-        assert_eq!(
-            broken.len(),
-            5,
-            "and the wall's three lines around the opening"
-        );
     }
 
     #[test]

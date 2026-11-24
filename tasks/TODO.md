@@ -986,7 +986,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         `Rejection::NothingToClear`; 18 commands, 85 events, 78 rejections; base 0.1.10 with
         `rubble_clear_minutes` 60. Departure: `Interact` does not clear (no `Choice::Rubble`), so Space never
         spends an hour unasked; the Actions row does. Drawn shut until step 5. Seventeen mutants.
-  - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.
+  - [x] 5. The line art of a broken and a buried doorway, the minimap's marks. Built 2026-11-24:
+        `doorway.rs` (snapped posts, a hanging piece, planks; a mound, boulders, the fallen lintel, in an
+        uncut wall), `minimap::paint_marked` (a gap; a crossed bar in the danger colour). Twelve mutants.
+        Not seen on screen by me: the owner's try is the proof of the look.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the
   owner 2026-11-14**: "I went through the targeting acceptance doc, everything seems to work."; owner, 2026-11-14;
   `tasks/plans/targeting.md`, approved in plan mode the same day; PRD §7.3, §8.2, §8.3 and ARCHITECTURE

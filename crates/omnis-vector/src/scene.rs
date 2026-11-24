@@ -23,7 +23,7 @@ use omnis_sim::omnis_data::{Data, MapData};
 pub trait Occupancy {
     /// Whether the door on this edge stands open.
     fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool;
-    /// Whether the door on this edge is broken: open for good, and drawn as stumps. A map as
+    /// Whether the door on this edge is broken: open for good, and drawn as wreckage. A map as
     /// placed has none.
     fn door_broken(&self, _: MapId, _: Level, _: u16, _: u16, _: Facing) -> bool {
         false

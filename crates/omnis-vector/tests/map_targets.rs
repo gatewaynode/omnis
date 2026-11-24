@@ -597,10 +597,10 @@ fn choosing_an_object_s_row_strikes_it_with_a_weapon_or_a_spell_and_the_blow_is_
 }
 
 /// Combat in feet step 9: a door's row strikes it, with a weapon and with a spell, every blow
-/// is told, the breaking is told, and the view shows the door broken at once: two stumps where
-/// the frame and its cross stood. Broken, it is no row and nothing to open.
+/// is told, the breaking is told, and the view shows the door broken at once: what is left of
+/// the frame and its planks where the frame and its cross stood. Broken, it is no row and nothing to open.
 #[test]
-fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_stumps() {
+fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_wreckage() {
     use omnis_sim::Event;
     use omnis_vector::geometry::SegKind;
     use omnis_vector::rolllog::Names;
@@ -639,7 +639,8 @@ fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_stumps() {
     // The door's own lines: on the edge between the rows 3 and 4 of column 6.
     let leaf = |world: &omnis_vector::sim::SimWorld| {
         let scene = Scene::build(&data, map, Level::GROUND, world);
-        let on_edge = |p: [f32; 3]| (p[2] - 4.0).abs() < 1e-5 && (6.0..=7.0).contains(&p[0]);
+        // Its debris lies a little way out on either side.
+        let on_edge = |p: [f32; 3]| (p[2] - 4.0).abs() < 0.3 && (6.0..=7.0).contains(&p[0]);
         let lines = scene.own.iter();
         lines
             .filter(|s| s.kind == SegKind::Door && on_edge(s.a) && on_edge(s.b))
@@ -691,7 +692,11 @@ fn choosing_a_door_s_row_strikes_it_and_broken_it_is_drawn_as_stumps() {
             }
         }
         assert!(broke, "{who}: {lines:?}");
-        assert_eq!(leaf(&world), 2, "{who}: two stumps");
+        assert_eq!(
+            leaf(&world),
+            10,
+            "{who}: snapped posts, what hangs, and planks"
+        );
         let views = common::views(&world, &data);
         let context = ctx(&data, &world, &views);
         let rows = aim.targets(&data, context.game.unwrap());
