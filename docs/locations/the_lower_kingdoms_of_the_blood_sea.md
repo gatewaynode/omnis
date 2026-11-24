@@ -78,9 +78,9 @@ An high elf retreat that predates the last civilization collapse in the area.  T
 - **Government:** Chieftan
 - **Size:** 30 residents
 ### History:
-The sunken grove is the location of coven of druids that have existed for hundreds of years in this area, the druids settled when an ancient elven temple became abandoned hundreds of years ago.
+The sunken grove, located next to the Titan Heads, is the location of coven of druids that have existed for hundreds of years in this area, the druids settled when an ancient elven temple became abandoned hundreds of years ago.  The grove operates in alliance with the Warden's Guild, and is in fact the primary force behind that guild in both Shoentran and Resdie.  Since it's founding the grove's druidic order has worked on stabilizing the land and returning the region to balance.  Several of the grove druids along with the Wardens came to the aid of the arrival of the Resdie refugees during the that rift event.  The grove druids are extremely secretive and their general existence and involvement is not common knowledge, but every major leader has direct correspondence or relationships with druids.  The druids are not cloistered in their grove and easily half the residents are travelling at any given time, but they travel as common herb or spell component traders.  The grove maintains safehouses in Shoentran and Resdie under a similar pretense of simple natural goods traders.  While their trade is actually very profitable, the druids are communists who use the majority of the profits to hire mercenaries, explorers and adventurers to perform acts that help restore the balance.
 
-## Fairday (uncharted)
+## Fairday
 - **Type:** Collective
 - **Government:** Commune
 - **Size:** Town
@@ -89,28 +89,58 @@ The sunken grove is the location of coven of druids that have existed for hundre
 ### History
 Fairday lives in one of the most fertile areas of the lower kingdoms that attracted nomadic halflings to settle at least 200 years ago as recorded by the fleeing Dwarves of what would become Kuringuard.  Fairday is composed of close knit settlements that are almost like traditional agrarian halfling communities.  The largest difference is that their nomadic roots have been maintained through wagons and large herds of torams (Toil Rams), but the nomadic culture is only practiced by the Jitee clans amongst the communities of Fairday.   Fairday operates as a distributed commune, with all community members deeply engrained in the culture of strength through community.  Five villages
 
+## Wetah (uncharted)
+- **Type:** Collective
+- **Government:** Commune
+- **Size:** Town
+- **Population:** 1000 residents
+
+### History
+Wetah is the permanent settlement of the wood elves of the deep woods.  The elves maintain dozens of nomadic villages and hamlets throughout the Deep Woods, with mobility allowing them to stay on top of the twisted threats of the ruins encased in the woods.  The elves are allied and work directly with the druids of the sunken grove.
+
 ## Places of Interest
 
 
 
 ### The Great Goblin Head
-**Description:** A great stone head of some sort of goblin lies on it’s some 10 kilometers from the P’ta river.  The head is huge, 2 miles wide and sticks up half a mile out of the earth, and deeply weathered having lost most of it’s detail.  The goblins ear is one of the last obvious features left sticking up in the air like an unusually shaped and very long  spar of rock.  The head is on it’s side and buried up to it’s nose in the earth, with it’s open mouth leading into an interior cavern that exits where it is severed at its neck.
+**Description:** A great stone head of some sort of goblin lies on it’s some 10 kilometers from the P’tah river.  The head is huge, 2 miles wide and sticks up half a mile out of the earth, and deeply weathered having lost most of it’s detail.  The goblins ear is one of the last obvious features left sticking up in the air like an unusually shaped and very long  spar of rock.  The head is on it’s side and buried up to it’s nose in the earth, with it’s open mouth leading into an interior cavern that exits where it is severed at its neck.
 
 ### The Old Dam
 **Description:**  An ancient dam pocked with holes and crumbling from age spreads across the river P'Ta forming the dark lake.  A once vastly wide road spanned the top, but violent damage and time have made it an impassible mount of rubble slowly being drawn down to the waterway.  The damn has a hundred small holes and cracks in it where water pushes all the way through.  A sense of foreboding fills the area around the damn that is not helped at all by the moving shadows and creatures infesting the structure that are visible from a half days ride from the mega structure.
 
+### The Deep Woods
+**Description**: An area to the South East of Shoentran and east of Resdie of dense temperate woodlands.  The deep woods are the domain of a woodland elf tribe called the Queralee who maintain a permanent settlement called Wetah on the banks of the Souhn river on the east end of the Deep Woods.  Seven major ruins are hotspots of danger within the woods, the inhabitants of the woods and even the settlements around the woods are constantly under threat from these locations.  Even the elves of the woods are only able to partially contain the threats.
+
+#### The Ruined Hylomancy Factory
+#### The Ruined Slave Market
+#### The Ruined Temple of Angenffrous
+#### The Lair of Hormeegleonis
+#### The Infested Tenaments
+
+
+#TBD
+
 #### South Waterworks Entrance
 **Description**:
 #### Scar Entrance
+**Description**:
 #### North Waterworks Facility Ruins and Entrance
-
-### The Deep Forest
+**Description**:
 ### Lakeside Ruins West
+**Description**:
 ### Lakeside Ruins East
+**Description**:
 ### Resdie Ruins A
+**Description**:
 ### Resdie Ruins B
+**Description**:
 ### Resdie Ruins C
+**Description**:
 ### Resdie Ruins D
-### Resdie Catacombs
+**Description**:
+### Resdie Catacombs and Underground Ruins
+**Description**:
 ### Seaside Ruins
-### Kalingard Deeps
+**Description**:
+### Kuringard Deeps
+**Description**:
