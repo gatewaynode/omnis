@@ -58,12 +58,16 @@ pub struct Screens {
     drawn: Option<(Screen, u32)>,
     /// Where the party stood last frame, to close the square's actions when it moves.
     at: Option<Position>,
+    /// How many new starts there have been: a lent mouse look is forgotten at each
+    /// (`movement::grab_cursor`).
+    pub resets: u32,
 }
 
 impl Screens {
     /// A new start: the base screen for `game`, no overlay, no member selected.
     pub fn reset(&mut self, game: Option<&Views>) {
         self.nav.reset(game);
+        self.resets = self.resets.wrapping_add(1);
         self.forms.selected = None;
         self.forms.fight = crate::screen::fight::FightForm::default();
         self.forms.debug = crate::screen::debug::DebugForm::default();

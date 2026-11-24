@@ -191,7 +191,7 @@ fn status(
     }
     out = format!("{}\n{out}", place(&session.data, here));
     if intent.looking {
-        out.push_str("\nMouse look on: click, Space or Esc gives the pointer back");
+        out.push_str("\nMouse look on: a click gives the pointer back");
     }
     text.0 = out;
 }

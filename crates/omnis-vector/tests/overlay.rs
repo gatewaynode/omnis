@@ -37,6 +37,85 @@ fn opening_the_camp_while_the_mouse_looks_gives_the_pointer_back() {
         "the camp needs the pointer"
     );
     assert_eq!(grab(&mut app), CursorGrabMode::None);
+
+    // Closed again, the look is back with no click (the owner, 2026-11-24).
+    tap(&mut app, KeyCode::KeyR);
+    app.update();
+    assert_eq!(top(&app), None);
+    assert!(looking(&app), "the look comes back when the camp closes");
+    assert_eq!(grab(&mut app), CursorGrabMode::Locked);
+}
+
+fn looking(app: &App) -> bool {
+    app.world().resource::<Intent>().looking
+}
+
+/// A view that looks, on the road.
+fn looking_app() -> App {
+    let mut app = app_with(".omnis/vector-session.ron".into(), 1);
+    app.update();
+    app.update();
+    click(&mut app, (800.0, 450.0));
+    assert!(looking(&app));
+    app
+}
+
+#[test]
+fn the_pause_and_the_actions_lend_the_pointer_and_give_the_look_back() {
+    for (key, screen) in [
+        (KeyCode::Escape, ScreenId::Pause),
+        (KeyCode::Space, ScreenId::Actions),
+    ] {
+        let mut app = looking_app();
+        tap(&mut app, key);
+        app.update();
+        assert_eq!(top(&app), Some(screen));
+        assert!(!looking(&app), "{screen:?} has the pointer");
+        assert_eq!(grab(&mut app), CursorGrabMode::None);
+        tap(&mut app, KeyCode::Escape);
+        app.update();
+        assert_eq!(top(&app), None);
+        assert!(looking(&app), "the look is back after {screen:?}");
+        assert_eq!(grab(&mut app), CursorGrabMode::Locked);
+    }
+}
+
+#[test]
+fn a_look_turned_off_by_a_click_stays_off_after_a_screen() {
+    let mut app = looking_app();
+    click(&mut app, (800.0, 450.0));
+    assert!(!looking(&app), "a second click turns it off");
+    tap(&mut app, KeyCode::KeyR);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Camp));
+    tap(&mut app, KeyCode::KeyR);
+    app.update();
+    app.update();
+    assert_eq!(top(&app), None);
+    assert!(!looking(&app), "nothing was lent, nothing comes back");
+    assert_eq!(grab(&mut app), CursorGrabMode::None);
+}
+
+#[test]
+fn a_new_start_forgets_a_lent_look() {
+    let mut app = looking_app();
+    tap(&mut app, KeyCode::Escape);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Pause));
+    // A load, a new game and a return to the title all start the screens anew.
+    let views = app
+        .world()
+        .resource::<omnis_vector::shell::session::Session>()
+        .views
+        .clone();
+    app.world_mut()
+        .resource_mut::<omnis_vector::shell::screen::Screens>()
+        .reset(Some(&views));
+    app.update();
+    app.update();
+    assert_eq!(top(&app), None);
+    assert!(!looking(&app), "a new start does not take the pointer");
+    assert_eq!(grab(&mut app), CursorGrabMode::None);
 }
 
 #[test]

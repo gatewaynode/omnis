@@ -123,6 +123,60 @@ fn running_puts_the_pose_on_the_retreat_and_the_3d_view_back() {
     assert_eq!(pad_display(&mut app), Display::Flex, "the pad is back");
 }
 
+/// A look the fight took the pointer from is back when the fight and its spoils are done (the
+/// owner, 2026-11-24).
+#[test]
+fn the_mouse_look_comes_back_after_a_fight() {
+    use omnis_vector::shell::movement::{Intent, Resume};
+    let mut app = met_with(1);
+    app.world_mut().spawn((
+        Window {
+            resolution: bevy::window::WindowResolution::new(1600, 900),
+            ..default()
+        },
+        bevy::window::PrimaryWindow,
+    ));
+    // The party walked into the fight looking.
+    app.world_mut().resource_mut::<Intent>().looking = true;
+    app.update();
+    let intent = app.world().resource::<Intent>();
+    assert!(!intent.looking, "the fight has the pointer");
+    assert_eq!(intent.resume, Resume::Yes);
+    key(&mut app, KeyCode::Digit1, ButtonState::Pressed);
+    app.update();
+    key(&mut app, KeyCode::Digit1, ButtonState::Released);
+    app.update();
+    for _ in 0..300 {
+        if view(&app) == ViewState::Explore {
+            break;
+        }
+        assert!(!app.world().resource::<Intent>().looking);
+        if let Some(&target) = screen(&app).targets.first() {
+            let point = spot(&app, target);
+            click(&mut app, point);
+        } else if let Some(act) = enabled(&mut app).into_iter().next() {
+            press(&mut app, act);
+        } else {
+            app.update();
+        }
+    }
+    assert_eq!(view(&app), ViewState::Explore);
+    // The spoils' window, when there is one, still has the pointer; closed, the view is bare.
+    for _ in 0..4 {
+        app.update();
+        if common::app::top(&app).is_some() {
+            assert!(!app.world().resource::<Intent>().looking);
+            common::app::tap(&mut app, KeyCode::Escape);
+        }
+    }
+    app.update();
+    assert_eq!(common::app::top(&app), None);
+    assert!(
+        app.world().resource::<Intent>().looking,
+        "the look is back after the fight"
+    );
+}
+
 #[test]
 fn a_fight_runs_to_its_end_from_the_screen_alone() {
     let mut app = met_with(1);

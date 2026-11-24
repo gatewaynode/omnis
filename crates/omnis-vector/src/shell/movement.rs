@@ -37,6 +37,8 @@ pub struct Intent {
     pub pending_turn: f32,
     /// Whether the mouse looks (the cursor is grabbed).
     pub looking: bool,
+    /// Whether the look comes back when the view is bare again.
+    pub resume: Resume,
     /// Mouse pitch this frame, radians (positive looks up).
     pub mouse_pitch: f32,
     /// Held tilting, `-1.0..=1.0` (positive looks up).
@@ -58,6 +60,20 @@ pub struct View {
     seen: Option<(MapId, Pose)>,
 }
 
+/// Whether a mouse look that a screen took the pointer from is to come back.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Resume {
+    /// Nothing to bring back.
+    #[default]
+    No,
+    /// The look was let go by a key or a click that may have opened a screen: the next frame
+    /// tells (a screen is seen one frame after the press that opens it).
+    Pending,
+    /// A screen, the fight or the editor took the pointer from the look: it comes back when
+    /// the view is bare.
+    Yes,
+}
+
 /// What the mouse-look decision sees in a frame.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LookInput {
@@ -72,19 +88,38 @@ pub struct LookInput {
     pub panel: bool,
 }
 
-/// Whether the mouse looks after this frame. A left click in the view toggles it; the release
-/// keys and the panel turn it off. Turning it off leaves the yaw where it is.
+/// Whether the mouse looks after this frame, and whether it is to come back. A left click in
+/// the view toggles it, and is the one way to turn it off for good. The release keys and a
+/// click on a pile lend the pointer: when a screen follows, or a screen, the fight or the editor
+/// covers the view by itself, the look comes back once the view is bare. Turning it off leaves
+/// the yaw where it is.
 #[must_use]
-pub fn look(looking: bool, input: LookInput) -> bool {
-    if input.panel || input.release {
-        return false;
+pub fn look(looking: bool, resume: Resume, input: LookInput) -> (bool, Resume) {
+    if input.panel {
+        let lent = looking || resume != Resume::No;
+        return (false, if lent { Resume::Yes } else { Resume::No });
+    }
+    // The view is bare: a look that was lent to a screen is back before this frame's input.
+    let looking = looking || resume == Resume::Yes;
+    if input.release {
+        let lent = if looking { Resume::Pending } else { Resume::No };
+        return (false, lent);
     }
     if input.left_click {
-        // While looking the pointer is hidden, so a click turns looking off wherever it is; a
-        // click on a button never turns it on.
-        return !looking && !input.over_button;
+        if looking {
+            // The pointer is hidden, so a click turns looking off wherever it is; one on a pile
+            // opens its window, and only lends the pointer.
+            let lent = if input.over_button {
+                Resume::Pending
+            } else {
+                Resume::No
+            };
+            return (false, lent);
+        }
+        // A click on a button never turns it on.
+        return (!input.over_button, Resume::No);
     }
-    looking
+    (looking, Resume::No)
 }
 
 /// Input, mouse look and movement, headless-safe: needs only `Time`, the input resources and a
@@ -104,8 +139,9 @@ impl Plugin for MovementPlugin {
 }
 
 /// A left click in the view turns mouse look on and another turns it off, leaving the view
-/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
-/// the panel opening, the fight screen and the editor (`movement::look`).
+/// where it looks. Space, a right click (the action keys) and Esc take the pointer back, and so
+/// do the panel opening, the fight screen and the editor; the look returns when the view is bare
+/// again (`movement::look`). A game loaded, started or left, and the editor, forget it.
 #[allow(clippy::too_many_arguments)]
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
@@ -117,12 +153,20 @@ fn grab_cursor(
     view: Option<Res<State<ViewState>>>,
     editing: Option<Res<super::editor::Editing>>,
     aimed: Option<Res<super::aim::Aimed>>,
+    screens: Option<Res<super::screen::Screens>>,
+    mut resets: Local<u32>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
     };
-    let next = look(
+    let count = screens.map_or(0, |s| s.resets);
+    if count != *resets || editing.is_some() {
+        *resets = count;
+        intent.resume = Resume::No;
+    }
+    let (next, resume) = look(
         intent.looking,
+        intent.resume,
         LookInput {
             left_click: mouse.just_pressed(MouseButton::Left),
             // A click on a pile in reach is the pile's, as one on a button is the button's.
@@ -135,6 +179,7 @@ fn grab_cursor(
                 || editing.is_some(),
         },
     );
+    intent.resume = resume;
     if next != intent.looking {
         intent.looking = next;
         cursor.grab_mode = if next {
@@ -285,6 +330,7 @@ fn advance(
     *intent = Intent {
         pending_turn: intent.pending_turn,
         looking: intent.looking,
+        resume: intent.resume,
         ..Intent::default()
     };
 }
@@ -307,7 +353,7 @@ fn ease(pose: Pose, target: Pose, dt: f32, snap: bool) -> Pose {
 
 #[cfg(test)]
 mod tests {
-    use super::{FRAC_PI_2, Intent, LookInput, Pose, ease, look, yaw_delta};
+    use super::{FRAC_PI_2, Intent, LookInput, Pose, Resume, ease, look, yaw_delta};
 
     #[test]
     fn reduced_motion_turns_a_quarter_in_one_frame_and_the_eased_turn_does_not() {
@@ -356,40 +402,71 @@ mod tests {
         }
     }
 
+    const BARE: LookInput = LookInput {
+        left_click: false,
+        over_button: false,
+        release: false,
+        panel: false,
+    };
+    const PANEL: LookInput = LookInput {
+        panel: true,
+        ..BARE
+    };
+    const RELEASE: LookInput = LookInput {
+        release: true,
+        ..BARE
+    };
+
     #[test]
     fn a_left_click_in_the_view_toggles_mouse_look() {
-        assert!(look(false, click(false)), "on");
-        assert!(!look(true, click(false)), "and off again");
-        assert!(
-            !look(false, click(true)),
+        assert_eq!(look(false, Resume::No, click(false)), (true, Resume::No));
+        assert_eq!(
+            look(true, Resume::No, click(false)),
+            (false, Resume::No),
+            "and off again, for good"
+        );
+        assert_eq!(
+            look(false, Resume::No, click(true)),
+            (false, Resume::No),
             "a click on a button is the button's"
         );
-        assert!(
-            !look(true, click(true)),
-            "off wherever the hidden pointer is"
-        );
-        assert!(look(true, LookInput::default()), "no click: unchanged");
+        assert_eq!(look(true, Resume::No, BARE), (true, Resume::No));
+        assert_eq!(look(false, Resume::No, BARE), (false, Resume::No));
     }
 
     #[test]
-    fn the_action_keys_esc_and_the_panel_give_the_pointer_back() {
-        let release = LookInput {
-            release: true,
-            ..LookInput::default()
-        };
-        let panel = LookInput {
-            panel: true,
-            ..LookInput::default()
-        };
-        assert!(!look(true, release));
-        assert!(!look(true, panel));
+    fn a_screen_borrows_the_pointer_and_the_look_comes_back() {
+        // A screen opened by itself (a key of its own, a find, a fight).
+        assert_eq!(look(true, Resume::No, PANEL), (false, Resume::Yes));
+        assert_eq!(look(false, Resume::Yes, PANEL), (false, Resume::Yes));
+        assert_eq!(look(false, Resume::Yes, BARE), (true, Resume::No));
+        // A screen over a view that was not looking gives nothing back.
+        assert_eq!(look(false, Resume::No, PANEL), (false, Resume::No));
         // A click with the panel up does not turn looking on.
-        assert!(!look(
-            false,
-            LookInput {
-                panel: true,
-                ..click(false)
-            }
-        ));
+        let pressed = LookInput {
+            panel: true,
+            ..click(false)
+        };
+        assert_eq!(look(false, Resume::No, pressed), (false, Resume::No));
+        assert_eq!(look(false, Resume::Yes, pressed), (false, Resume::Yes));
+    }
+
+    #[test]
+    fn a_release_key_lends_the_pointer_only_when_a_screen_follows() {
+        assert_eq!(look(true, Resume::No, RELEASE), (false, Resume::Pending));
+        assert_eq!(look(false, Resume::No, RELEASE), (false, Resume::No));
+        // The screen the key opened is seen the frame after.
+        assert_eq!(look(false, Resume::Pending, PANEL), (false, Resume::Yes));
+        // No screen came: the key was a plain release.
+        assert_eq!(look(false, Resume::Pending, BARE), (false, Resume::No));
+        // A click on a pile while looking opens its window: lent, not let go.
+        assert_eq!(
+            look(true, Resume::No, click(true)),
+            (false, Resume::Pending)
+        );
+        // The look back and a key in one frame: lent again.
+        assert_eq!(look(false, Resume::Yes, RELEASE), (false, Resume::Pending));
+        // And a click in that frame turns it off for good.
+        assert_eq!(look(false, Resume::Yes, click(false)), (false, Resume::No));
     }
 }

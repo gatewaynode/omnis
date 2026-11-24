@@ -691,13 +691,12 @@ fn a_click_on_the_heap_opens_the_window_and_a_click_beside_it_is_the_view_s() {
     assert!(looking(&app), "a click in the view takes the mouse look");
     assert_eq!(top(&app), None);
     tap(&mut app, KeyCode::Escape);
+    assert!(!looking(&app), "the pause has the pointer");
     tap(&mut app, KeyCode::Escape);
-    assert!(!looking(&app));
-    assert_eq!(
-        top(&app),
-        None,
-        "Esc gave the pointer back and closed the pause"
-    );
+    assert_eq!(top(&app), None, "Esc closed the pause");
+    assert!(looking(&app), "and the look is back");
+    click(&mut app, (800.0, 100.0));
+    assert!(!looking(&app), "a click gives the pointer back for good");
 
     // Over the heap: the hand, and the click is the pile's.
     hover(&mut app, heap);

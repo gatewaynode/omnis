@@ -961,6 +961,18 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         object"): a broken object is drawn as a wreck (`shapes::WRECK`, a quarter of its height,
         a heap crossed over its top). A damaged mark, doors, Repair and the service row remain.
   - [ ] 13. Documents: acceptance sheet, code map, continuity. Report.
+- [ ] **Marching order, the look that comes back, Push, and doorways that fall in** (owner, 2026-11-24, from
+  the hand test of step 9 and the push: "no ordering/marching order configuration", "the mouse look does not
+  re-enable at modal window close", a spell "Push", "destruction of the door could compromise the frame and
+  cause a collapse"; `tasks/plans/order-look-push-collapse.md`, approved in plan mode the same day. Owner's
+  choices: Push in the base game too; the look back after every screen and after a fight; 25% collapse by
+  default; rubble cleared with time).
+  - [x] 1. The look comes back after a screen or a fight (2026-11-24). `movement::Resume`, the rule
+        `look`, `Screens.resets`. Ten mutants caught. The tests were written after the rule, not red first.
+  - [ ] 2. The marching order screen.
+  - [ ] 3. Push, base resealed, `monster_front_stacks` gone.
+  - [ ] 4. Doorways that fall in: the rule, clearing, the client's words.
+  - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the
   owner 2026-11-14**: "I went through the targeting acceptance doc, everything seems to work."; owner, 2026-11-14;
   `tasks/plans/targeting.md`, approved in plan mode the same day; PRD §7.3, §8.2, §8.3 and ARCHITECTURE
