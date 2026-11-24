@@ -448,49 +448,65 @@ fn shove(
     apply(world, data, Command::Combat(cast))
 }
 
+/// The damage Push told before the turn passed on, and whether its one save was made.
+fn shoved(events: &[Event]) -> (Vec<i64>, bool) {
+    let own: Vec<&Event> = events
+        .iter()
+        .take_while(|e| !matches!(e, Event::Turn { .. }))
+        .collect();
+    let saves: Vec<bool> = own
+        .iter()
+        .filter_map(|e| match e {
+            Event::Check {
+                actor,
+                kind,
+                success,
+                ..
+            } => {
+                assert_eq!(*actor, ActorRef::Monster { stack: 0, index: 0 });
+                assert_eq!(
+                    *kind,
+                    omnis_sim::CheckKind::Save(omnis_data::Ability::Strength)
+                );
+                Some(*success)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(saves.len(), 1, "one individual saves");
+    let damage = own
+        .iter()
+        .filter_map(|e| match e {
+            Event::Damage { target, amount, .. } => {
+                assert_eq!(*target, ActorRef::Monster { stack: 0, index: 0 });
+                Some(*amount)
+            }
+            _ => None,
+        })
+        .collect();
+    (damage, saves[0])
+}
+
 /// The owner's Push (2026-11-24): a first-level wizard spell at range, one individual, fifty
-/// feet back on a failed Strength save, and no damage.
+/// feet back on a failed Strength save, and 1d4 for every two caster levels ("getting thrown
+/// 50ft usually hurts").
 #[test]
-fn push_throws_the_nearest_individual_fifty_feet_and_harms_no_one() {
+fn push_throws_the_nearest_individual_fifty_feet_and_being_thrown_hurts() {
     let data = data();
     let (mut thrown, mut held, mut lone) = (0, 0, 0);
     for seed in 0..40 {
         let count = if seed % 2 == 0 { 3 } else { 1 };
         let before = vec![100; count];
         let mut world = against(&data, seed, &[&before]);
+        assert_eq!(world.party.members[WIZARD].level, 1);
         let events = shove(&mut world, &data, 0, 30).expect("in range");
-        let own: Vec<&Event> = events
-            .iter()
-            .take_while(|e| !matches!(e, Event::Turn { .. }))
-            .collect();
-        assert!(
-            !own.iter().any(|e| matches!(e, Event::Damage { .. })),
-            "seed {seed}: no damage"
-        );
-        let saves: Vec<&&Event> = own
-            .iter()
-            .filter(|e| matches!(e, Event::Check { .. }))
-            .collect();
-        assert_eq!(saves.len(), 1, "seed {seed}: one individual saves");
-        let Event::Check {
-            actor,
-            kind,
-            success,
-            ..
-        } = **saves[0]
-        else {
-            unreachable!()
-        };
-        assert_eq!(actor, ActorRef::Monster { stack: 0, index: 0 });
-        assert_eq!(
-            kind,
-            omnis_sim::CheckKind::Save(omnis_data::Ability::Strength)
-        );
+        let (damage, success) = shoved(&events);
         let moved = moves(&events);
         match (success, count) {
             (true, _) => {
                 held += 1;
                 assert!(moved.is_empty(), "seed {seed}: a save holds its ground");
+                assert_eq!(damage, [0], "seed {seed}: and takes nothing");
             }
             (false, 1) => {
                 lone += 1;
@@ -513,8 +529,68 @@ fn push_throws_the_nearest_individual_fifty_feet_and_harms_no_one() {
                 assert_eq!(moved, [&split], "seed {seed}");
             }
         }
+        if !success {
+            assert_eq!(damage.len(), 1, "seed {seed}");
+            assert!((1..=4).contains(&damage[0]), "seed {seed}: 1d4, {damage:?}");
+        }
     }
     assert!(thrown > 0 && held > 0 && lone > 0, "{thrown} {held} {lone}");
+}
+
+/// One d4 for every two caster levels, rounded up.
+#[test]
+fn push_hurts_more_from_a_higher_caster() {
+    let data = data();
+    for (level, dice) in [(2_u8, 1_i64), (3, 2), (4, 2), (5, 3), (9, 5)] {
+        let (mut least, mut most, mut failed) = (i64::MAX, 0, 0);
+        for seed in 0..80 {
+            let mut world = against(&data, seed, &[&[500, 500]]);
+            world.party.members[WIZARD].level = level;
+            let events = shove(&mut world, &data, 0, 30).expect("in range");
+            let (damage, success) = shoved(&events);
+            if !success {
+                failed += 1;
+                least = least.min(damage[0]);
+                most = most.max(damage[0]);
+            }
+        }
+        assert!(failed > 10, "level {level}: {failed} failed");
+        assert!(
+            least >= dice && most <= 4 * dice,
+            "level {level}: {least}..{most} of {dice}d4"
+        );
+        assert!(
+            most > 4 * (dice - 1) && least < dice + 4,
+            "level {level}: {least}..{most} is {dice} dice, not fewer or more"
+        );
+    }
+}
+
+/// A save spell with no dice only pushes: nothing is rolled for damage and none is told.
+#[test]
+fn a_spell_that_only_pushes_tells_no_damage() {
+    let mut data = data();
+    let push = data.registry.spells.get("base:spell:push").unwrap();
+    let spell = data.spells.get_mut(&push).unwrap();
+    spell.dice_every_levels = 0;
+    let Some(omnis_data::SpellEffect::Save { dice, .. }) = &mut spell.effect else {
+        panic!("a save");
+    };
+    dice.count = 0;
+    let (mut thrown, mut held) = (0, 0);
+    for seed in 0..40 {
+        let mut world = against(&data, seed, &[&[100, 100]]);
+        let events = shove(&mut world, &data, 0, 30).expect("in range");
+        let (damage, success) = shoved(&events);
+        assert!(damage.is_empty(), "seed {seed}: {damage:?}");
+        assert_eq!(moves(&events).is_empty(), success, "seed {seed}");
+        if success {
+            held += 1;
+        } else {
+            thrown += 1;
+        }
+    }
+    assert!(thrown > 0 && held > 0, "{thrown} {held}");
 }
 
 #[test]

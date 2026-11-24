@@ -688,3 +688,33 @@ fn reach_range_and_the_dice_hold_for_a_thing_as_for_a_group() {
     let mut world = at(&short, 2, 1, Facing::West);
     assert!(cast(&mut world, &short, "crate_1").is_ok());
 }
+
+/// A levelled spell whose dice grow with its caster grows at a thing too (Push made to strike
+/// things here; the owner, 2026-11-24: 1d4 for every two levels).
+#[test]
+fn dice_that_grow_with_the_caster_grow_against_a_thing() {
+    let mut data = objects();
+    let push = data.registry.spells.get("base:spell:push").unwrap();
+    data.spells.get_mut(&push).unwrap().objects = true;
+    let start = at(&data, 2, 1, Facing::West);
+    for (level, dice) in [(1_u8, 1_u16), (5, 3)] {
+        let (mut least, mut most) = (u16::MAX, 0);
+        for seed in 0..40 {
+            let mut world = seeded(&start, seed);
+            world.party.members[WIZARD].level = level;
+            let command = Command::Cast {
+                caster: world.party.members[WIZARD].id,
+                spell: "base:spell:push".into(),
+                target: thing("crate_1"),
+            };
+            let events = apply(&mut world, &data, command).expect("a cast");
+            let (_, _, _, amount, _) = blow(&events, "crate_1");
+            least = least.min(amount);
+            most = most.max(amount);
+        }
+        assert!(
+            least >= dice && most <= 4 * dice && most > 4 * (dice - 1),
+            "level {level}: {least}..{most} of {dice}d4"
+        );
+    }
+}

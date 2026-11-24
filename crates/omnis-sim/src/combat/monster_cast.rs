@@ -177,7 +177,7 @@ fn cast(
                 &roller.stream,
             )
         } else {
-            Ok(dice)
+            Ok(def.dice_at(dice, casting.caster_level))
         }
     };
     match def.effect.clone() {

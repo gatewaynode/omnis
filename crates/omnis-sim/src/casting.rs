@@ -140,11 +140,11 @@ fn scaled(
     effect: SpellEffect,
     roller: &mut Roller,
 ) -> Result<SpellEffect, Rejection> {
-    if def.level > 0 {
-        return Ok(effect);
-    }
     let caster = &world.party.members[own];
     let mut at = |dice| {
+        if def.level > 0 {
+            return Ok(def.dice_at(dice, caster.level));
+        }
         omnis_rules::cantrip_dice(caster, data, dice, &mut roller.rng, &roller.stream)
             .map_err(Rejection::Rule)
     };

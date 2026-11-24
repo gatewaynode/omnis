@@ -1289,7 +1289,13 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-24 (latest, Push; the owner: "a 1st level wizard spell, 'Push', that is ranged and targets one
+- 2026-11-24 (latest, Push hurts; the owner: "the push spell should cause 1d4 damage per every 2 levels"):
+  `Spell.dice_every_levels` (0 and unwritten for none; for a levelled spell that rolls dice): the effect's
+  dice are rolled once for every that many caster levels, rounded up (`Spell::dice_at`), for a member's
+  cast in a fight, at a thing from the road, and a monster's by its `caster_level`. Push is 1d4 bludgeoning
+  with `dice_every_levels: 2`, nothing on a save. A `Save` with no dice still only pushes; no base spell is
+  one now. Base is 0.1.7 (hash 520674701000266426), the replays rebaselined for the hash alone.
+- 2026-11-24 (Push; the owner: "a 1st level wizard spell, 'Push', that is ranged and targets one
   individual pushing them back 50ft"): `push_feet` runs to 60. A `Save` whose dice have a count of 0 is a
   spell that only pushes (it must have `push_feet`): no damage is rolled and no `Damage` event is told, for
   the party's cast and a monster's. `base:spell:push` (level 1, wizard, Strength save, 60 ft, one

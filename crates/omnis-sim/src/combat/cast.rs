@@ -438,10 +438,10 @@ fn scaled(
     dice: omnis_core::Dice,
     roller: &mut Roller,
 ) -> Result<omnis_core::Dice, RuleError> {
-    if spell.level > 0 {
-        return Ok(dice);
-    }
     let caster = &world.party.members[plan.own];
+    if spell.level > 0 {
+        return Ok(spell.dice_at(dice, caster.level));
+    }
     cantrip_dice(caster, data, dice, &mut roller.rng, &roller.stream)
 }
 

@@ -619,11 +619,41 @@ fn thunderwave_drives_the_line_back_when_half_the_front_row_fails() {
 }
 
 /// A monster's Push (owner, 2026-11-24) catches one member: failing, the whole line is driven
-/// fifty feet back; no damage is rolled or told either way.
+/// fifty feet back. With no dice (a spell that only pushes) no damage is rolled or told.
 #[test]
-fn a_monster_s_push_drives_the_line_back_fifty_feet_and_harms_no_one() {
+fn a_monster_s_push_drives_the_line_back_fifty_feet() {
     let mut data = data();
     bob_casting(&mut data, &["push"], false);
+    let (mut hurt, mut asked) = (0, 0);
+    for seed in 0..40 {
+        let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});
+        let events = bob_turn(&mut world, &data, &start);
+        let failed = events
+            .iter()
+            .any(|e| matches!(e, Event::Check { success: false, .. }));
+        let damage: Vec<i64> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Damage { amount, .. } => Some(*amount),
+                _ => None,
+            })
+            .collect();
+        if failed {
+            asked += 1;
+            // Bob casts as a caster of the fifth level: three d4.
+            assert_eq!(damage.len(), 1, "seed {seed}");
+            assert!((3..=12).contains(&damage[0]), "seed {seed}: {damage:?}");
+            hurt += usize::from(damage[0] > 4);
+        }
+    }
+    assert!(asked > 2 && hurt > 0, "{asked} {hurt}");
+    let push = data.registry.spells.get("base:spell:push").unwrap();
+    let spell = data.spells.get_mut(&push).unwrap();
+    spell.dice_every_levels = 0;
+    let Some(omnis_data::SpellEffect::Save { dice, .. }) = &mut spell.effect else {
+        panic!("a save");
+    };
+    dice.count = 0;
     let (mut driven, mut held) = (0, 0);
     for seed in 0..40 {
         let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});

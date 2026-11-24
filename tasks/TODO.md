@@ -975,6 +975,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   - [x] 3. Push, base resealed, `monster_front_stacks` gone (2026-11-24). `base:spell:push`; a `Save` with a
         dice count of 0 only pushes; `MAX_PUSH_FEET` 60; `SPELLS_SINCE_NAMES`; base 0.1.6. Tests red first;
         six mutants caught. A new wizard knows nine spells (six of the first level). PRD 8.1 gains the line.
+        Then, at the owner's word after trying it ("the push spell should cause 1d4 damage per every 2
+        levels"): `Spell.dice_every_levels`, `Spell::dice_at`; Push 1d4 bludgeoning for every two caster
+        levels, rounded up (my reading: 1d4 at levels 1 and 2), none on a save; base 0.1.7. Seven mutants.
   - [ ] 4. Doorways that fall in: the rule, clearing, the client's words.
   - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.
 - [x] **Calmer fight colours, and one targeting flow for spells, items and actions** (**accepted by the

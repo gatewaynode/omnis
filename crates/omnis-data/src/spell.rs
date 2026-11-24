@@ -300,6 +300,11 @@ pub struct Spell {
     /// How far it reaches in a fight.
     #[serde(default)]
     pub reach: Reach,
+    /// A levelled spell whose dice grow with its caster: the dice are rolled once for every
+    /// this many caster levels, rounded up (2: once at levels 1 and 2, twice at 3 and 4). 0,
+    /// and unwritten, for dice that stay as written ([`Spell::dice_at`]).
+    #[serde(default, skip_serializing_if = "no_push")]
+    pub dice_every_levels: u8,
     /// It may strike an object or a door as well as a creature (the SRD's "a creature or
     /// object").
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -320,6 +325,20 @@ pub struct Spell {
 }
 
 impl Spell {
+    /// The effect's `dice` for a caster of `level`: as written, unless the spell's dice grow
+    /// with its caster (`dice_every_levels`).
+    #[must_use]
+    pub fn dice_at(&self, dice: Dice, level: u8) -> Dice {
+        if self.dice_every_levels == 0 {
+            return dice;
+        }
+        let times = u16::from(level.max(1).div_ceil(self.dice_every_levels));
+        Dice {
+            count: dice.count.saturating_mul(times),
+            ..dice
+        }
+    }
+
     /// Points to cast: the declared cost, else the level.
     #[must_use]
     pub fn point_cost(&self) -> u32 {
@@ -380,6 +399,17 @@ impl Spell {
         self.validate_targeting(file, errors);
         if self.level > 9 {
             errors.push(DataError::new(file, "level must be 0..=9"));
+        }
+        let rolls = self
+            .effect
+            .as_ref()
+            .and_then(SpellEffect::dice)
+            .is_some_and(|d| d.count > 0);
+        if self.dice_every_levels > 0 && (self.level == 0 || !rolls) {
+            errors.push(DataError::new(
+                file,
+                "dice_every_levels is for a levelled spell that rolls dice (a cantrip scales by the rules)",
+            ));
         }
         if self.classes.is_empty() {
             errors.push(DataError::new(
@@ -445,6 +475,7 @@ mod tests {
             description: "t:text:spell.x.description".into(),
             effect,
             reach,
+            dice_every_levels: 0,
             objects: false,
             targeting: None,
             cost: Cost::Action,
@@ -653,6 +684,39 @@ mod tests {
         };
         assert_eq!(harmless(50), 0);
         assert_eq!(harmless(0), 1);
+        // Dice that grow with the caster: once for every so many levels, rounded up.
+        let mut thrown = spell(
+            Some(SpellEffect::Save {
+                ability: Ability::Strength,
+                dice: Dice::new(1, 4),
+                damage_type: DamageType::Bludgeoning,
+                half_on_save: false,
+                push_feet: 50,
+            }),
+            Reach::One,
+        );
+        let d4 = Dice::new(1, 4);
+        assert_eq!(
+            thrown.dice_at(d4, 9),
+            d4,
+            "as written unless the spell says"
+        );
+        thrown.dice_every_levels = 2;
+        assert!(problems(&thrown).is_empty());
+        let counts: Vec<u16> = (0..=6).map(|l| thrown.dice_at(d4, l).count).collect();
+        assert_eq!(counts, [1, 1, 1, 2, 2, 3, 3]);
+        assert_eq!(thrown.dice_at(d4, 5).sides, 4);
+        assert!(
+            ron::to_string(&thrown)
+                .unwrap()
+                .contains("dice_every_levels:2")
+        );
+        thrown.level = 0;
+        assert_eq!(problems(&thrown).len(), 1, "a cantrip scales by the rules");
+        let mut still = spell(Some(SpellEffect::Reaction { armor_bonus: 5 }), Reach::One);
+        still.cost = Cost::Reaction;
+        still.dice_every_levels = 2;
+        assert_eq!(problems(&still).len(), 1, "no dice to grow");
         assert!(pushing(10).1.contains("push_feet:10"), "{}", pushing(10).1);
         assert!(!pushing(0).1.contains("push_feet"), "{}", pushing(0).1);
     }

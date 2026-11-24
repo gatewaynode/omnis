@@ -1,5 +1,6 @@
 // Not an SRD spell: the owner's own (2026-11-24), a departure that adds (PRD §8.3). A shove of force at
 // range: the nearest individual of one stack makes a Strength save or is thrown fifty feet back
-// (`push_feet`), leaving its stack when others stand with it. No damage: the dice are none.
+// (`push_feet`), leaving its stack when others stand with it. Being thrown hurts: 1d4 bludgeoning for
+// every two caster levels, rounded up (`dice_every_levels`), and nothing on a save.
 // `targeting` is sixty feet at five feet a tile (PRD §7.3, §8.3), at a stack the caster sees.
-(schema: 1, id: "base:spell:push", name: "base:text:spell.push.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.push.description", effect: Some(Save(ability: Strength, dice: (count: 0, sides: 0, modifier: 0), damage_type: Force, half_on_save: false, push_feet: 50)), reach: One, targeting: Some((range: Tiles(12), sees: true)))
+(schema: 1, id: "base:spell:push", name: "base:text:spell.push.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.push.description", effect: Some(Save(ability: Strength, dice: (count: 1, sides: 4, modifier: 0), damage_type: Bludgeoning, half_on_save: false, push_feet: 50)), reach: One, dice_every_levels: 2, targeting: Some((range: Tiles(12), sees: true)))
