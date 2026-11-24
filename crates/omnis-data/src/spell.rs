@@ -301,7 +301,8 @@ pub struct Spell {
     #[serde(default)]
     pub reach: Reach,
     /// A levelled spell whose dice grow with its caster: the dice are rolled once for every
-    /// this many caster levels, rounded up (2: once at levels 1 and 2, twice at 3 and 4). 0,
+    /// this many whole caster levels and never fewer than once (2: once to level 3, twice at 4
+    /// and 5). 0,
     /// and unwritten, for dice that stay as written ([`Spell::dice_at`]).
     #[serde(default, skip_serializing_if = "no_push")]
     pub dice_every_levels: u8,
@@ -332,7 +333,7 @@ impl Spell {
         if self.dice_every_levels == 0 {
             return dice;
         }
-        let times = u16::from(level.max(1).div_ceil(self.dice_every_levels));
+        let times = u16::from((level / self.dice_every_levels).max(1));
         Dice {
             count: dice.count.saturating_mul(times),
             ..dice
@@ -684,7 +685,8 @@ mod tests {
         };
         assert_eq!(harmless(50), 0);
         assert_eq!(harmless(0), 1);
-        // Dice that grow with the caster: once for every so many levels, rounded up.
+        // Dice that grow with the caster: once for every so many whole levels, never fewer
+        // than once.
         let mut thrown = spell(
             Some(SpellEffect::Save {
                 ability: Ability::Strength,
@@ -704,7 +706,7 @@ mod tests {
         thrown.dice_every_levels = 2;
         assert!(problems(&thrown).is_empty());
         let counts: Vec<u16> = (0..=6).map(|l| thrown.dice_at(d4, l).count).collect();
-        assert_eq!(counts, [1, 1, 1, 2, 2, 3, 3]);
+        assert_eq!(counts, [1, 1, 1, 1, 2, 2, 3]);
         assert_eq!(thrown.dice_at(d4, 5).sides, 4);
         assert!(
             ron::to_string(&thrown)

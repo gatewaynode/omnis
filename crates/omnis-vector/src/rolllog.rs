@@ -236,6 +236,9 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             format!("{} {verb} thrown back to {to} ft", listed(&who))
         }
         Event::PartyDrivenBack { feet } => format!("The party is thrown back {feet} ft"),
+        Event::Thrown { target, feet } => {
+            format!("{} is thrown back {feet} ft", names.actor(*target))
+        }
         Event::PartyAdvanced { feet } => format!("The party advances {feet} ft"),
         Event::Dodging { actor } => format!("{} dodges", names.actor(*actor)),
         Event::Exchanged { member, with } => {

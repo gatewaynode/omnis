@@ -377,6 +377,15 @@ pub enum Event {
         /// Feet driven back.
         feet: u16,
     },
+    /// One who failed the save of a spell that pushes was thrown `feet` back and dies of the
+    /// damage told next (owner, 2026-11-24: "corpses get flung"). A fight keeps no bodies, so
+    /// nothing moves: the kill is counted in the stack it stood in.
+    Thrown {
+        /// Who, as it was numbered before it died.
+        target: ActorRef,
+        /// Feet thrown.
+        feet: u16,
+    },
     /// Some of a stack were thrown back by a spell that pushes and are a stack of their own from
     /// now on, the last of the fight's stacks, with a turn straight after the one they left.
     StackSplit {

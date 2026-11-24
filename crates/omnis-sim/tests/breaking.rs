@@ -690,14 +690,14 @@ fn reach_range_and_the_dice_hold_for_a_thing_as_for_a_group() {
 }
 
 /// A levelled spell whose dice grow with its caster grows at a thing too (Push made to strike
-/// things here; the owner, 2026-11-24: 1d4 for every two levels).
+/// things here; the owner, 2026-11-24: 1d4 for every two whole levels, never fewer than one).
 #[test]
 fn dice_that_grow_with_the_caster_grow_against_a_thing() {
     let mut data = objects();
     let push = data.registry.spells.get("base:spell:push").unwrap();
     data.spells.get_mut(&push).unwrap().objects = true;
     let start = at(&data, 2, 1, Facing::West);
-    for (level, dice) in [(1_u8, 1_u16), (5, 3)] {
+    for (level, dice) in [(1_u8, 1_u16), (3, 1), (5, 2)] {
         let (mut least, mut most) = (u16::MAX, 0);
         for seed in 0..40 {
             let mut world = seeded(&start, seed);

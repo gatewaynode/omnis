@@ -201,7 +201,7 @@ fn split(data: &Data, hp: &[i32]) -> (World, Vec<Event>) {
 }
 
 #[test]
-fn the_dead_are_not_thrown_and_the_living_who_failed_are() {
+fn the_dead_are_told_as_thrown_and_the_living_who_failed_leave_the_stack() {
     let data = data();
     // Every other goblin dies of any wave; the rest live through it.
     let hp = [100, 1, 100, 1, 100, 1];
@@ -210,6 +210,10 @@ fn the_dead_are_not_thrown_and_the_living_who_failed_are() {
         let mut world = against(&data, seed, &[&hp]);
         let events = wave(&mut world, &data, 0);
         let sturdy = failed(&events, 0).iter().filter(|i| *i % 2 == 0).count();
+        // One who failed and died of it is thrown all the same (owner, 2026-11-24): told, since
+        // a fight keeps no bodies. One who saved and died where it stood is not.
+        let frail = failed(&events, 0).iter().filter(|i| *i % 2 == 1).count();
+        assert_eq!(bodies(&events, 10).len(), frail, "seed {seed}");
         let stacks = &state(&world).encounter.stacks;
         let living: usize = stacks.iter().map(|s| s.hp.len()).sum();
         assert_eq!(living, 3, "seed {seed}");
@@ -432,6 +436,20 @@ fn the_wave_from_the_road_throws_back_too() {
     assert!(thrown > 0, "no seed threw a rat back from the road");
 }
 
+/// Those told as thrown `feet` back and killed by it, in the order told.
+fn bodies(events: &[Event], feet: u16) -> Vec<ActorRef> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Thrown { target, feet: f } => {
+                assert_eq!(*f, feet);
+                Some(*target)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// Push at `stack`, which stands `feet` off.
 fn shove(
     world: &mut World,
@@ -533,15 +551,57 @@ fn push_throws_the_nearest_individual_fifty_feet_and_being_thrown_hurts() {
             assert_eq!(damage.len(), 1, "seed {seed}");
             assert!((1..=4).contains(&damage[0]), "seed {seed}: 1d4, {damage:?}");
         }
+        assert!(bodies(&events, 50).is_empty(), "seed {seed}: it lived");
     }
     assert!(thrown > 0 && held > 0 && lone > 0, "{thrown} {held} {lone}");
 }
 
-/// One d4 for every two caster levels, rounded up.
+/// One who dies of being thrown is thrown all the same (owner, 2026-11-24: "corpses get
+/// flung"). A fight keeps no bodies, so it is told: thrown, then hurt, then dead, and nothing
+/// of the stack that held its ground moves.
+#[test]
+fn one_killed_by_being_thrown_is_told_as_thrown() {
+    let data = data();
+    let (mut flung, mut held) = (0, 0);
+    for seed in 0..40 {
+        let mut world = against(&data, seed, &[&[1, 100]]);
+        let events = shove(&mut world, &data, 0, 30).expect("in range");
+        let (_, success) = shoved(&events);
+        let first = ActorRef::Monster { stack: 0, index: 0 };
+        assert!(
+            moves(&events).is_empty(),
+            "seed {seed}: the living one stays"
+        );
+        if success {
+            held += 1;
+            assert!(bodies(&events, 50).is_empty(), "seed {seed}");
+            assert_eq!(state(&world).encounter.stacks[0].hp, [1, 100]);
+            continue;
+        }
+        flung += 1;
+        assert_eq!(bodies(&events, 50), [first], "seed {seed}");
+        assert_eq!(state(&world).encounter.stacks[0].hp, [100]);
+        let told: Vec<u8> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Thrown { .. } => Some(0),
+                Event::Damage { .. } => Some(1),
+                Event::Death { .. } => Some(2),
+                _ => None,
+            })
+            .take(3)
+            .collect();
+        assert_eq!(told, [0, 1, 2], "seed {seed}: thrown, hurt, dead");
+    }
+    assert!(flung > 3 && held > 3, "{flung} {held}");
+}
+
+/// One d4 for every two whole caster levels, and never fewer than one (owner, 2026-11-24: "a
+/// damage floor of 1d4").
 #[test]
 fn push_hurts_more_from_a_higher_caster() {
     let data = data();
-    for (level, dice) in [(2_u8, 1_i64), (3, 2), (4, 2), (5, 3), (9, 5)] {
+    for (level, dice) in [(1_u8, 1_i64), (2, 1), (3, 1), (4, 2), (5, 2), (9, 4)] {
         let (mut least, mut most, mut failed) = (i64::MAX, 0, 0);
         for seed in 0..80 {
             let mut world = against(&data, seed, &[&[500, 500]]);

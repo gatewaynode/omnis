@@ -976,7 +976,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 82 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 83 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1015,6 +1015,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
 | `StackMoved` | `stack`, `from`, `to` | A stack moved: its distance in feet before and after. Nearer when it closed on the party; further when a spell that pushes threw the whole of it back. |
 | `StackSplit` | `stack`, `into` (the new stack's index), `moved` (indices in `stack` among its living as the split was made, ascending), `from`, `to` (feet) | Some of a stack failed the save of a spell that pushes and are a stack of their own from now on: the last of the fight's stacks, at `to`, with their hit points, spent points and shields, a turn straight after the stack they left and its reactions left. A fight's stack list grows by this event only; `combat.get` shows the new stack. |
+| `Thrown` | `target` (`ActorRef`, as numbered before it died), `feet` | One who failed the save of a spell that pushes was thrown `feet` back and dies of the `Damage` told next. A fight keeps no bodies: nothing moves and the kill is counted in the stack it stood in. |
 | `PartyDrivenBack` | `feet` | A monster's spell that pushes was failed by at least half of the front row it caught: every stack that stands is `feet` further off. |
 | `PartyAdvanced` | `feet` | The party's line advanced (`Advance`, or a melee attack or touch at a stack just out of reach): every stack is `feet` nearer, none nearer than 5. |
 | `Dodging` | `actor` | A member dodges until the round ends. |
@@ -1289,7 +1290,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-24 (latest, Push hurts; the owner: "the push spell should cause 1d4 damage per every 2 levels"):
+- 2026-11-24 (latest, Push corrected; the owner: "it should always cause damage and always move those who
+  fail a saving throw. So a damage floor of 1d4 and corpses get flung"): `Spell::dice_at` counts whole
+  steps of `dice_every_levels` and never fewer than one (Push: 1d4 to level 3, 2d4 at 4 and 5), where it
+  rounded up. `Event::Thrown { target, feet }` (83 events) is told before the `Damage` that kills one who
+  failed the save of a spell that pushes, thunderwave's too; no state changes with it. Base is 0.1.9 (hash 45611842806912938), the replays rebaselined for the hash alone.
+- 2026-11-24 (Push hurts; the owner: "the push spell should cause 1d4 damage per every 2 levels"):
   `Spell.dice_every_levels` (0 and unwritten for none; for a levelled spell that rolls dice): the effect's
   dice are rolled once for every that many caster levels, rounded up (`Spell::dice_at`), for a member's
   cast in a fight, at a thing from the road, and a monster's by its `caster_level`. Push is 1d4 bludgeoning

@@ -643,6 +643,15 @@ fn cast_save(
                     &mut roller.rng,
                     &roller.stream,
                 )?;
+                // One the throw kills is thrown all the same: told, since no body is kept.
+                let points = state.encounter.stacks[usize::from(stack)].hp.get(index);
+                let dies = points.is_some_and(|hp| i64::from(*hp) <= amount);
+                if dies && !success && save.push_feet > 0 {
+                    events.push(Event::Thrown {
+                        target: actor,
+                        feet: save.push_feet,
+                    });
+                }
                 events.push(Event::Damage {
                     target: actor,
                     kind: save.damage_type,

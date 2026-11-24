@@ -903,3 +903,17 @@ walls." My one test of sight stood the party far from any gap, where no corner s
   scan shows a second way to the reported result, it is part of the bug: fix it or ask before reporting.
 - A thing an author draws as a door or gate is read by the player as one. A kind that fills an opening and
   blocks movement while shut blocks sight while shut unless its data says bars on purpose.
+
+## 2026-11-24: an effect with two halves holds both at the edge, and "per N levels" has a floor
+
+The owner added "1d4 damage per every 2 levels" to Push. I read it as rounded up and decided that one killed
+by the damage is not thrown, and said both in the report. The owner: "it should always cause damage and
+always move those who fail a saving throw. So a damage floor of 1d4 and corpses get flung."
+
+- "X per every N levels" from the owner is whole steps of N with a floor of one: `max(1, level / N)`. Rounding
+  up gives the same first die and a different table after it.
+- When a rule has two results (hurt and thrown) the edge case keeps both unless the owner drops one. I let the
+  engine's shape decide (the dead leave their stack, so nothing was told): where the model has no place for a
+  result, it is still told as an event. "The engine keeps no bodies" is a reason for how, not for whether.
+- A reading I chose myself goes in the report as a question when it is cheap to get wrong twice; this one
+  cost a second reseal.

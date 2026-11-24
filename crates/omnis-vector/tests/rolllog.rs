@@ -212,6 +212,12 @@ fn the_log_tells_who_is_thrown_back_and_keeps_their_numbers() {
         line(&names, &Event::PartyDrivenBack { feet: 10 }),
         "The party is thrown back 10 ft"
     );
+    // One who dies of it is told as thrown before the blow that kills it.
+    let body = Event::Thrown {
+        target: ActorRef::Monster { stack: 0, index: 1 },
+        feet: 50,
+    };
+    assert_eq!(line(&names, &body), "Giant Rat 2 is thrown back 50 ft");
     // The second and the fourth rat are thrown out of the stack.
     let split = |moved: Vec<u8>| Event::StackSplit {
         stack: 0,

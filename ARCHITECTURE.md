@@ -195,7 +195,7 @@ pub enum Command {                  // 17 variants
     Attack { member, target },      // a weapon's opening strike at a standing group in sight (combat in feet, step 6)
 }
 
-pub enum Event {                    // 82 variants, integers, ids and roll traces only
+pub enum Event {                    // 83 variants, integers, ids and roll traces only
     // Exploration and time: Moved, Blocked, Visible, Door, Message { key: MessageKey }, PartyChanged,
     //   TimeAdvanced { holder, minutes, day_rolled }, Reconciled { a, b, delta_a, delta_b, era_b } (M8),
     //   SignalsDropped { count } (M8, §4.8)

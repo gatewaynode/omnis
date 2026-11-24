@@ -640,9 +640,9 @@ fn a_monster_s_push_drives_the_line_back_fifty_feet() {
             .collect();
         if failed {
             asked += 1;
-            // Bob casts as a caster of the fifth level: three d4.
+            // Bob casts as a caster of the fifth level: two d4.
             assert_eq!(damage.len(), 1, "seed {seed}");
-            assert!((3..=12).contains(&damage[0]), "seed {seed}: {damage:?}");
+            assert!((2..=8).contains(&damage[0]), "seed {seed}: {damage:?}");
             hurt += usize::from(damage[0] > 4);
         }
     }
