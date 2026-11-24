@@ -113,6 +113,9 @@ pub(super) fn route(
     let mut selected = screens.forms.selected;
     match roster::apply(ctx.data, game, &mut selected, id) {
         Ok(RosterEffect::None) => screens.forms.selected = selected,
+        Ok(RosterEffect::Order) => {
+            screens.nav.show(ScreenId::Order, Some(&session.views));
+        }
         Ok(RosterEffect::Open { tool, member, .. }) => {
             if let Some(screen) = tool.screen() {
                 screens.forms.owner = Some(member);

@@ -28,6 +28,7 @@ pub mod log;
 pub mod loot;
 pub mod nav;
 pub mod new_game;
+pub mod order;
 pub mod pause;
 pub mod roster;
 pub mod service;
@@ -67,6 +68,8 @@ pub enum ScreenId {
     Cast,
     /// The party's rest on the road: hit dice, a short or a long rest.
     Camp,
+    /// The party's marching order, from the party column (owner, 2026-11-24).
+    Order,
     /// A member's character sheet: stats, magic, gear.
     Sheet,
     /// A member's declared reactions, opened from the sheet.
@@ -122,6 +125,7 @@ impl ScreenId {
             ScreenId::Inventory
                 | ScreenId::Cast
                 | ScreenId::Camp
+                | ScreenId::Order
                 | ScreenId::Sheet
                 | ScreenId::Tactics
         )
@@ -210,6 +214,15 @@ pub enum ControlId {
     Cast(u16),
     /// The hit dice a member spends on a short rest, by index into the rest view's members.
     Dice(u8),
+    /// Open the marching order.
+    Order,
+    /// Move a member one place in the marching order.
+    Shift {
+        /// Who.
+        member: omnis_sim::omnis_core::CharacterId,
+        /// Toward the front; else toward the back.
+        up: bool,
+    },
     /// Take a short rest.
     ShortRest,
     /// Take a long rest.
@@ -878,6 +891,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
         (ScreenId::Camp, Some(game)) => camp::content(ctx.data, game, forms),
+        (ScreenId::Order, Some(game)) => order::content(ctx.data, game),
         (ScreenId::Sheet, Some(game)) => sheet::content(ctx.data, game, forms),
         (ScreenId::Tactics, Some(game)) => tactics::content(ctx.data, game, forms),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
@@ -959,6 +973,7 @@ pub fn apply(
         (ScreenId::Loot, Some(game)) => loot::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Cast, Some(game)) => cast::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Camp, Some(game)) => camp::apply(game, forms, control, payload),
+        (ScreenId::Order, Some(game)) => order::apply(game, control),
         (ScreenId::Sheet, Some(game)) => sheet::apply(game, forms, control, payload),
         (ScreenId::Tactics, Some(game)) => tactics::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Defeat, _) => defeat::apply(control),
@@ -975,6 +990,7 @@ pub fn apply(
             | ScreenId::Loot
             | ScreenId::Cast
             | ScreenId::Camp
+            | ScreenId::Order
             | ScreenId::Sheet
             | ScreenId::Tactics
             | ScreenId::Fight

@@ -92,6 +92,8 @@ impl Tool {
 pub enum RosterEffect {
     /// Nothing beyond the selection, which `apply` changed.
     None,
+    /// Open the marching order.
+    Order,
     /// Open `tool` on `member`; in a fight it only looks (the action column acts).
     Open {
         /// Which screen.
@@ -204,6 +206,15 @@ pub fn content(data: &Data, game: Game, selected: Option<CharacterId>) -> Panel 
             ));
         }
     }
+    // The marching order: lit where the engine would take a reorder.
+    rows.push(Row::controls(vec![Control {
+        why_not: game
+            .world
+            .trial(data, &super::order::unchanged(game))
+            .err()
+            .map(|r| labels::reason(party, &r)),
+        ..Control::button(ControlId::Order, "Order...")
+    }]));
     Panel { rows }
 }
 
@@ -248,6 +259,7 @@ pub fn apply(
             },
             None => RosterEffect::None,
         },
+        ControlId::Order => RosterEffect::Order,
         _ => RosterEffect::None,
     })
 }

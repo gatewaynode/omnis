@@ -595,3 +595,11 @@ test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `na
 - Tests: sim `targets.rs`, `map_targets.rs`, `opening_strike.rs`, `links.rs`; client `cast.rs`,
   `map_targets.rs`, `combat_menu.rs`, `contrast.rs`; MCP `schema_proof.rs` (a cast and a link at every
   shape of target).
+
+## Marching order and the look that comes back (2026-11-24)
+- `omnis-vector/src/screen/order.rs`: `ScreenId::Order`, the party in marching order with Up and Down
+  (`ControlId::Shift`), each press the engine's `PartyCommand::Reorder` (no engine change). Opened by
+  `ControlId::Order` at the foot of the party column (`screen/roster.rs`, `RosterEffect::Order`).
+- `omnis-vector/src/shell/movement.rs`: `Resume` and the rule `look(looking, resume, input)`; a screen,
+  the fight or the editor lends the pointer and the look returns on a bare view; `Screens.resets`
+  forgets it at a new start.

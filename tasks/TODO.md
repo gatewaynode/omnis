@@ -969,7 +969,9 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
   default; rubble cleared with time).
   - [x] 1. The look comes back after a screen or a fight (2026-11-24). `movement::Resume`, the rule
         `look`, `Screens.resets`. Ten mutants caught. The tests were written after the rule, not red first.
-  - [ ] 2. The marching order screen.
+  - [x] 2. The marching order screen (2026-11-24). `screen/order.rs`, the column's Order... button. Eight
+        mutants caught. Departure: allowed on the road only, not inside a town service (the column does
+        not stand there). The front row's size stays the rule `front_row`. Tests written with the code.
   - [ ] 3. Push, base resealed, `monster_front_stacks` gone.
   - [ ] 4. Doorways that fall in: the rule, clearing, the client's words.
   - [ ] 5. The line art of a broken and a buried doorway, the minimap's marks.

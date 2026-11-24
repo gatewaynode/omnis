@@ -58,6 +58,7 @@ mod map_targets;
 mod minimap;
 mod notice;
 mod object_lines;
+mod order;
 mod overlay;
 mod pile_reach;
 mod piles;

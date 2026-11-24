@@ -105,6 +105,8 @@ impl Nav {
             (ScreenId::Inventory | ScreenId::Cast | ScreenId::Sheet, Some(_)) => base.is_none(),
             // Resting is the map's: not in a service (the room is the rest indoors) or a fight.
             (ScreenId::Camp, Some(views)) => base.is_none() && views.exploring(),
+            // The order is set on the road, where the engine takes it and the column stands.
+            (ScreenId::Order, Some(views)) => base.is_none() && views.exploring(),
             // Tactics are written outside a fight (the fight's React switch is its own).
             (ScreenId::Tactics, Some(views)) => base.is_none() && views.combat.is_none(),
             _ => false,
@@ -151,6 +153,7 @@ impl Nav {
                     | ScreenId::Loot
                     | ScreenId::Cast
                     | ScreenId::Camp
+                    | ScreenId::Order
                     | ScreenId::Sheet
                     | ScreenId::Tactics
                     | ScreenId::Defeat
