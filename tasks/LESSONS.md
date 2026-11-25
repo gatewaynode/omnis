@@ -917,3 +917,14 @@ always move those who fail a saving throw. So a damage floor of 1d4 and corpses 
   result, it is still told as an event. "The engine keeps no bodies" is a reason for how, not for whether.
 - A reading I chose myself goes in the report as a question when it is cheap to get wrong twice; this one
   cost a second reseal.
+
+## 2026-11-24 — A second result of one turn is named in the log, or it reads as a fault
+
+The owner saw a rat thrown to 55 ft stand at 5 ft a turn later and reported the label as stale. The label was
+right: the rat moved and dashed. The log said "closes to 25 ft" and "closes with the party" and never said
+dash, so the correct state looked wrong.
+
+- When an actor does something beyond its plain move or attack (a Dash, a second action, a reaction), the
+  event carries which it was and the log line says it. Two lines of the same wording in one turn hide a rule.
+- A report of "the display is wrong" is checked against the engine first; when they agree, the missing thing
+  is usually the words that explain the state, and that is the fix to offer.

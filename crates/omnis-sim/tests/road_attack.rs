@@ -510,7 +510,9 @@ fn the_long_hall_is_a_fight_at_a_distance() {
     let events = apply(&mut world, &data, strike).unwrap();
     assert_eq!(first_roll(&events, fighter).0, RollMode::Disadvantage);
     let from = events.iter().find_map(|e| match e {
-        Event::StackMoved { stack: 0, from, to } => Some((*from, *to)),
+        Event::StackMoved {
+            stack: 0, from, to, ..
+        } => Some((*from, *to)),
         _ => None,
     });
     let state = fight(&world);

@@ -33,7 +33,12 @@ pub(crate) fn thrown(
     let full = stacks.len() >= MAX_FIGHT_STACKS || u8::try_from(stacks.len()).is_err();
     if all || (full && half) {
         stacks[usize::from(stack)].distance = to;
-        events.push(Event::StackMoved { stack, from, to });
+        events.push(Event::StackMoved {
+            stack,
+            from,
+            to,
+            dash: false,
+        });
     } else if !full {
         let into = split(state, stack, thrown, to);
         events.push(Event::StackSplit {

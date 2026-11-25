@@ -432,3 +432,30 @@ fn the_reactions_switch_turns_them_off_and_the_turn_goes_on() {
     );
     assert_eq!(s.binder.refusals, 0);
 }
+
+/// Every text drawn on the fight screen.
+fn texts(app: &mut App) -> Vec<String> {
+    let world = app.world_mut();
+    let mut query = world.query::<&Text>();
+    query.iter(world).map(|t| t.0.clone()).collect()
+}
+
+/// A stack thrown back mid-fight is labelled where it now stands at the next frame: the label
+/// under its figure follows the fight's view (owner's report, 2026-11-24).
+#[test]
+fn a_stack_s_label_follows_its_distance_within_a_turn() {
+    let mut app = fighting();
+    assert!(texts(&mut app).iter().any(|t| t.ends_with("  5 ft")));
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let Mode::Combat(state) = &mut session.world.mode else {
+            panic!("in a fight");
+        };
+        state.encounter.stacks[0].distance = 55;
+        session.refresh();
+    }
+    app.update();
+    let texts = texts(&mut app);
+    assert!(texts.iter().any(|t| t.ends_with("  55 ft")), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.ends_with("  5 ft")), "{texts:?}");
+}

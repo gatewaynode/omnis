@@ -210,14 +210,20 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         }
         Event::RoundStarted { round } => format!("Round {round}"),
         Event::Waited { actor } => format!("{} waits", names.actor(*actor)),
-        Event::StackMoved { stack, from, to } => {
+        Event::StackMoved {
+            stack,
+            from,
+            to,
+            dash,
+        } => {
             let who = names.actor(ActorRef::Stack(*stack));
+            let how = if *dash { "dashes and closes" } else { "closes" };
             if to > from {
                 format!("{who} is thrown back to {to} ft")
             } else if *to <= 5 {
-                format!("{who} closes with the party")
+                format!("{who} {how} with the party")
             } else {
-                format!("{who} closes to {to} ft")
+                format!("{who} {how} to {to} ft")
             }
         }
         Event::StackSplit {

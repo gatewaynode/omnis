@@ -158,12 +158,13 @@ pub(crate) fn hurt_individual(
     Ok(())
 }
 
-/// A stack closes on the party by `feet`, never nearer than `stop`; whether it moved.
+/// A stack closes on the party by `feet`, never nearer than `stop`, as its move or as its
+/// `dash`; whether it moved.
 fn close(
     state: &mut CombatState,
     stack: u8,
-    feet: u16,
-    stop: u16,
+    (feet, stop): (u16, u16),
+    dash: bool,
     events: &mut Vec<Event>,
 ) -> bool {
     let s = &mut state.encounter.stacks[usize::from(stack)];
@@ -173,7 +174,12 @@ fn close(
         return false;
     }
     s.distance = to;
-    events.push(Event::StackMoved { stack, from, to });
+    events.push(Event::StackMoved {
+        stack,
+        from,
+        to,
+        dash,
+    });
     true
 }
 
@@ -206,12 +212,12 @@ pub(crate) fn monster_turn(
     };
     if let Some(melee) = melee {
         let stop = u16::from(melee.reach).max(ENGAGED_FEET);
-        close(state, stack, speed, stop, events);
+        close(state, stack, (speed, stop), false, events);
         let casts = spells_reach(world, data, casting, state, stack);
         let idle = !in_range(state, melee) && !shot.is_some_and(|a| in_range(state, a)) && !casts;
         if idle {
             // The Dash: its action is its speed again.
-            if !close(state, stack, speed, stop, events) {
+            if !close(state, stack, (speed, stop), true, events) {
                 events.push(Event::Waited {
                     actor: ActorRef::Stack(stack),
                 });

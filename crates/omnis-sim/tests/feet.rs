@@ -229,10 +229,20 @@ fn play(
 }
 
 fn moves(events: &[Event], of: u8) -> Vec<(u16, u16)> {
+    dashes(events, of).into_iter().map(|(m, _)| m).collect()
+}
+
+/// Each move of a stack, and whether it was its Dash.
+fn dashes(events: &[Event], of: u8) -> Vec<((u16, u16), bool)> {
     events
         .iter()
         .filter_map(|e| match e {
-            Event::StackMoved { stack, from, to } if *stack == of => Some((*from, *to)),
+            Event::StackMoved {
+                stack,
+                from,
+                to,
+                dash,
+            } if *stack == of => Some(((*from, *to), *dash)),
             _ => None,
         })
         .collect()
@@ -261,6 +271,11 @@ fn a_melee_stack_closes_and_cannot_hit_before_it_arrives() {
     let data = data();
     let (world, rounds) = play(&data, 6, &[("giant_rat", 2, 100)], 3);
     assert_eq!(moves(&rounds[0], 0), [(100, 70), (70, 40)], "move and dash");
+    // The second move is told as the Dash it is; the first is not.
+    assert_eq!(
+        dashes(&rounds[0], 0),
+        [((100, 70), false), ((70, 40), true)]
+    );
     assert_eq!(moves(&rounds[1], 0), [(40, 10), (10, 5)]);
     assert!(attacks(&rounds[0], 0).is_empty() && attacks(&rounds[1], 0).is_empty());
     assert!(moves(&rounds[2], 0).is_empty(), "it has arrived");

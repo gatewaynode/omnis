@@ -1014,7 +1014,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `RoundStarted` | `round` | A round began (from 1). |
 | `Turn` | `actor` | A turn began; on a member's turn the engine waits for a command. |
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
-| `StackMoved` | `stack`, `from`, `to` | A stack moved: its distance in feet before and after. Nearer when it closed on the party; further when a spell that pushes threw the whole of it back. |
+| `StackMoved` | `stack`, `from`, `to`, `dash` | A stack moved: its distance in feet before and after. Nearer when it closed on the party; further when a spell that pushes threw the whole of it back. `dash` is true when the move was its Dash: its action spent on its speed again, made instead of attacking. |
 | `StackSplit` | `stack`, `into` (the new stack's index), `moved` (indices in `stack` among its living as the split was made, ascending), `from`, `to` (feet) | Some of a stack failed the save of a spell that pushes and are a stack of their own from now on: the last of the fight's stacks, at `to`, with their hit points, spent points and shields, a turn straight after the stack they left and its reactions left. A fight's stack list grows by this event only; `combat.get` shows the new stack. |
 | `Thrown` | `target` (`ActorRef`, as numbered before it died), `feet` | One who failed the save of a spell that pushes was thrown `feet` back and dies of the `Damage` told next. A fight keeps no bodies: nothing moves and the kill is counted in the stack it stood in. |
 | `PartyDrivenBack` | `feet` | A monster's spell that pushes was failed by at least half of the front row it caught: every stack that stands is `feet` further off. |
@@ -1294,7 +1294,11 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-24 (latest, doorways that fall in; the owner: "destruction of the door could compromise the
+- 2026-11-24 (latest, a dash is said; the owner: "add the dash wording to the log"): `Event::StackMoved`
+  gains `dash`, true when the move was the stack's Dash (its action spent on its speed again, made instead
+  of attacking) and false for its plain move and for a throw. No behaviour changed and no count moved; a
+  client that matches the event's fields by name must take the new one.
+- 2026-11-24 (doorways that fall in; the owner: "destruction of the door could compromise the
   frame and cause a collapse"): a map's `door_make.collapse_percent` (0..=100, 25 and unwritten by default,
   so every map's doors now risk it; 0 for none). A door that breaks rolls a d100 on the blow's stream
   (`Event::DoorFrame`; no roll and no event at 0); at the percent or under `DoorWear.collapsed` is set and

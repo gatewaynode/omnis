@@ -91,6 +91,7 @@ fn whole(events: &[Event]) -> bool {
         stack: 0,
         from: 5,
         to: 15,
+        dash: false,
     };
     moves(events) == [&moved]
 }
@@ -306,7 +307,8 @@ fn a_thrown_stack_has_its_turn_its_reactions_and_its_shields() {
                 Event::StackMoved {
                     stack: 1,
                     from: 15,
-                    to: 5
+                    to: 5,
+                    ..
                 }
             )
         });
@@ -532,6 +534,7 @@ fn push_throws_the_nearest_individual_fifty_feet_and_being_thrown_hurts() {
                     stack: 0,
                     from: 30,
                     to: 80,
+                    dash: false,
                 };
                 assert_eq!(moved, [&whole], "seed {seed}");
             }

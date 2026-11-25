@@ -170,13 +170,23 @@ fn the_log_tells_the_moves_in_feet() {
     };
     names.follow(&met, &data);
     let line = |event: Event| describe(&event, &names, &data).expect("a line");
-    let moved = |to: u16| Event::StackMoved {
+    let moved = |to: u16, dash: bool| Event::StackMoved {
         stack: 0,
         from: 60,
         to,
+        dash,
     };
-    assert_eq!(line(moved(30)), "Giant Rat closes to 30 ft");
-    assert_eq!(line(moved(5)), "Giant Rat closes with the party");
+    assert_eq!(line(moved(30, false)), "Giant Rat closes to 30 ft");
+    assert_eq!(line(moved(5, false)), "Giant Rat closes with the party");
+    // A Dash is said (owner, 2026-11-24): the second move of a turn, made instead of attacking.
+    assert_eq!(
+        line(moved(30, true)),
+        "Giant Rat dashes and closes to 30 ft"
+    );
+    assert_eq!(
+        line(moved(5, true)),
+        "Giant Rat dashes and closes with the party"
+    );
     assert_eq!(
         line(Event::PartyAdvanced { feet: 10 }),
         "The party advances 10 ft"
@@ -205,6 +215,7 @@ fn the_log_tells_who_is_thrown_back_and_keeps_their_numbers() {
         stack: 0,
         from: 5,
         to: 15,
+        dash: false,
     };
     let line = |names: &Names, event: &Event| describe(event, names, &data).expect("a line");
     assert_eq!(line(&names, &whole), "Giant Rat is thrown back to 15 ft");
@@ -244,6 +255,7 @@ fn the_log_tells_who_is_thrown_back_and_keeps_their_numbers() {
         stack: 1,
         from: 15,
         to: 5,
+        dash: false,
     };
     assert_eq!(line(&names, &closes), "Giant Rat closes with the party");
 }

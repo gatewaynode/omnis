@@ -411,6 +411,8 @@ pub enum Event {
         from: u16,
         /// And after.
         to: u16,
+        /// Whether the move was its Dash: its action spent on its speed again.
+        dash: bool,
     },
     /// A member dodges until the round ends.
     Dodging {
