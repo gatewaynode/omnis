@@ -928,3 +928,16 @@ dash, so the correct state looked wrong.
   event carries which it was and the log line says it. Two lines of the same wording in one turn hide a rule.
 - A report of "the display is wrong" is checked against the engine first; when they agree, the missing thing
   is usually the words that explain the state, and that is the fix to offer.
+
+## 2026-11-25 — A default that the loader will refuse is a bug, and a refusal names its remedy
+
+The owner stamped a portal on a map's top row; it faced north, off the map (a fresh portal faced the author,
+whatever was that way), so no link to it could land. The editor took the link, said the loader's sentence
+once, dimmed Save with "1 error", and the owner read it as the link never finalizing.
+
+- A default the tool chooses (a facing, an id, a size) must be one the loader accepts where one exists. A
+  default checked against the map's edge and the rule that reads it, not chosen from the cursor alone.
+- A refusal that blocks Save says what to change and on which thing, not only what is wrong: the fault here
+  was on the partner, not the portal named first.
+- When the owner reports "it did nothing", look at what their files hold before the code: the two portals
+  with `link: None` and one at y 0 facing north gave the cause at once.

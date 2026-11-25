@@ -281,7 +281,7 @@ fn a_landing_ahead_of_the_partner_must_be_inside_the_map_and_free_of_portals() {
     // The stairs up at (0, 0) turned west: the meadow's stairs down would land off the map.
     let mut dungeon = def_of(&data, "test:map:dungeon");
     dungeon.portals[0].facing = omnis_core::Facing::West;
-    let words = "portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon', outside the map";
+    let words = "portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon', outside the map; turn 'dungeon-stairs' to face a free cell the party can stand on";
     assert_eq!(
         messages(resolve(&dungeon, &data)),
         [format!("test:map:meadow: {words}")]
@@ -298,7 +298,7 @@ fn a_landing_ahead_of_the_partner_must_be_inside_the_map_and_free_of_portals() {
     assert_eq!(
         messages(resolve(&dungeon, &data)),
         [
-            "test:map:meadow: portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon' at (1, 0), where a portal stands"
+            "test:map:meadow: portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon' at (1, 0), where a portal stands; turn 'dungeon-stairs' to face a free cell the party can stand on"
         ]
     );
 }

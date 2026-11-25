@@ -4,6 +4,7 @@
 use super::fields::{among, facings, free_id};
 use super::{Placing, id_taken};
 use crate::editor::form::{self, At, Form, FormKind};
+use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::{Data, MapDef, Portal, SlotKind};
 
 /// A portal's id as typed: trimmed, 1 to 32 printable ASCII characters.
@@ -28,10 +29,28 @@ fn portal_id_taken(def: &MapDef, data: &Data, id: &str) -> bool {
             .any(|m| m.def.id != def.id && m.def.portals.iter().any(|p| p.id == id))
 }
 
+/// The way a fresh portal at `at` faces: toward the author (the cursor's opposite) when the cell
+/// that way is on the map, else the first way that is (the cursor's own first), since what
+/// comes through lands ahead of it (owner's report, 2026-11-25: one on the top row faced off
+/// the map, and no link to it could land).
+fn onto(def: &MapDef, at: At) -> Facing {
+    let back = at.facing.opposite();
+    let on_map = |f: &Facing| {
+        f.ahead_of((at.x, at.y))
+            .is_some_and(|(x, y)| x < def.width && y < def.height)
+    };
+    [back, at.facing]
+        .into_iter()
+        .chain(Facing::ALL)
+        .find(on_map)
+        .unwrap_or(back)
+}
+
 /// A portal's form (the entrances and exits enhancement, W1 step 2, links): its id (a `fresh`
 /// one minted free of every loaded map's), the id of the portal it links to (empty: unlinked;
 /// a stamp's detail), the way the party faces coming out of it (a fresh one faces the author:
-/// the cursor's opposite, so the party comes back out the way it went in), and its marker, a
+/// the cursor's opposite, so the party comes back out the way it went in; onto the map at its
+/// edge, `onto`), and its marker, a
 /// surface of the map's tileset the game draws on its cell.
 pub(super) fn portal(
     def: &MapDef,
@@ -47,7 +66,7 @@ pub(super) fn portal(
     };
     let facing = match was.filter(|_| !fresh) {
         Some(p) => p.facing,
-        None => at.facing.opposite(),
+        None => onto(def, at),
     };
     let link = was
         .and_then(|p| p.link.clone())

@@ -324,22 +324,31 @@ pub(crate) fn landing(
         "portal '{}' at ({}, {}) lands ahead of '{}' on '{}'",
         portal.id, portal.x, portal.y, q.id, far.def.id
     );
+    // What to do about it (owner's report, 2026-11-25): the partner is the one to turn.
+    let turn = format!(
+        "; turn '{}' to face a free cell the party can stand on",
+        q.id
+    );
     let Some((x, y)) = q
         .landing()
         .filter(|&(x, y)| x < far.def.width && y < far.def.height)
     else {
-        return Err(format!("{at}, outside the map"));
+        return Err(format!("{at}, outside the map{turn}"));
     };
     match standing_fault(far.def, far.levels, q.level, x, y) {
-        Some("is on no ground") => Err(format!("{at} at ({x}, {y}), where there is no ground")),
-        Some(_) => Err(format!("{at} at ({x}, {y}), which the party cannot enter")),
+        Some("is on no ground") => Err(format!(
+            "{at} at ({x}, {y}), where there is no ground{turn}"
+        )),
+        Some(_) => Err(format!(
+            "{at} at ({x}, {y}), which the party cannot enter{turn}"
+        )),
         None if far
             .def
             .portals
             .iter()
             .any(|p| p.level == q.level && (p.x, p.y) == (x, y)) =>
         {
-            Err(format!("{at} at ({x}, {y}), where a portal stands"))
+            Err(format!("{at} at ({x}, {y}), where a portal stands{turn}"))
         }
         None => Ok((q.level, x, y)),
     }

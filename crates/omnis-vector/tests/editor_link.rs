@@ -487,3 +487,32 @@ fn a_press_that_closes_the_picker_places_nothing_on_the_plan_beneath_it() {
         "the partner is taken"
     );
 }
+
+/// The owner's report, 2026-11-25: a portal stamped on the map's top row with the cursor facing
+/// south faced north, off the map, so nothing linked to it could land and the pair never saved.
+/// A fresh portal faces the author only when that way is on the map; else it faces onto it. A
+/// link to it lands.
+#[test]
+fn a_fresh_portal_at_the_map_s_edge_faces_onto_the_map_and_a_link_to_it_lands() {
+    let mut app = in_editor("test:map:meadow");
+    face(&mut app, Facing::South);
+    choose(&mut app, Entry::Stamp(Placing::Portal));
+    click(&mut app, (16, 0));
+    let facing_at = |app: &App, cell: (u16, u16)| {
+        let def = editing(app).def().expect("a map");
+        def.portals
+            .iter()
+            .find(|p| (p.x, p.y) == cell)
+            .expect("the portal")
+            .facing
+    };
+    assert_eq!(facing_at(&app, (16, 0)), Facing::South, "onto the map");
+    // Away from the edge a fresh portal still faces the author.
+    click(&mut app, (16, 24));
+    assert_eq!(facing_at(&app, (16, 24)), Facing::North);
+    press_edit(&mut app, EditAct::EditAt(0));
+    press_row(&mut app, "portal_16_0");
+    press_edit(&mut app, EditAct::Apply);
+    assert_eq!(portal_link(&app, (16, 24)).as_deref(), Some("portal_16_0"));
+    valid(&app);
+}
