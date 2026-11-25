@@ -495,7 +495,6 @@ pub fn service_reason(refusal: &Rejection) -> String {
         Rejection::CannotAfford { .. } => "not enough money".to_owned(),
         Rejection::NothingToTreat { .. } => "nothing to treat".to_owned(),
         Rejection::NotDead { .. } => "not dead".to_owned(),
-        Rejection::Buried => "the rubble must be cleared first".to_owned(),
         Rejection::BankShort { bank, .. } => format!("the bank holds {}", coins(*bank)),
         // The row names the member; the engine's words name them by number.
         Rejection::NotReady { xp, needed, .. } => format!("{xp} of {needed} XP"),

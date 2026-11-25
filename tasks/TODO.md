@@ -965,14 +965,17 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
           step through `Aim::repair` with a Repairer chooser; each row says its minutes and supplies or
           the engine's reason), the lines "X repairs/mends ...", both events redraw the view. Mending is
           cast from the cast screen's own target step. Built, not yet tried by the owner.
-  - [ ] 11. Repair service (`tasks/plans/repair-service.md`; the owner, 2026-11-25: damaged things too at
+  - [x] 11. Repair service (built, not yet tried by the owner) (`tasks/plans/repair-service.md`; the owner, 2026-11-25: damaged things too at
         half, a buried doorway listed and refused, ten times the supplies).
     - [x] 11a. Engine (2026-11-25): `ServiceCommand::Repair { job }`, `repair::Job`/`jobs`/`job_thing`,
           the slot `smith.repair_cost`, `Event::RepairBought` (88 events), `ObjectRepaired` gains `map`
           and `by` is optional on both repaired events; `OfferView.broken`. Base 0.1.12. The fixture
           `objects` gains the forge. 12 mutants caught. The client's labels and log lines came with it
           (it had to compile); its tests are 11b.
-    - [ ] 11b. Client: tests of the smith's "Repairs" list, its labels, the click and the log lines.
+    - [x] 11b. Client (2026-11-25): `omnis-vector/tests/repair_service.rs` (the "Repairs" list only when
+          something is harmed, the rows' words, price and reason, a door's level, the button's command,
+          the log lines). 10 mutants caught; one survivor was a redundant client line, removed (the
+          engine's own words say the rubble must be cleared).
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.
         Pulled forward at the owner's word (2026-11-15, "a visual representation of a destroyed
         object"): a broken object is drawn as a wreck (`shapes::WRECK`, a quarter of its height,

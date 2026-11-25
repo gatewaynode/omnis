@@ -941,3 +941,12 @@ once, dimmed Save with "1 error", and the owner read it as the link never finali
   was on the partner, not the portal named first.
 - When the owner reports "it did nothing", look at what their files hold before the code: the two portals
   with `link: None` and one at y 0 facing north gave the cause at once.
+
+## 2026-11-25 — A mutation run on a red baseline proves nothing
+
+Mine, not the owner's: I added an assertion, did not rerun the tests, and ran the mutants. All twelve were
+"caught" because the suite was already failing.
+
+- Run the suite green immediately before a mutation run, in the same command, and read its result first.
+- A survivor may be dead code rather than a weak test: the client's copy of the engine's own refusal words
+  survived because removing it changed nothing. Remove the copy; do not write a test to keep it.

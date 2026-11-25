@@ -1,5 +1,24 @@
 # Continuity notes
 
+**2026-11-25, later.** The owner tried repair by tools on the qa gym's crate: works as described (mending
+not said). Step 11, the smith's repair service, is built (`tasks/plans/repair-service.md`; the owner's
+choices: damaged things too at half, a buried doorway listed and refused, ten times the supplies with 2 gp
+at the least): `aaed0f1a` engine (`ServiceCommand::Repair { job }`, `repair::Job`/`jobs`/`job_thing`/
+`described`, `Worn` and `Harmed`, the base slot `smith.repair_cost`, `Event::RepairBought`, `OfferView.broken`
+and the kind as `subject`; `ObjectRepaired` gains `map` and `by` is `Option` on both repaired events), then the
+client tests (11b; the labels, the "Repairs" list and the log lines went in with the engine so the client
+compiled). **Not yet tried by the owner: the smith's repairs, and mending.** The fixture `objects` has a
+forge (`objects:map:forge`, a base smith at (0, 0), in the yard's region) for it; the owner's own town needs a
+smith in the same region as the maps where things break. Pins now: 19 commands, 16 dev commands, 88 events,
+83 rejections, `SAVE_SCHEMA` 9, base 0.1.12 (hash 339269979522308190), `objects` fixture 0.1.11 (hash
+11089983567757788791), 21 base spells, `(37, 30, 5)` rule counts, "72 rules", service schema oneOf 13, schema
+proof 159 instances and 223 offered, cli "37 rule slots", `edit_grid` counts `[4, 1, 3]`. **Next: step 12 (a
+mark for damaged things; the service row is built), step 13 (documents, acceptance sheet)**, each planned
+first. Said to the owner and open: the smith works at a distance and at once; everything harmed in the region
+is listed, seen or not; a repaired object stands as first placed; `session::reshapes` redraws on any repaired
+event whatever its map. Lesson of the day: a mutation run on a red baseline catches everything and proves
+nothing; run the tests green first.
+
 **2026-11-25.** The owner tried and confirmed: doorways that fall in, the clearing, the dash wording, the
 portal shortcut. Push is settled: a save means no damage and no movement (as built). Commits on
 `W-2_look_and_engine`, not pushed: `21c570f5` a monster's dash is said (`Event::StackMoved.dash`), `63e2e858`

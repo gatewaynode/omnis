@@ -187,6 +187,11 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
   the 3D view (a low heap in its footprint, crossed over its top), whatever its kind's shape and
   whether or not the kind names a broken state. The engine's look is not changed.
 
+- **Step 11** (2026-11-25; `tasks/plans/repair-service.md`): the command is `ServiceCommand::Repair { job }`
+  with a `Job` that names the map (and a door's level), not `Repair { map, target }`. Damaged things are
+  taken too, at half; a buried doorway is listed and refused; the price is the slot `smith.repair_cost`.
+  The service row of step 12 was built here.
+
 ## Not in this plan
 A fight grid, member positions, cover, flanking, retreating or kiting monsters, thrown weapons and
 ammunition, choosing the stack an opening strike lands on, attacking things during a fight,
