@@ -208,6 +208,17 @@ fn toward(game: Game, (x, y): (u16, u16), edge: Option<Facing>) -> &'static str 
     )
 }
 
+/// What a repair takes, for its row: "60 min, 2 supplies (wood)", "30 min" when it takes none.
+#[must_use]
+pub fn repair_note(quote: &omnis_sim::repair::RepairQuote) -> String {
+    let material = format!("{:?}", quote.material).to_lowercase();
+    match quote.supplies {
+        0 => format!("{} min", quote.minutes),
+        1 => format!("{} min, 1 supply ({material})", quote.minutes),
+        n => format!("{} min, {n} supplies ({material})", quote.minutes),
+    }
+}
+
 fn note(text: impl Into<String>) -> Span {
     Span {
         text: text.into(),
@@ -278,6 +289,12 @@ pub fn content(data: &Data, game: Game, aim: &Aim, id: ScreenId) -> Screen {
         }
         if row.sight == Sight::Obscured {
             marks.push("out of sight".to_owned());
+        }
+        // A repair's row says what the work takes, whoever does it.
+        if aim.option == Chosen::Repair
+            && let Ok(quote) = game.world.repair_quote(data, &row.target)
+        {
+            marks.push(repair_note(&quote));
         }
         rows.push(Row {
             spans: vec![Span::body(name)],

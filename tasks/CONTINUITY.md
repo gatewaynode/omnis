@@ -1,5 +1,22 @@
 # Continuity notes
 
+**2026-11-25.** The owner tried and confirmed: doorways that fall in, the clearing, the dash wording, the
+portal shortcut. Push is settled: a save means no damage and no movement (as built). Commits on
+`W-2_look_and_engine`, not pushed: `21c570f5` a monster's dash is said (`Event::StackMoved.dash`), `63e2e858`
+a fresh portal faces onto the map and a bad landing names its remedy (the owner's dungeon portal at (12, 0)
+faced north off the map), `b3bb1efb` repair, engine (step 10a), then the client entry (10b). Repair
+(`tasks/plans/repair.md`; owner's choices: a cleared doorway can be rebuilt, a failed check loses time and
+supplies, tool and supplies anywhere in the party, a thing only damaged needs no supplies):
+`omnis-sim/src/repair.rs`, `Command::Repair`, the `Mend` arm of `casting.rs`, `Chosen::Repair`,
+`query::repair_quote`, `base:spell:mending`, rules value `repair_dc`; client "Repair..." on the Actions
+screen. **Not yet tried by the owner: repair and mending.** Pins now: 19 commands, 16 dev commands, 87
+events, 83 rejections, `SAVE_SCHEMA` 9, base 0.1.11 (hash 6169554058554664716), 21 base spells, `(36, 30, 5)`
+rule counts, "71 rules", schema proof 154 instances and 216 offered. **Next: step 11 (the smith's repair
+service), step 12 (a damaged mark, the service row), step 13 (documents, acceptance sheet)**, each planned
+first. Said to the owner and open: a repaired object stands as first placed, not as before it broke; a thing
+with durability and no material is `WrongTarget` to Repair. The owner's pack has their own uncommitted edits
+(the shortcut portals); never staged by me. Older open items below still stand.
+
 **2026-11-24, later.** The plan `tasks/plans/order-look-push-collapse.md` is built whole; the owner has
 tried steps 1 to 3 (look, marching order, Push) and has **not yet tried**: the Push correction, the
 collapsing doorways, the doorway art. Commits on `W-2_look_and_engine` (the owner pushed up to `3473a0fc`;

@@ -190,8 +190,10 @@ pub(super) fn action_keys(
             }
             Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
             Some(Does::Loot(from)) => open(screens, Some(&session.views), from),
-            // The default is never an attack: that is asked for by name.
-            Some(Does::Attack) | None => nav.open(ScreenId::Actions, Some(&session.views)),
+            // The default is never an attack or a repair: those are asked for by name.
+            Some(Does::Attack | Does::Repair) | None => {
+                nav.open(ScreenId::Actions, Some(&session.views));
+            }
         }
     } else {
         nav.toggle(ScreenId::Actions, Some(&session.views));

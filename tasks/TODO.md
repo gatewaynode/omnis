@@ -961,7 +961,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
           `Chosen::Repair`, `query::repair_quote`, `base:spell:mending` and `repair_dc`; base resealed
           0.1.11. 19 commands, 87 events, 83 rejections. 28 mutants caught. The tests were written
           before the code and first ran after it.
-    - [ ] 10b. Client entry: the Actions row, the log lines and refusals, the redraw.
+    - [x] 10b. Client entry (2026-11-25): the Actions screen's "Repair..." (`Does::Repair`, the target
+          step through `Aim::repair` with a Repairer chooser; each row says its minutes and supplies or
+          the engine's reason), the lines "X repairs/mends ...", both events redraw the view. Mending is
+          cast from the cast screen's own target step. Built, not yet tried by the owner.
   - [ ] 11. Repair service.
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.
         Pulled forward at the owner's word (2026-11-15, "a visual representation of a destroyed

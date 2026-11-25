@@ -182,6 +182,18 @@ impl SimWorld {
         door_collapsed(&self.0, map, level, x, y, facing)
     }
 
+    /// What a repair of `target` by tools would take (`query::repair_quote`).
+    ///
+    /// # Errors
+    /// The engine's reason the thing is none to repair.
+    pub fn repair_quote(
+        &self,
+        data: &Data,
+        target: &omnis_sim::Target,
+    ) -> Result<omnis_sim::repair::RepairQuote, Rejection> {
+        omnis_sim::query::repair_quote(&self.0, data, target)
+    }
+
     /// Whether a door is broken in the world (`api::door_broken`).
     #[must_use]
     pub fn door_broken(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {

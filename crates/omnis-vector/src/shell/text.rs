@@ -355,6 +355,15 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => "The frame gives way: the doorway is buried".to_owned(),
         Event::DoorFrame { .. } => "The frame holds".to_owned(),
         Event::DoorCleared { .. } => "The rubble is cleared".to_owned(),
+        // A thing made whole (step 10): by the spell or by tools.
+        Event::ObjectRepaired {
+            object: id,
+            by,
+            mended,
+        } => format!("{} {} {}", names.member(*by), mending(*mended), object(id)),
+        Event::DoorRepaired { by, mended, .. } => {
+            format!("{} {} the door", names.member(*by), mending(*mended))
+        }
         // A search's lore: its text, as the pack writes it.
         Event::Lore { key, .. } => labels::text(data, key).to_owned(),
         Event::Searched { member, roll } => {
@@ -581,4 +590,9 @@ fn level_line(names: &Names, data: &Data, member: CharacterId, level: u8, gains:
         names.member(member),
         brought.join(", ")
     )
+}
+
+/// The verb of a thing made whole: by the spell, or by tools.
+const fn mending(mended: bool) -> &'static str {
+    if mended { "mends" } else { "repairs" }
 }

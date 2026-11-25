@@ -30,6 +30,8 @@ pub enum Does {
     Loot(ItemPlace),
     /// Opens the target step for a weapon attack at a group in sight (the opening strike).
     Attack,
+    /// Opens the target step for a repair by tools of a harmed thing in touch.
+    Repair,
 }
 
 /// One action the square offers.
@@ -140,6 +142,14 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
             does: Does::Attack,
         });
     }
+    // Something in touch is damaged or broken: who repairs it and which thing is asked next,
+    // where each row says what it takes or why it cannot be done.
+    if anyone.is_some_and(|id| !world.targets(data, id, &Chosen::Repair).is_empty()) {
+        offers.push(Offer {
+            label: "Repair...".to_owned(),
+            does: Does::Repair,
+        });
+    }
     // A fallen doorway ahead: an hour's work, so it is asked for by name with its time.
     if world.trial(data, &Command::Clear).is_ok() {
         let minutes = data.rules.value("rubble_clear_minutes").unwrap_or(60);
@@ -165,31 +175,37 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     offers
 }
 
-/// What Shift+Space does, if anything: the first available action, never a search or the
-/// clearing of rubble (they spend ten minutes and an hour, so they are asked for by name).
+/// Whether Shift+Space may run an action without its being chosen: never a search, a repair,
+/// an attack or the clearing of rubble (they spend ten minutes to hours, or start a fight, so
+/// they are asked for by name).
+#[must_use]
+pub const fn runs_by_default(does: &Does) -> bool {
+    !matches!(
+        does,
+        Does::Command(Command::Search | Command::Clear) | Does::Attack | Does::Repair
+    )
+}
+
+/// What Shift+Space does, if anything: the first available action that runs by default.
 #[must_use]
 pub fn default_action(world: &SimWorld, data: &Data) -> Option<Does> {
-    available(world, data)
-        .into_iter()
-        .map(|o| o.does)
-        .find(|d| {
-            !matches!(
-                d,
-                Does::Command(Command::Search | Command::Clear) | Does::Attack
-            )
-        })
+    let offers = available(world, data).into_iter();
+    offers.map(|o| o.does).find(runs_by_default)
 }
 
 /// The screen: the square, its actions, and Close last.
 #[must_use]
 pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
     if let Some(aim) = forms.aim.as_ref().filter(|_| game.views.combat.is_none()) {
-        // The attack's target step, with who attacks to choose beside Back.
+        // The target step of an attack or a repair, with who does it to choose beside Back.
         let mut screen = crate::targeting::content(data, game, aim, ScreenId::Actions);
         let back = screen.panels.first_mut().and_then(|p| p.rows.first_mut());
+        let who = match aim.option {
+            Chosen::Repair => "Repairer",
+            _ => "Attacker",
+        };
         if let Some(row) = back {
-            row.controls
-                .push(owner_choice(game, aim.member, "Attacker"));
+            row.controls.push(owner_choice(game, aim.member, who));
         }
         return screen;
     }
@@ -266,6 +282,10 @@ pub fn apply(
                 Does::Loot(from) => Effect::Loot(from),
                 Does::Attack => {
                     forms.aim = owner(game, forms).map(|m| Aim::attack(m.member));
+                    Effect::None
+                }
+                Does::Repair => {
+                    forms.aim = owner(game, forms).map(|m| Aim::repair(m.member));
                     Effect::None
                 }
             }),

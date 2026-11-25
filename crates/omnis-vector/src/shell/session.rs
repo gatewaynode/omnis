@@ -760,6 +760,8 @@ pub fn reshapes(event: &Event) -> bool {
         | Event::DoorBroken { .. }
         | Event::DoorFrame { .. }
         | Event::DoorCleared { .. }
+        | Event::ObjectRepaired { .. }
+        | Event::DoorRepaired { .. }
         | Event::Noticed { .. }
         | Event::EncounterStarted { .. }
         | Event::Bribed { .. }

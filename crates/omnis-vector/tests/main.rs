@@ -63,6 +63,7 @@ mod order;
 mod overlay;
 mod pile_reach;
 mod piles;
+mod repair;
 mod rolllog;
 mod roster;
 mod scene;
