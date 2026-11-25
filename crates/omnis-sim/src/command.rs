@@ -87,6 +87,16 @@ pub enum Command {
     /// Clear the rubble of the fallen doorway on the faced edge (owner, 2026-11-24): it takes
     /// the rules' `rubble_clear_minutes` and the doorway stands open for good.
     Clear,
+    /// Repair a damaged or broken thing in touch with tools (PRD §8.3; owner, 2026-11-25):
+    /// the party carries the tool of the thing's material and, when it is broken, supplies by
+    /// its size; the member's Dexterity is tried against the rules' `repair_dc`; the time by
+    /// its size passes and the supplies are used whether or not the check passes.
+    Repair {
+        /// Who does the work.
+        member: CharacterId,
+        /// What is repaired: `{"Object": {object}}` or `{"Door": {x, y, facing}}`.
+        target: Target,
+    },
 }
 
 impl Command {
@@ -144,6 +154,7 @@ impl Command {
             Command::Act { .. } => "act",
             Command::Approach { .. } => "approach",
             Command::Attack { .. } => "strike",
+            Command::Repair { .. } => "repair",
         }
     }
 }
@@ -187,6 +198,26 @@ pub enum Rejection {
     Broken,
     /// No fallen doorway is on the faced edge.
     NothingToClear,
+    /// The thing is whole: it has taken no damage and is not broken.
+    NothingToRepair,
+    /// The doorway fell in: its rubble is cleared before a door is hung there again.
+    Buried,
+    /// The thing is bigger than the spell mends.
+    TooLarge,
+    /// No one in the party carries a tool for things of that material.
+    NeedsTool {
+        /// What the thing is made of.
+        material: omnis_data::Material,
+    },
+    /// The party carries too few supplies for a broken thing of that material and size.
+    NeedsSupplies {
+        /// What the thing is made of.
+        material: omnis_data::Material,
+        /// How many the party carries.
+        have: u16,
+        /// How many the repair takes.
+        need: u16,
+    },
     /// No member has that identity.
     NoSuchMember {
         /// The member asked for.
@@ -502,6 +533,21 @@ impl Rejection {
             Rejection::CannotBeDamaged => f.write_str("that cannot be damaged"),
             Rejection::Broken => f.write_str("it is broken"),
             Rejection::NothingToClear => f.write_str("there is no rubble to clear that way"),
+            Rejection::NothingToRepair => f.write_str("it needs no repair"),
+            Rejection::Buried => f.write_str("the rubble must be cleared first"),
+            Rejection::TooLarge => f.write_str("it is too large to mend"),
+            Rejection::NeedsTool { material } => {
+                write!(f, "no one carries tools for {}", material_word(*material))
+            }
+            Rejection::NeedsSupplies {
+                material,
+                have,
+                need,
+            } => write!(
+                f,
+                "it takes {need} supplies for {}; the party carries {have}",
+                material_word(*material)
+            ),
             Rejection::NoSuchMember {
                 member: CharacterId(member),
             } => write!(f, "there is no member {member}"),
@@ -695,5 +741,22 @@ impl Rejection {
             Rejection::OffMap { x, y } => write!(f, "({x}, {y}) is not on the map"),
             other => write!(f, "{other:?}"),
         }
+    }
+}
+
+/// A material in a refusal's words.
+const fn material_word(material: omnis_data::Material) -> &'static str {
+    use omnis_data::Material;
+    match material {
+        Material::Wood => "wood",
+        Material::Stone => "stone",
+        Material::Metal => "metal",
+        Material::Cloth => "cloth",
+        Material::Glass => "glass",
+        Material::Bone => "bone",
+        Material::Plant => "plant",
+        Material::Earth => "earth",
+        Material::Paper => "paper",
+        Material::Liquid => "liquid",
     }
 }

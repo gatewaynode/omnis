@@ -35,6 +35,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         (Mode::Explore, Command::Door) => door(world, data, &mut events)?,
         (Mode::Explore, Command::Search) => objects::search(world, data, &mut events)?,
         (Mode::Explore, Command::Clear) => crate::breaking::clear(world, data, &mut events)?,
+        (Mode::Explore, Command::Repair { member, target }) => {
+            crate::repair::apply(world, data, *member, target, &mut events)?;
+        }
         (
             Mode::Explore,
             Command::Act {

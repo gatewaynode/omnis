@@ -91,7 +91,7 @@ const ITEMS_SINCE_NAMES: [&str; 6] = [
 ];
 
 /// Spells the base pack gained since, as the items above.
-const SPELLS_SINCE_NAMES: [&str; 1] = ["base:spell:push"];
+const SPELLS_SINCE_NAMES: [&str; 2] = ["base:spell:push", "base:spell:mending"];
 
 impl NameTable {
     /// The table a save from before name tables was numbered by, on these packs: today's

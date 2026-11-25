@@ -420,6 +420,31 @@ fn next_service(command: &ServiceCommand) -> Option<ServiceCommand> {
     })
 }
 
+/// The shape of target after `target`, for a command that takes any: a stack, a member, a door
+/// on each edge, an object, a group.
+fn next_aim(target: &Target) -> Option<Target> {
+    Some(match target {
+        Target::Stack(_) => Target::Member(CharacterId(1)),
+        Target::Member(_) => Target::Door {
+            x: 3,
+            y: 4,
+            facing: Facing::North,
+        },
+        Target::Door { x, y, facing } if *facing != Facing::West => Target::Door {
+            x: *x,
+            y: *y,
+            facing: facing.right(),
+        },
+        Target::Door { .. } => Target::Object {
+            object: "chest_1".into(),
+        },
+        Target::Object { .. } => Target::Being {
+            being: "rat".into(),
+        },
+        Target::Being { .. } => return None,
+    })
+}
+
 /// The instance after `command`, from `Step(Forward)` to the last `Dev` edit. Every match here
 /// and in the helpers is exhaustive: a new variant gets an arm, and a link from its neighbour.
 fn next(command: &Command) -> Option<Command> {
@@ -429,6 +454,10 @@ fn next(command: &Command) -> Option<Command> {
         target,
     };
     let strike = |target| Command::Attack {
+        member: CharacterId(0),
+        target,
+    };
+    let repair = |target| Command::Repair {
         member: CharacterId(0),
         target,
     };
@@ -454,26 +483,14 @@ fn next(command: &Command) -> Option<Command> {
             },
         },
         Command::Approach { .. } => strike(Target::Stack(0)),
-        // The road's attack takes a `Target` as a cast does: one of each shape.
-        Command::Attack { target, .. } => match target {
-            Target::Stack(_) => strike(Target::Member(CharacterId(1))),
-            Target::Member(_) => strike(Target::Door {
-                x: 3,
-                y: 4,
-                facing: Facing::North,
-            }),
-            Target::Door { x, y, facing } if *facing != Facing::West => strike(Target::Door {
-                x: *x,
-                y: *y,
-                facing: facing.right(),
-            }),
-            Target::Door { .. } => strike(Target::Object {
-                object: "chest_1".into(),
-            }),
-            Target::Object { .. } => strike(Target::Being {
-                being: "rat".into(),
-            }),
-            Target::Being { .. } => Command::Climb(Vertical::Up),
+        // The road's attack takes a `Target` as a cast does: one of each shape; a repair after it.
+        Command::Attack { target, .. } => match next_aim(target) {
+            Some(target) => strike(target),
+            None => repair(Target::Stack(0)),
+        },
+        Command::Repair { target, .. } => match next_aim(target) {
+            Some(target) => repair(target),
+            None => Command::Climb(Vertical::Up),
         },
         Command::Climb(Vertical::Up) => Command::Climb(Vertical::Down),
         Command::Climb(Vertical::Down) => {

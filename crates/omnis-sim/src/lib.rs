@@ -43,6 +43,7 @@ pub mod ops;
 pub mod party;
 pub mod party_view;
 pub mod query;
+pub mod repair;
 pub mod replay;
 pub mod rest;
 pub mod rest_view;

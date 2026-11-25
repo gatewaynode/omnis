@@ -676,6 +676,34 @@ pub enum Event {
         /// The edge of that tile the door is on.
         facing: Facing,
     },
+    /// An object was made whole (PRD §8.3): no damage, not broken, and out of its kind's broken
+    /// state. What it spilled stays where it fell.
+    ObjectRepaired {
+        /// The placement's id.
+        object: String,
+        /// Who did it.
+        by: CharacterId,
+        /// By the mending spell, not by tools.
+        mended: bool,
+    },
+    /// A door was made whole: no damage, and hung shut when it had broken.
+    DoorRepaired {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+        /// Who did it.
+        by: CharacterId,
+        /// By the mending spell, not by tools.
+        mended: bool,
+    },
     /// Items were destroyed where they lay: gone for good (`ItemCommand::Destroy`, or fragile
     /// items in a thing that broke).
     ItemDestroyed {

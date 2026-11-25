@@ -28,6 +28,8 @@
         "base:text:spell.mage_hand.name": "Mage Hand",
         "base:text:spell.magic_missile.description": "Three darts of force hit chosen targets for 1d4 + 1 force damage each; one more dart per level above 1st.",
         "base:text:spell.magic_missile.name": "Magic Missile",
+        "base:text:spell.mending.description": "A damaged or broken thing you touch, no bigger than a chest, is made whole.",
+        "base:text:spell.mending.name": "Mending",
         "base:text:spell.prayer_of_healing.description": "Up to six creatures each regain 2d8 + your spellcasting modifier hit points; a ten-minute prayer.",
         "base:text:spell.prayer_of_healing.name": "Prayer of Healing",
         "base:text:spell.push.description": "A shove of force at one creature within 60 feet: it is thrown 50 feet back and takes 1d4 bludgeoning damage for every two caster levels (never less than 1d4) unless it succeeds on a Strength save.",

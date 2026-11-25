@@ -4,6 +4,7 @@
 // cell and the one it faces, taking `search_minutes` whether or not anything is there.
 // A doorway that fell in when its door was broken (a map's `door_make.collapse_percent`) is cleared
 // in `rubble_clear_minutes`.
+// A repair by tools tries the repairer's Dexterity against `repair_dc`.
 (
     schema: 1,
     id: "base:rules:objects",
@@ -11,5 +12,6 @@
         "notice_tiles": (priority: 0, value: 2),
         "search_minutes": (priority: 0, value: 10),
         "rubble_clear_minutes": (priority: 0, value: 60),
+        "repair_dc": (priority: 0, value: 10),
     },
 )

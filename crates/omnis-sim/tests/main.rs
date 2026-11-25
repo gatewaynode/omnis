@@ -44,6 +44,7 @@ mod party;
 mod push;
 mod reactions;
 mod reload;
+mod repair;
 mod rest;
 mod rest_view;
 mod road_attack;

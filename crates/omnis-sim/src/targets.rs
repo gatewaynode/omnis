@@ -49,6 +49,8 @@ pub enum Chosen {
     Attack,
     /// An exchange of places, in a fight.
     Exchange,
+    /// A repair by tools, on the road: the harmed things in touch.
+    Repair,
 }
 
 /// Whether the line to a target is clear.
@@ -218,6 +220,16 @@ fn durable(world: &World, data: &Data, things: Vec<(Target, map::Spot)>) -> Vec<
         .collect()
 }
 
+/// The objects and doors `targeting` reaches that have taken damage or are broken: what a
+/// repair or a mend may be sent at. A doorway still buried is none.
+fn harmed(world: &World, data: &Data, targeting: Targeting) -> Vec<Row> {
+    let things = map::things(world, data, targeting).into_iter();
+    things
+        .filter(|(target, _)| crate::repair::harmed(world, data, target).is_ok())
+        .map(|(target, spot)| (target, spot.distance, spot.sight))
+        .collect()
+}
+
 /// Every member, in marching order.
 fn members(world: &World) -> Vec<Target> {
     let ids = world.party.members.iter().map(|m| m.id);
@@ -270,6 +282,12 @@ fn spell_rows(world: &World, data: &Data, own: Target, spell: &str) -> Vec<Row> 
     }
     if hand && matches!(world.mode, Mode::Explore) {
         return hand_rows(world, data, def.targeting());
+    }
+    if matches!(effect, SpellEffect::Utility(Utility::Mend { .. })) {
+        return match world.mode {
+            Mode::Explore => harmed(world, data, def.targeting()),
+            _ => Vec::new(),
+        };
     }
     if effect.strikes() && matches!(world.mode, Mode::Explore) {
         // The groups in sight, then the things the spell may damage.
@@ -382,6 +400,7 @@ pub fn targets(
                 Chosen::Feature { exchange: true, .. } | Chosen::Exchange => others(),
                 Chosen::Feature { .. } => near(alloc::vec![own.clone()]),
                 Chosen::Attack => stacks(state),
+                Chosen::Repair => Vec::new(),
             };
             (rows, &|target| {
                 let command = fight_command(world, data, slot, chosen, target);
@@ -400,6 +419,7 @@ pub fn targets(
                     rows.extend(durable(world, data, things));
                     rows
                 }
+                Chosen::Repair => harmed(world, data, Targeting::TOUCH),
                 Chosen::Feature { .. } | Chosen::Exchange => Vec::new(),
             };
             (rows, &|target| match (chosen, target) {
@@ -412,6 +432,9 @@ pub fn targets(
                 }
                 (Chosen::Attack, target) => {
                     crate::assault::validate(world, data, member, target).err()
+                }
+                (Chosen::Repair, target) => {
+                    crate::repair::validate(world, data, member, target).err()
                 }
                 _ => Some(Rejection::WrongTarget),
             })

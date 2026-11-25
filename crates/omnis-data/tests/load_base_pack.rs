@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 30, 16, 20, 3, 36, 7)
+        (4, 4, 3, 30, 16, 21, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -56,7 +56,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let casting = wizard.casting.as_ref().unwrap();
     assert_eq!(
         (wizard.hit_die, casting.ability, casting.list.len()),
-        (6, Ability::Intelligence, 11)
+        (6, Ability::Intelligence, 12)
     );
     assert!(
         casting
@@ -676,7 +676,7 @@ fn the_base_pack_writes_every_targeting_in_srd_terms() {
         );
         spells += 1;
     }
-    assert_eq!(spells, 20);
+    assert_eq!(spells, 21);
     let seen = |tiles: u8| Targeting {
         range: Range::Tiles(tiles),
         sees: true,

@@ -43,6 +43,15 @@ impl Aim {
         }
     }
 
+    /// A repair by tools `member` is about to make.
+    #[must_use]
+    pub const fn repair(member: CharacterId) -> Aim {
+        Aim {
+            member,
+            option: Chosen::Repair,
+        }
+    }
+
     /// An item `member` is about to use.
     #[must_use]
     pub fn item(member: CharacterId, item: &str) -> Aim {
@@ -84,6 +93,12 @@ impl Aim {
                 member: self.member,
                 target,
             }),
+            (Chosen::Repair, target @ (Target::Object { .. } | Target::Door { .. })) => {
+                Some(Command::Repair {
+                    member: self.member,
+                    target,
+                })
+            }
             _ => None,
         }
     }
@@ -96,6 +111,7 @@ impl Aim {
             Chosen::Feature { feature, .. } => labels::text(data, feature),
             Chosen::Attack => "Attack",
             Chosen::Exchange => "Swap",
+            Chosen::Repair => "Repair",
         }
     }
 

@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does: a thing touched, no bigger than `up_to`, is made whole
+// (no damage, not broken). The SRD mends one break no larger than a foot; here, every break of a small thing.
+// The SRD's casting time of a minute is the road's `cast_minutes`. Castable on the road only.
+// `targeting` is the SRD's range at five feet a tile (PRD §7.3, §8.3): Touch.
+(schema: 1, id: "base:spell:mending", name: "base:text:spell.mending.name", level: 0, school: Transmutation, classes: ["base:class:cleric", "base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.mending.description", effect: Some(Utility(Mend(up_to: Small))), reach: One, targeting: Some((range: Touch)))

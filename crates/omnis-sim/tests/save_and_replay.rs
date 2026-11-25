@@ -872,13 +872,14 @@ fn a_save_from_before_name_tables_is_numbered_without_what_was_added_since() {
         "after the carpenter's tools"
     );
     assert!(then.items.windows(2).all(|w| w[0] < w[1]), "still sorted");
-    // And without the spell added since (Push, 2026-11-24), so thunderwave keeps its number.
+    // And without the spells added since (Push, 2026-11-24; mending, 2026-11-25), so
+    // thunderwave keeps its number.
     let without: Vec<&String> = now
         .spells
         .iter()
-        .filter(|n| *n != "base:spell:push")
+        .filter(|n| !["base:spell:push", "base:spell:mending"].contains(&n.as_str()))
         .collect();
-    assert_eq!(now.spells.len(), then.spells.len() + 1);
+    assert_eq!(now.spells.len(), then.spells.len() + 2);
     assert_eq!(without, then.spells.iter().collect::<Vec<_>>());
     assert_eq!(now.monsters, then.monsters);
 }

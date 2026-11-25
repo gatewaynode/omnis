@@ -380,6 +380,20 @@ pub fn door_collapsed(
     state.is_some_and(|state| state.door_wear(level, x, y, facing).collapsed)
 }
 
+/// What a repair of `target` by tools would take (`Command::Repair`): the minutes, the supplies
+/// and the material whose tool and supplies they are, whoever does it and whatever is carried.
+///
+/// # Errors
+/// Why the thing is none to repair: `NothingToRepair` for a whole thing, `Buried` for a fallen
+/// doorway, `CannotBeDamaged`, or no such thing where the party knows of it.
+pub fn repair_quote(
+    world: &World,
+    data: &Data,
+    target: &crate::combat::Target,
+) -> Result<crate::repair::RepairQuote, crate::command::Rejection> {
+    crate::repair::quote(world, data, target)
+}
+
 /// The service a step in `direction` would go into, if it lands on a site.
 #[must_use]
 pub fn site_ahead(world: &World, data: &Data, direction: Direction) -> Option<ServiceId> {

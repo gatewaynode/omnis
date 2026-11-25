@@ -954,7 +954,14 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
         log lines, `reshapes`, a broken door drawn as two stumps, no "Open the door". Seventeen mutants
         caught. Consequence said to the owner: every door is breakable by default, so "Attack" is lit
         wherever a door is in sight.
-  - [ ] 10. Repair: mending and `Command::Repair`.
+  - [ ] 10. Repair: mending and `Command::Repair` (`tasks/plans/repair.md`, approved 2026-11-25. Owner's
+        choices: a cleared doorway can be rebuilt; a failed check loses time and supplies; tool and
+        supplies anywhere in the party; a thing only damaged needs no supplies).
+    - [x] 10a. Engine (2026-11-25): `repair.rs`, `Command::Repair`, the `Mend` arm of `casting.rs`,
+          `Chosen::Repair`, `query::repair_quote`, `base:spell:mending` and `repair_dc`; base resealed
+          0.1.11. 19 commands, 87 events, 83 rejections. 28 mutants caught. The tests were written
+          before the code and first ran after it.
+    - [ ] 10b. Client entry: the Actions row, the log lines and refusals, the redraw.
   - [ ] 11. Repair service.
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.
         Pulled forward at the owner's word (2026-11-15, "a visual representation of a destroyed

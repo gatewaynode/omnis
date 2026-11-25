@@ -8,6 +8,7 @@ use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::party;
+use crate::repair::{self, Harmed};
 use crate::utility::{self, Hand};
 use crate::world::World;
 use alloc::string::String;
@@ -31,6 +32,8 @@ pub(crate) struct Checked<'a> {
     strike: Option<String>,
     /// The object the spell is to damage, when it is aimed at one.
     thing: Option<Thing<'a>>,
+    /// The thing the spell is to make whole, when it mends.
+    mends: Option<Harmed<'a>>,
 }
 
 /// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
@@ -57,11 +60,15 @@ pub(crate) fn validate<'a>(
     let effect = def.effect.clone().ok_or_else(|| Rejection::NotCastable {
         spell: cast::spell_name(data, id),
     })?;
-    // Mending is data only until repair is built (step 10 of `tasks/plans/combat-in-feet.md`).
-    if let SpellEffect::Utility(Utility::Mend { .. }) = effect {
-        return Err(Rejection::NotCastable {
-            spell: cast::spell_name(data, id),
-        });
+    // Mending: a harmed thing in touch, no bigger than the spell restores.
+    let mut mends = None;
+    if let SpellEffect::Utility(Utility::Mend { up_to }) = effect {
+        let harmed = repair::harmed(world, data, &target)?;
+        crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
+        if harmed.size > up_to {
+            return Err(Rejection::TooLarge);
+        }
+        mends = Some(harmed);
     }
     if let SpellEffect::Heal { .. } | SpellEffect::Buff { .. } = effect {
         let Target::Member(id) = target else {
@@ -110,7 +117,7 @@ pub(crate) fn validate<'a>(
     let aim = match target {
         Target::Member(id) => Aim::Member(usize::from(world.party.slot_of(id)?)),
         Target::Stack(stack) => Aim::Stack(stack),
-        _ if hand.is_some() || strike.is_some() || thing.is_some() => Aim::Party,
+        _ if hand.is_some() || strike.is_some() || thing.is_some() || mends.is_some() => Aim::Party,
         _ => return Err(Rejection::WrongTarget),
     };
     let plan = CastPlan {
@@ -128,6 +135,7 @@ pub(crate) fn validate<'a>(
         hand,
         strike,
         thing,
+        mends,
     })
 }
 
@@ -193,6 +201,7 @@ pub(crate) fn apply(
         hand,
         strike,
         thing,
+        mends,
     } = validate(world, data, caster, spell, target, &mut roller.rng)?;
     cast::pay(world, data, &plan, events).map_err(Rejection::Rule)?;
     if let Some(being) = strike {
@@ -230,6 +239,11 @@ pub(crate) fn apply(
         (SpellEffect::Light { depth, minutes }, _) => {
             let light = EffectKind::Light { depth };
             cast::cast_lasting(world, data, &plan, def, light, minutes, events);
+        }
+        (SpellEffect::Utility(Utility::Mend { .. }), _) => {
+            if let Some(harmed) = &mends {
+                repair::restore(world, data, harmed, caster, true, events);
+            }
         }
         (SpellEffect::Utility(Utility::OpenDoor { .. }), _) => {
             if let Some(hand) = &hand {

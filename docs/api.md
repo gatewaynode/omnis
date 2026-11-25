@@ -608,7 +608,8 @@ targets, then send the command (PRD §7.3). `targets.get` is the second step. `C
 the option: `{"Spell": {"spell": id, "pay": "Action" | "BonusAction"}}` (`pay` may be left out
 and matters only in a fight), `{"Item": {"item": id}}`, `{"Feature": {"feature": key,
 "exchange": bool}}` (`exchange` for a feature that offers one, Cunning Action), `"Attack"`,
-`"Exchange"`. One `TargetView` per possible target: `target` (`Target`, as the command takes
+`"Exchange"`, `"Repair"` (on the road: the damaged and broken objects and doors in touch, each
+refused as `Repair` by that member would be). One `TargetView` per possible target: `target` (`Target`, as the command takes
 it), `distance` (tiles from the party as a king moves; 0 for a member and in a fight),
 `sight` (`Clear` or `Obscured`), `refusal` (`Rejection` or null).
 
@@ -838,7 +839,7 @@ origin says which file defined the slot, not that the formula is still that file
 
 ## 8. Commands
 
-`Command` (18 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (19 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -851,6 +852,7 @@ means the same thing after a reorder or a change to a list.
 | `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. A broken door is refused (`Broken`) and is not among `Interact`'s choices. Costs 1 minute. Exploring only. |
 | `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
 | `Clear` | | Clear the rubble of the doorway on the faced edge that fell in when its door was broken (`DoorFrame` with `collapsed`): `DoorCleared`, then the rules value `rubble_clear_minutes` passes (60 in base, and when unwritten) and the doorway stands open for good. Refused `NothingToClear`. `Interact` never does it: an hour is asked for by name. Exploring only. |
+| `Repair` | `member`, `target` (`{"Object": {object}}` or `{"Door": {x, y, facing}}`) | Repair a damaged or broken thing in touch by tools. The party carries, in any member's pack or the stores, an item whose `craft` is `Tool` for the thing's material (else `NeedsTool`) and, when the thing is broken, supplies (`craft: Supply` for the material) by its size: Tiny 0, Small 1, Medium 2, Large 4, Huge 8, Gargantuan 16 (else `NeedsSupplies`); a thing only damaged takes none. The supplies are used (`ItemSpent`, packs in marching order, then the stores), the member's Dexterity is tried against the rules value `repair_dc` (10 in base, and when unwritten; `Check` with `Ability(Dexterity)`, on the `repair` stream), and on a pass the thing is whole (`ObjectRepaired` or `DoorRepaired`). The minutes by size pass either way: 10, 30, 60, 120, 240, 480. A failed check loses the supplies. Refused `NothingToRepair`, `Buried`, `CannotBeDamaged`, `BeyondRange`, `NoSuchObject`, `NoDoor`, `MemberDown`, `MemberDead`, and `WrongTarget` for a target that is no thing of the map or a thing with no material written. Exploring only. `query::repair_quote` (Tier 1) says the minutes, supplies and material before anything is spent. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
@@ -977,7 +979,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 85 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 87 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1061,6 +1063,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `DoorBroken` | `map`, `level`, `x`, `y`, `facing` | The door has no hit points left: it counts as open for steps, sight and reach from then on, and can be neither opened nor shut. |
 | `DoorFrame` | `map`, `level`, `x`, `y`, `facing`, `roll` (`RollTrace`, the d100), `collapsed` | Told after `DoorBroken` on a map whose `door_make.collapse_percent` is above 0 (25 unless the map says): the frame's roll, on the stream of the blow. `collapsed` (the roll was the percent or under): the doorway is rubble, shut to steps (`Blocked` with `Rubble`), sight and reach, and still `Broken` to `Door`, mage hand and blows, until `Clear`. |
 | `DoorCleared` | `map`, `level`, `x`, `y`, `facing` | `Clear`: the rubble is gone and the doorway stands open for good. |
+| `ObjectRepaired` | `object`, `by` (`CharacterId`), `mended` | The object is whole: no damage, not broken, and out of its kind's broken state into the one it was placed in. What it spilled stays where it fell. `mended`: by the mending spell, not by `Repair`. |
+| `DoorRepaired` | `map`, `level`, `x`, `y`, `facing`, `by`, `mended` | The door is whole: no damage, and when it had broken it is hung shut. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -1108,7 +1112,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (78 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (83 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -1175,6 +1179,11 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `CannotBeDamaged` | | `Cast` or `Attack` at an object or a door: its kind (or the map's `door_make`) has no `durability`, or the spell strikes creatures only (`Spell.objects` false). |
 | `Broken` | | The object is broken: `Cast` and `Attack` at it, `Act` on it and taking from or putting into it are refused until it is repaired. A broken door: `Cast` and `Attack` at it, `Door`, and mage hand. |
 | `NothingToClear` | | `Clear`: no fallen doorway is on the faced edge. |
+| `NothingToRepair` | | `Repair`, or a cast that mends: the thing has taken no damage and is not broken. |
+| `Buried` | | `Repair`, or a cast that mends, at a doorway that fell in: its rubble is cleared first (`Clear`). |
+| `TooLarge` | | A cast that mends: the thing is bigger than the spell's `up_to`. A door's size is its map's `door_make.size`; an object with no size written counts as Medium. |
+| `NeedsTool` | `material` | `Repair`: no pack and not the stores hold a tool for things of that material. |
+| `NeedsSupplies` | `material`, `have`, `need` | `Repair` of a broken thing: the party carries `have` supplies for that material and the repair takes `need`. |
 | `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. `Cast` at a `Door`: no door on that edge that the party sees or knows of. |
@@ -1294,7 +1303,16 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-24 (latest, a dash is said; the owner: "add the dash wording to the log"): `Event::StackMoved`
+- 2026-11-25 (latest, repair; combat in feet step 10, `tasks/plans/repair.md`; the owner: a cleared doorway
+  can be rebuilt, a failed check loses time and supplies, tool and supplies anywhere in the party, a thing
+  only damaged needs no supplies): `Command::Repair { member, target }` (19 commands). Events
+  `ObjectRepaired` and `DoorRepaired` (87). Rejections `NothingToRepair`, `Buried`, `TooLarge`, `NeedsTool`,
+  `NeedsSupplies` (83). `Chosen` gains `"Repair"`. A spell whose effect is `Utility::Mend` is castable on the
+  road at a damaged or broken object or door in touch no bigger than its `up_to` (it was `NotCastable`), and
+  `targets.get` lists those things for it. `base` gains the cantrip `base:spell:mending` (cleric and
+  wizard, `up_to: Small`; 21 spells) and the rules value `repair_dc` (10). **Behaviour**: a doorway whose
+  rubble was cleared is no longer open for good: it is a broken door, and a repair hangs a door there.
+- 2026-11-24 (a dash is said; the owner: "add the dash wording to the log"): `Event::StackMoved`
   gains `dash`, true when the move was the stack's Dash (its action spent on its speed again, made instead
   of attacking) and false for its plain move and for a throw. No behaviour changed and no count moved; a
   client that matches the event's fields by name must take the new one.
