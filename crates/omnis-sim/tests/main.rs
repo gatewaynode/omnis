@@ -45,6 +45,7 @@ mod push;
 mod reactions;
 mod reload;
 mod repair;
+mod repair_service;
 mod rest;
 mod rest_view;
 mod road_attack;

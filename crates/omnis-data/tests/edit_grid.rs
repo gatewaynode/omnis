@@ -51,12 +51,12 @@ fn the_test_packs_maps_read_and_write_byte_for_byte() {
 
 #[test]
 fn the_fixture_maps_with_levels_heights_and_objects_too() {
-    // tower: four levels; hills: heights rows; yard: two levels with objects.
+    // tower: four levels; hills: heights rows; yard: two levels with objects, and the forge.
     let counts: Vec<usize> = ["levels", "heights", "objects"]
         .iter()
         .map(|name| round_trips(&with_fixture(name)) - 4)
         .collect();
-    assert_eq!(counts, [4, 1, 2]);
+    assert_eq!(counts, [4, 1, 3]);
 }
 
 #[test]

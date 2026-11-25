@@ -560,8 +560,11 @@ last).
 `OfferView`: `command` (the exact `ServiceCommand` that asks for it, ready to send; counts are
 1), `member` (`CharacterId` at the temple, the trainer and for spells, or null), `price`
 (copper, 0 when free; null for a sale or when refused before a price), `pays` (copper a sale
-brings), `refusal` (`Rejection` or null), `subject` (the item or spell id the command names, or
-null). A smith offers each stocked item to buy and each item kind in the stores to sell; a
+brings), `refusal` (`Rejection` or null), `subject` (the item or spell id the command names, for
+a repair the id of the object's kind, or null), `broken` (a repair's only: whether the thing is
+broken and not only damaged; left out otherwise). A smith offers each stocked item to buy, each
+item kind in the stores to sell, and a `Repair` of each damaged or broken thing on the maps of
+its region (a buried doorway with the refusal `Buried` and no price); a
 temple heals, cures and raises each member; a trainer trains each member and offers each spell
 pick; a guild or temple offers its spells to each member. A bank lists only leaving; deposits
 and withdrawals are sent with an amount.
@@ -927,7 +930,16 @@ container's contents only once they differ from the map's.
 stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amount }`,
 `Withdraw { amount }` (bank, copper), `Train { member }` (trainer: the next level),
 `Choose { member, spell }` (trainer: a pick from the member's class list, free),
-`Learn { member, spell }` (guild or temple: a spell it teaches, bought).
+`Learn { member, spell }` (guild or temple: a spell it teaches, bought),
+`Repair { job }` (smith: a damaged or broken thing on a map of the smith's region made whole for
+coin, at once; no tool, check or supplies). A `Job` is `{"Object": {map, object}}` (the map's
+string id and the placement's id) or `{"Door": {map, level, x, y, facing}}` (`level` left out for
+the ground); the jobs are among the smith's offers. The price is the slot `smith.repair_cost`
+over `supplies` (by the thing's size: 0, 1, 2, 4, 8, 16) and `broken` (1 or 0): in `base`, ten
+times the supplies at 5 sp, 2 gp at the least, half for a thing only damaged. Refusals:
+`NotOffered` (not a smith, or a map outside its region), `NoSuchObject`, `NoDoor`,
+`CannotBeDamaged`, `NothingToRepair`, `Buried` (the party clears the rubble first),
+`CannotAfford`.
 
 `RestCommand`: `Short { spend }` (an hour; `spend` is `[HitDiceSpend]`, each
 `{"member": CharacterId, "count"}`; members not named spend none, a member named twice is
@@ -979,7 +991,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 87 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 88 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1063,7 +1075,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `DoorBroken` | `map`, `level`, `x`, `y`, `facing` | The door has no hit points left: it counts as open for steps, sight and reach from then on, and can be neither opened nor shut. |
 | `DoorFrame` | `map`, `level`, `x`, `y`, `facing`, `roll` (`RollTrace`, the d100), `collapsed` | Told after `DoorBroken` on a map whose `door_make.collapse_percent` is above 0 (25 unless the map says): the frame's roll, on the stream of the blow. `collapsed` (the roll was the percent or under): the doorway is rubble, shut to steps (`Blocked` with `Rubble`), sight and reach, and still `Broken` to `Door`, mage hand and blows, until `Clear`. |
 | `DoorCleared` | `map`, `level`, `x`, `y`, `facing` | `Clear`: the rubble is gone and the doorway stands open for good. |
-| `ObjectRepaired` | `object`, `by` (`CharacterId`), `mended` | The object is whole: no damage, not broken, and out of its kind's broken state into the one it was placed in. What it spilled stays where it fell. `mended`: by the mending spell, not by `Repair`. |
+| `ObjectRepaired` | `map`, `object`, `by` (`CharacterId`, or null for a smith paid to), `mended` | The object is whole: no damage, not broken, and out of its kind's broken state into the one it was placed in. What it spilled stays where it fell. `mended`: by the mending spell, not by `Repair`. |
 | `DoorRepaired` | `map`, `level`, `x`, `y`, `facing`, `by`, `mended` | The door is whole: no damage, and when it had broken it is hung shut. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
@@ -1090,6 +1102,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ServiceEntered` | `service` (id) | The party went into the service on its tile. |
 | `ServiceLeft` | `service` | The party came out. |
 | `RoomTaken` | `cost` | A night at the inn (a long rest); `Healed` follows. |
+| `RepairBought` | `service` (id), `cost` | A smith was paid to repair a thing; `ObjectRepaired` or `DoorRepaired` (with `by` null) follows and says which. |
 | `FoodBought` | `count`, `cost` | Food into the larder. |
 | `Rumor` | `service`, `rumor` (the rumor's position in the tavern's rumors, file order), `ago` (minutes on the region's clock) | A rumor heard. |
 | `Treated` | `member`, `cost` | A temple healed or cured; `Healed` and `Condition` follow. |
@@ -1303,7 +1316,14 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-25 (latest, repair; combat in feet step 10, `tasks/plans/repair.md`; the owner: a cleared doorway
+- 2026-11-25 (latest, the smith's repair service; combat in feet step 11, `tasks/plans/repair-service.md`;
+  the owner: damaged things too at half, a buried doorway listed and refused, ten times the supplies):
+  `ServiceCommand::Repair { job }` and the type `Job`. Event `RepairBought` (88). `OfferView` gains `broken`,
+  and its `subject` is the object's kind for a repair. `base` gains the slot `smith.repair_cost` and is
+  resealed (0.1.12). **Two event shapes changed, not additively** (both a day old): `ObjectRepaired` gains
+  `map`, and `by` of `ObjectRepaired` and `DoorRepaired` is now a `CharacterId` or null (a smith). A reader
+  that took `by` as always a member must take null.
+- 2026-11-25 (repair; combat in feet step 10, `tasks/plans/repair.md`; the owner: a cleared doorway
   can be rebuilt, a failed check loses time and supplies, tool and supplies anywhere in the party, a thing
   only damaged needs no supplies): `Command::Repair { member, target }` (19 commands). Events
   `ObjectRepaired` and `DoorRepaired` (87). Rejections `NothingToRepair`, `Buried`, `TooLarge`, `NeedsTool`,

@@ -166,16 +166,18 @@ fn a_repair_is_told_and_the_door_is_drawn_back_in_its_frame() {
     assert!(!offered(&world, &data), "nothing more to repair");
     // An object, by the spell and by tools.
     let mended = Event::ObjectRepaired {
+        map: "objects:map:yard".into(),
         object: "crate_1".into(),
-        by: fighter,
+        by: Some(fighter),
         mended: true,
     };
     let line = text::describe(&mended, &names, &data).expect("told");
     assert!(line.starts_with(&format!("{who} mends ")), "{line}");
     assert!(reshapes(&mended));
     let repaired = Event::ObjectRepaired {
+        map: "objects:map:yard".into(),
         object: "crate_1".into(),
-        by: fighter,
+        by: Some(fighter),
         mended: false,
     };
     let line = text::describe(&repaired, &names, &data).expect("told");

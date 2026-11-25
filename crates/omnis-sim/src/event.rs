@@ -679,10 +679,12 @@ pub enum Event {
     /// An object was made whole (PRD §8.3): no damage, not broken, and out of its kind's broken
     /// state. What it spilled stays where it fell.
     ObjectRepaired {
+        /// The map's string id.
+        map: String,
         /// The placement's id.
         object: String,
-        /// Who did it.
-        by: CharacterId,
+        /// Who did it; `None` for a smith paid to (`RepairBought` comes before it).
+        by: Option<CharacterId>,
         /// By the mending spell, not by tools.
         mended: bool,
     },
@@ -699,8 +701,8 @@ pub enum Event {
         y: u16,
         /// The edge of that tile the door is on.
         facing: Facing,
-        /// Who did it.
-        by: CharacterId,
+        /// Who did it; `None` for a smith paid to (`RepairBought` comes before it).
+        by: Option<CharacterId>,
         /// By the mending spell, not by tools.
         mended: bool,
     },
@@ -888,6 +890,14 @@ pub enum Event {
     ServiceLeft {
         /// Which.
         service: String,
+    },
+    /// A smith was paid to repair a thing of its region (PRD §8.3): the `ObjectRepaired` or
+    /// `DoorRepaired` that follows says which.
+    RepairBought {
+        /// The service's string id.
+        service: String,
+        /// Copper paid.
+        cost: u32,
     },
     /// A night at the inn: a long rest; the restoration follows as `Healed` events.
     RoomTaken {

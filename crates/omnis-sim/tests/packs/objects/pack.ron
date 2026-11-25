@@ -3,8 +3,8 @@
 (
     schema: 1,
     id: "objects",
-    version: "0.1.10",
-    hash: 9169258786753955413,
+    version: "0.1.11",
+    hash: 11089983567757788791,
     name: "Omnis object fixtures",
     license: "MIT OR Apache-2.0",
     attribution: [],

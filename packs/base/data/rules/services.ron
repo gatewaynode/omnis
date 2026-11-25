@@ -9,6 +9,10 @@
     slots: {
         "shop.buy_price": (priority: 0, inputs: ["cost_cp"], expr: "cost_cp"),
         "shop.sell_price": (priority: 0, inputs: ["cost_cp"], expr: "cost_cp / 2"),
+        // A smith's repair (owner, 2026-11-25): ten times the supplies the job would use at 5 sp
+        // each, 2 gp at the least (a Tiny thing uses none); half for a thing only damaged
+        // (`broken` is 0).
+        "smith.repair_cost": (priority: 0, inputs: ["supplies", "broken"], expr: "max(supplies * 500, 200) / (2 - broken)"),
         "inn.room_cost": (priority: 0, inputs: ["members"], expr: "members * 50"),
         "tavern.food_cost": (priority: 0, inputs: ["count"], expr: "count * 50"),
         "temple.heal_cost": (priority: 0, inputs: ["missing"], expr: "missing * 100"),

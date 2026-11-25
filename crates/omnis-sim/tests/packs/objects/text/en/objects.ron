@@ -3,6 +3,7 @@
     entries: {
         "objects:text:map.yard.name": "Test Yard",
         "objects:text:map.yard.loft": "Loft",
+        "objects:text:map.forge.name": "Test Forge",
         "objects:text:region.yard.name": "Test Yard",
         "objects:text:biosphere.ember.name": "Ember",
         "objects:text:monster.pack_rat.name": "Pack rat",

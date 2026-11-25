@@ -190,8 +190,9 @@ fn mending_makes_a_small_thing_whole_and_refuses_what_is_bigger() {
     let events = mend(&mut world, &data, thing("chest_1")).expect("a mend");
     let wizard = world.party.members[WIZARD].id;
     let mended = Event::ObjectRepaired {
+        map: "objects:map:yard".into(),
         object: "chest_1".into(),
-        by: wizard,
+        by: Some(wizard),
         mended: true,
     };
     assert!(events.contains(&mended), "{events:?}");
@@ -312,8 +313,9 @@ fn a_damaged_thing_is_repaired_with_the_tool_the_check_and_the_time_and_no_suppl
     let (fixed, events) = outcome(&world, &data, &thing("crate_1"), true);
     let fighter = world.party.members[FIGHTER].id;
     let repaired = Event::ObjectRepaired {
+        map: "objects:map:yard".into(),
         object: "crate_1".into(),
-        by: fighter,
+        by: Some(fighter),
         mended: false,
     };
     assert!(events.contains(&repaired), "{events:?}");

@@ -44,7 +44,7 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
     assert!(ok);
     assert!(out.starts_with("ok: 2 packs, 4 maps, 2 tilesets"), "{out}");
     assert!(
-        out.ends_with("36 rule slots, 7 services, 0 objects\n"),
+        out.ends_with("37 rule slots, 7 services, 0 objects\n"),
         "{out}"
     );
     let (ok, _, err) = cli(&["validate", "crates/omnis-sim/tests/packs/test"]);

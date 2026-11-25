@@ -52,8 +52,17 @@ fn lists(view: &ServiceView) -> Vec<(&'static str, Vec<usize>)> {
     let learn = |c: &ServiceCommand| matches!(c, ServiceCommand::Learn { .. });
     let train = |c: &ServiceCommand| matches!(c, ServiceCommand::Train { .. });
     let choose = |c: &ServiceCommand| matches!(c, ServiceCommand::Choose { .. });
+    let repair = |c: &ServiceCommand| matches!(c, ServiceCommand::Repair { .. });
     match view.kind {
-        ServiceKind::Smith => vec![("For sale", pick(buy)), ("Your stores", pick(sell))],
+        ServiceKind::Smith => {
+            let mut lists = vec![("For sale", pick(buy)), ("Your stores", pick(sell))];
+            // Shown only when something in the smith's region is harmed.
+            let repairs = pick(repair);
+            if !repairs.is_empty() {
+                lists.push(("Repairs", repairs));
+            }
+            lists
+        }
         ServiceKind::Inn | ServiceKind::Tavern => vec![("On offer", pick(|_| true))],
         ServiceKind::Temple => vec![
             (

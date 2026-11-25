@@ -14,7 +14,7 @@ use omnis_sim::omnis_data::{
     Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill, Verb,
 };
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
-use omnis_sim::{CheckKind, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
+use omnis_sim::{CheckKind, Job, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
 /// Day, hour and minute from elapsed party minutes: "Day 2 01:01".
 #[must_use]
@@ -141,6 +141,20 @@ pub fn service<'d>(data: &'d Data, id: &'d str) -> &'d str {
         .get(id)
         .and_then(|n| data.services.get(&n))
         .map_or(id, |d| text(data, &d.name))
+}
+
+/// An object of a map by its placement id: the placement's own name, else its kind's;
+/// "something" for one the map does not hold.
+#[must_use]
+pub fn placed(data: &Data, map: &str, object: &str) -> String {
+    let def = data.registry.maps.get(map);
+    let def = def.and_then(|m| data.maps.get(&m));
+    let placement = def.and_then(|m| m.objects.iter().find(|p| p.id == object));
+    let key = placement.and_then(|p| match p.name {
+        Some(key) => data.registry.text.name(key),
+        None => data.objects.get(&p.kind).map(|k| k.name.as_str()),
+    });
+    key.map_or_else(|| "something".to_owned(), |key| text(data, key).to_owned())
 }
 
 /// A map's name from its string id.
@@ -385,9 +399,39 @@ pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String 
         | ServiceCommand::Learn { member: id, spell } => named(*id, &|m| {
             format!("{}: {}", m.name, self::spell(data, spell))
         }),
+        ServiceCommand::Repair { job } => repair_label(data, offer, job),
         ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => String::new(),
+    }
+}
+
+/// A smith's repair row names the thing, its harm and where it stands: "Crate (broken), Test
+/// Forge", "Door (damaged), Test Tower, Roof (2)".
+fn repair_label(data: &Data, offer: &OfferView, job: &Job) -> String {
+    let kind = offer.subject.as_deref().and_then(|id| {
+        let kind = data.registry.objects.get(id)?;
+        Some(text(data, &data.objects.get(&kind)?.name))
+    });
+    let what = match job {
+        Job::Object { .. } => kind.unwrap_or("Thing"),
+        Job::Door { .. } => "Door",
+    };
+    let harm = if offer.broken == Some(true) {
+        "broken"
+    } else {
+        "damaged"
+    };
+    let def = data.registry.maps.get(job.map());
+    let def = def.and_then(|m| data.maps.get(&m));
+    let floor = match (job, def) {
+        (Job::Door { level: at, .. }, Some(def)) => level(data, def, *at),
+        _ => None,
+    };
+    let place = map(data, job.map());
+    match floor {
+        Some(floor) => format!("{what} ({harm}), {place}, {floor}"),
+        None => format!("{what} ({harm}), {place}"),
     }
 }
 
@@ -426,6 +470,7 @@ pub const fn offer_caption(command: &ServiceCommand) -> &'static str {
         ServiceCommand::Train { .. } => "Train",
         ServiceCommand::Choose { .. } => "Choose",
         ServiceCommand::Learn { .. } => "Learn",
+        ServiceCommand::Repair { .. } => "Repair",
         ServiceCommand::Leave => "Leave",
     }
 }
@@ -450,6 +495,7 @@ pub fn service_reason(refusal: &Rejection) -> String {
         Rejection::CannotAfford { .. } => "not enough money".to_owned(),
         Rejection::NothingToTreat { .. } => "nothing to treat".to_owned(),
         Rejection::NotDead { .. } => "not dead".to_owned(),
+        Rejection::Buried => "the rubble must be cleared first".to_owned(),
         Rejection::BankShort { bank, .. } => format!("the bank holds {}", coins(*bank)),
         // The row names the member; the engine's words name them by number.
         Rejection::NotReady { xp, needed, .. } => format!("{xp} of {needed} XP"),

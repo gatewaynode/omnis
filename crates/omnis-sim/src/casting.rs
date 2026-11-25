@@ -8,7 +8,7 @@ use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::party;
-use crate::repair::{self, Harmed};
+use crate::repair::{self, Worn};
 use crate::utility::{self, Hand};
 use crate::world::World;
 use alloc::string::String;
@@ -33,7 +33,7 @@ pub(crate) struct Checked<'a> {
     /// The object the spell is to damage, when it is aimed at one.
     thing: Option<Thing<'a>>,
     /// The thing the spell is to make whole, when it mends.
-    mends: Option<Harmed<'a>>,
+    mends: Option<Worn<'a>>,
 }
 
 /// Every check of an explore-mode cast, before anything is paid: a caster who can act, a
@@ -65,10 +65,10 @@ pub(crate) fn validate<'a>(
     if let SpellEffect::Utility(Utility::Mend { up_to }) = effect {
         let harmed = repair::harmed(world, data, &target)?;
         crate::targets::in_range(world, data, None, own, def.targeting(), &target)?;
-        if harmed.size > up_to {
+        if harmed.thing.size > up_to {
             return Err(Rejection::TooLarge);
         }
-        mends = Some(harmed);
+        mends = Some(harmed.thing);
     }
     if let SpellEffect::Heal { .. } | SpellEffect::Buff { .. } = effect {
         let Target::Member(id) = target else {
@@ -242,7 +242,7 @@ pub(crate) fn apply(
         }
         (SpellEffect::Utility(Utility::Mend { .. }), _) => {
             if let Some(harmed) = &mends {
-                repair::restore(world, data, harmed, caster, true, events);
+                repair::restore(world, data, harmed, Some(caster), true, events);
             }
         }
         (SpellEffect::Utility(Utility::OpenDoor { .. }), _) => {
