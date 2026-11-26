@@ -36,6 +36,19 @@ fn dim(text: impl Into<String>, size: Size) -> Span {
     }
 }
 
+/// The heading of the smith's list of repairs.
+const REPAIRS: &str = "Repairs";
+
+/// What an empty list says under its heading. A list never leaves the screen when it empties:
+/// the outcome of a click is read where the click was.
+fn nothing(heading: &str) -> &'static str {
+    if heading == REPAIRS {
+        "The party carries no broken items"
+    } else {
+        "Nothing to offer"
+    }
+}
+
 /// The lists a kind of service shows, each a heading and its offers by index into the view's
 /// offers (the retired client's `feathers_service::lists`). Leaving is never in a list.
 fn lists(view: &ServiceView) -> Vec<(&'static str, Vec<usize>)> {
@@ -53,7 +66,13 @@ fn lists(view: &ServiceView) -> Vec<(&'static str, Vec<usize>)> {
     let train = |c: &ServiceCommand| matches!(c, ServiceCommand::Train { .. });
     let choose = |c: &ServiceCommand| matches!(c, ServiceCommand::Choose { .. });
     match view.kind {
-        ServiceKind::Smith => vec![("For sale", pick(buy)), ("Your stores", pick(sell))],
+        // The smith repairs only what the party carries (the owner, 2026-11-26). Nothing
+        // carried wears yet, so the list is empty; it stands all the same, with its own words.
+        ServiceKind::Smith => vec![
+            ("For sale", pick(buy)),
+            ("Your stores", pick(sell)),
+            (REPAIRS, Vec::new()),
+        ],
         ServiceKind::Inn | ServiceKind::Tavern => vec![("On offer", pick(|_| true))],
         ServiceKind::Temple => vec![
             (
@@ -173,7 +192,7 @@ pub fn content(data: &Data, game: Game, bank: &str) -> Screen {
                     .filter_map(|&i| offer_row(data, game, view, i)),
             );
             if offers.is_empty() {
-                rows.push(Row::text(dim("Nothing to offer", Size::Body)));
+                rows.push(Row::text(dim(nothing(title), Size::Body)));
             }
             Panel { rows }
         })

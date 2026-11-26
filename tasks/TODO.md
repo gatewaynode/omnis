@@ -988,8 +988,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
             `save/names.rs::ITEMS_SINCE_NAMES`. Kept: `Worn`/`Harmed`, `ObjectRepaired.map`, `by:
             Option`. Base 0.1.13, fixture `objects` 0.1.12. 6 mutants caught. The kit's tests were
             written with its code, not before it.
-      - [ ] Client: the "Repairs" column always shown at a smith with "The party carries no broken
-            items"; the result line under the screen's title on every screen; tests.
+      - [x] Client (2026-11-26): the "Repairs" column always shown at a smith with "The party carries
+            no broken items" (`screen/service.rs`: `REPAIRS`, `nothing`); the outcome line under the
+            screen's title on every screen (`shell/screen_draw.rs::build`). Tests in
+            `omnis-vector/tests/service.rs`; 5 mutants caught. Built, not yet tried by the owner.
   - [ ] **Hired repair teams** (owner, 2026-11-26; own plan, in plan mode, right after 11c and before 12):
         the party recruits hirelings and pays a team to go and repair what is broken in a place made
         safe: every placed encounter cleared and the source of its random encounters cleared (the

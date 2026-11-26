@@ -803,7 +803,7 @@ fn grow(screen: &Screen, panel: usize) -> (f32, Val) {
     }
 }
 
-/// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
+/// Build the screen's nodes under the root: the heading, the outcome, the panels side by side.
 /// Under a mark that rewrites, the words carry the markers they are rewritten in place by
 /// (`sync`). `keep` is the field that had the keyboard, which keeps it.
 pub(super) fn build(
@@ -832,6 +832,14 @@ pub(super) fn build(
     let mut title = parent.spawn(words(&t.text, t.role, t.size, height));
     if let Some(of) = spawn.rewriting() {
         title.insert((TitleText, of));
+    }
+    // The outcome sits under the title, above the panels: under them it lay below the longest
+    // list (the owner's report, 2026-11-26: the smith's line was buried under the sales).
+    if let Some(m) = &screen.message {
+        let mut message = parent.spawn(words(&m.text, m.role, m.size, height));
+        if let Some(of) = spawn.rewriting() {
+            message.insert((MessageText, of));
+        }
     }
     parent
         .spawn(Node {
@@ -877,12 +885,6 @@ pub(super) fn build(
                     });
             }
         });
-    if let Some(m) = &screen.message {
-        let mut message = parent.spawn(words(&m.text, m.role, m.size, height));
-        if let Some(of) = spawn.rewriting() {
-            message.insert((MessageText, of));
-        }
-    }
 }
 
 /// Escape leaves a text field the keyboard. Bevy's text input gives the keyboard up on Escape

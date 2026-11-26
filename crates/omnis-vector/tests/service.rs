@@ -274,7 +274,7 @@ fn each_service_opens_with_its_money_leave_and_lists_in_the_other_client_s_order
         (TEMPLE, &[&["On offer"], &["Spells"]]),
         (TRAINER, &[&["Levels"], &["Spell picks"]]),
         (GUILD, &[&["Spells"]]),
-        (SMITH, &[&["For sale"], &["Your stores"]]),
+        (SMITH, &[&["For sale"], &["Your stores"], &["Repairs"]]),
         (TAVERN, &[&["On offer"]]),
         (BANK, &[&[]]),
     ];
@@ -300,6 +300,52 @@ fn each_service_opens_with_its_money_leave_and_lists_in_the_other_client_s_order
             )
         );
         assert_eq!(top.controls[0].id, ControlId::Leave);
+    }
+}
+
+/// The words of a panel's dim rows: its placeholders.
+fn dim_rows(shown: &Screen, panel: usize) -> Vec<String> {
+    let rows = shown.panels[panel].rows.iter();
+    let spans = rows.flat_map(|r| &r.spans);
+    let dim = spans.filter(|s| s.role == Role::Dim);
+    dim.map(|s| s.text.clone()).collect()
+}
+
+/// The smith's "Repairs" column always stands, with its own words while the party carries
+/// nothing broken (the owner, 2026-11-26: a list does not vanish when it empties). A thing
+/// broken out in the world is not the smith's: the column is the same with a broken door on
+/// the map. No other service has the column.
+#[test]
+fn the_smith_s_repairs_column_stays_with_its_placeholder() {
+    let data = common::data();
+    let mut world = inside(&data, SMITH);
+    world.party.inventory.clear();
+    let shown = |world: &SimWorld| {
+        let views = common::views(world, &data);
+        screen::content(
+            ScreenId::Service,
+            &ctx(&data, world, &views),
+            &Forms::default(),
+        )
+    };
+    let smith = shown(&world);
+    assert_eq!(headings(&smith)[2], ["Repairs"]);
+    assert_eq!(dim_rows(&smith, 2), ["The party carries no broken items"]);
+    assert_eq!(smith.panels[2].rows.len(), 2, "the heading and the words");
+    assert_eq!(dim_rows(&smith, 1), ["Nothing to offer"], "the stores' own");
+    // The repair kit is among what the smith sells.
+    let sold = smith.panels[0].rows.iter().flat_map(|r| &r.spans);
+    assert!(sold.into_iter().any(|s| s.text == "Repair kit"));
+    for site in [INN, TEMPLE, TRAINER, GUILD, TAVERN, BANK] {
+        let other = shown(&inside(&data, site));
+        let all = headings(&other).concat();
+        assert!(!all.contains(&"Repairs".to_owned()), "{site:?}");
+        let panels = 0..other.panels.len();
+        let dim: Vec<String> = panels.flat_map(|p| dim_rows(&other, p)).collect();
+        assert!(
+            !dim.iter().any(|d| d.contains("broken")),
+            "{site:?}: {dim:?}"
+        );
     }
 }
 
@@ -647,6 +693,38 @@ fn a_purchase_reports_on_the_panel_and_the_report_goes_with_it() {
     assert_eq!(app.world().resource::<Screens>().forms.message, None);
 }
 
+/// The outcome of a click is drawn under the screen's title and above the lists, never under
+/// a long list (the owner, 2026-11-26: the smith's line was buried below the sales).
+#[test]
+fn the_outcome_line_is_drawn_above_the_lists() {
+    let mut app = app_inside(SMITH, 100_000);
+    app.update();
+    common::app::set(&mut app, &Pressable(ControlId::Offer(0)), Pointing::Press);
+    app.update();
+    app.update();
+    let line = app.world().resource::<Session>().lines.last().cloned();
+    let line = line.expect("a line");
+    let world = app.world_mut();
+    let mut texts = world.query::<(Entity, &Text, &ChildOf)>();
+    let found = texts.iter(world).find(|(_, t, _)| t.0 == line);
+    let (message, _, root) = found.expect("the line is drawn");
+    let root = root.parent();
+    let mut lists = world.query_filtered::<Entity, With<Scrolls>>();
+    let list = lists.iter(world).next().expect("a list");
+    // The child of the root that holds the lists.
+    let mut holder = list;
+    while let Some(up) = world.get::<ChildOf>(holder).map(ChildOf::parent) {
+        if up == root {
+            break;
+        }
+        holder = up;
+    }
+    let children = world.get::<Children>(root).expect("the root's children");
+    let place = |e: Entity| children.iter().position(|c| c == e).expect("a child");
+    assert!(place(message) < place(holder), "the line comes first");
+    assert_eq!(place(message), 1, "right under the title");
+}
+
 /// The wheel over a panel scrolls it; over none, nothing moves.
 #[test]
 fn the_wheel_scrolls_the_panel_under_the_cursor() {
@@ -668,9 +746,9 @@ fn the_wheel_scrolls_the_panel_under_the_cursor() {
         let mut q = world.query_filtered::<&ScrollPosition, With<Scrolls>>();
         q.iter(world).map(|p| p.0.y).collect()
     };
-    assert_eq!(at(&mut app), [0.0, 0.0], "two panels at the top");
+    assert_eq!(at(&mut app), [0.0, 0.0, 0.0], "three panels at the top");
     wheel(&mut app);
-    assert_eq!(at(&mut app), [0.0, 0.0], "the cursor is over neither");
+    assert_eq!(at(&mut app), [0.0, 0.0, 0.0], "the cursor is over none");
     let first = {
         let world = app.world_mut();
         let mut q = world.query_filtered::<Entity, With<Scrolls>>();
