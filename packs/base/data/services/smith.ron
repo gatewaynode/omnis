@@ -13,6 +13,6 @@
         "base:item:component_pouch", "base:item:holy_symbol", "base:item:spellbook",
         "base:item:thieves_tools", "base:item:map_making_kit", "base:item:potion_of_healing",
         "base:item:carpenters_tools", "base:item:smiths_tools", "base:item:masons_tools",
-        "base:item:timber", "base:item:iron_stock", "base:item:cut_stone",
+        "base:item:timber", "base:item:iron_stock", "base:item:cut_stone", "base:item:repair_kit",
     ],
 )

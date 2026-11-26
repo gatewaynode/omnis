@@ -81,11 +81,12 @@ fn names<I: Copy + From<u32> + Into<u32>>(interner: &Interner<I>) -> Vec<String>
 /// than that keeps bare numbers, counted when these did not exist, so it is read on the table
 /// without them ([`NameTable::before_names`]). A definition added to a shipped pack from here on
 /// is listed here in the same change.
-const ITEMS_SINCE_NAMES: [&str; 6] = [
+const ITEMS_SINCE_NAMES: [&str; 7] = [
     "base:item:carpenters_tools",
     "base:item:cut_stone",
     "base:item:iron_stock",
     "base:item:masons_tools",
+    "base:item:repair_kit",
     "base:item:smiths_tools",
     "base:item:timber",
 ];

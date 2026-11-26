@@ -12,7 +12,6 @@ use crate::event::Event;
 use crate::items::{add_to, count_of, take_from};
 use crate::names::id_of;
 use crate::party;
-use crate::repair::{self, Job};
 use crate::rest;
 use crate::service_level;
 use crate::world::{Mode, World};
@@ -112,12 +111,6 @@ pub enum ServiceCommand {
         /// The spell's id; the service must teach it.
         spell: String,
     },
-    /// A damaged or broken thing of the service's region made whole, for a fee and at once
-    /// (PRD §8.3); a smith.
-    Repair {
-        /// The thing: one of [`repair::jobs`].
-        job: Job,
-    },
 }
 
 impl ServiceCommand {
@@ -133,9 +126,7 @@ impl ServiceCommand {
             ServiceCommand::Heal { .. }
             | ServiceCommand::Cure { .. }
             | ServiceCommand::Raise { .. } => matches!(kind, ServiceKind::Temple),
-            ServiceCommand::Buy { .. }
-            | ServiceCommand::Sell { .. }
-            | ServiceCommand::Repair { .. } => {
+            ServiceCommand::Buy { .. } | ServiceCommand::Sell { .. } => {
                 matches!(kind, ServiceKind::Smith)
             }
             ServiceCommand::Deposit { .. } | ServiceCommand::Withdraw { .. } => {
@@ -208,10 +199,6 @@ pub(crate) enum Deal {
         /// A pick owed by a level (a trainer's, free) rather than a purchase.
         pick: bool,
     },
-    Repair {
-        job: Job,
-        cost: u32,
-    },
 }
 
 impl Deal {
@@ -225,8 +212,7 @@ impl Deal {
             | Deal::Raise { cost, .. }
             | Deal::Buy { cost, .. }
             | Deal::Train { cost, .. }
-            | Deal::Spell { cost, .. }
-            | Deal::Repair { cost, .. } => cost,
+            | Deal::Spell { cost, .. } => cost,
             Deal::Deposit { amount } => amount,
             Deal::Rumor { .. } | Deal::Sell { .. } | Deal::Withdraw { .. } => 0,
         }
@@ -345,18 +331,6 @@ pub(crate) fn quote(
         }
         ServiceCommand::Buy { ref item, count } => buy(world, data, def, item, count, roller)?,
         ServiceCommand::Sell { ref item, count } => sell(world, data, item, count, roller)?,
-        ServiceCommand::Repair { ref job } => {
-            let thing = repair::job_thing(world, data, world.position.map, job)?;
-            let inputs = [
-                ("supplies", repair::supplies_for(thing.size).into()),
-                ("broken", thing.broken.into()),
-            ];
-            let cost = price(data, "smith.repair_cost", &inputs, roller)?;
-            Deal::Repair {
-                job: job.clone(),
-                cost,
-            }
-        }
         ServiceCommand::Deposit { amount } | ServiceCommand::Withdraw { amount } => {
             bank(world, command, amount)?
         }
@@ -650,7 +624,6 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
                 gains,
             });
         }
-        Deal::Repair { ref job, cost } => mend(world, data, service, job, cost, events),
         Deal::Spell {
             index,
             spell,
@@ -674,27 +647,6 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
     }
     let minutes = rest::rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
     advance(world, data, minutes, events);
-}
-
-/// A smith's repair, validated: the coin is paid and the thing is whole.
-fn mend(
-    world: &mut World,
-    data: &Data,
-    service: ServiceId,
-    job: &Job,
-    cost: u32,
-    events: &mut Vec<Event>,
-) {
-    // Validated by `quote`: the thing is there to repair.
-    let Ok(thing) = repair::job_thing(world, data, world.position.map, job) else {
-        return;
-    };
-    world.party.gold -= cost;
-    events.push(Event::RepairBought {
-        service: id_of(&data.registry.services, service),
-        cost,
-    });
-    repair::restore(world, data, &thing, None, false, events);
 }
 
 /// A price from its rule slot, in copper.

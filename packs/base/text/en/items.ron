@@ -35,5 +35,6 @@
         "base:text:item.timber.name": "Timber",
         "base:text:item.iron_stock.name": "Iron stock",
         "base:text:item.cut_stone.name": "Cut stone",
+        "base:text:item.repair_kit.name": "Repair kit",
     },
 )

@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 30, 16, 21, 3, 37, 7)
+        (4, 4, 3, 31, 16, 21, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -755,8 +755,25 @@ fn the_base_pack_writes_the_fight_in_feet() {
             Material::Plant
         ]))
     );
+    // A repair kit is supplies for every material: general repair, with the material's tool.
+    let kit = item("repair_kit");
+    let all = [
+        Material::Wood,
+        Material::Stone,
+        Material::Metal,
+        Material::Cloth,
+        Material::Glass,
+        Material::Bone,
+        Material::Plant,
+        Material::Earth,
+        Material::Paper,
+        Material::Liquid,
+    ];
+    assert_eq!(kit.craft, Some(Craft::Supply(all.to_vec())));
+    assert_eq!((kit.cost_cp, kit.weight_tenths), (100, 50));
     let smith = &data.services[&data.registry.services.get("base:service:smith").unwrap()];
     for stock in [
+        "repair_kit",
         "carpenters_tools",
         "masons_tools",
         "iron_stock",

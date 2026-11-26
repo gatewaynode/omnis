@@ -232,27 +232,8 @@ fn item_schema() -> Value {
 /// The `Service` command's variants, inside a service only: `member` is a member's id, `Buy`'s
 /// `item` a string id in the service's stock, `Sell`'s one in the stores; amounts are copper.
 /// `Choose`'s `spell` is a string id on the member's class list, `Learn`'s one among the
-/// service's spells. `Repair`'s `job` is one of the smith's offers (`service_get`): an object by
-/// its map's string id and its placement's id, or a door by its map, its level (the ground when
-/// left out) and an edge of a tile.
+/// service's spells.
 fn service_schema() -> Value {
-    let cell = || json!({"type": "integer", "minimum": 0, "maximum": 65535});
-    let facing = json!({"type": "string", "enum": ["North", "East", "South", "West"]});
-    let mut door = variant(
-        "Door",
-        &[
-            ("map", String::schema()),
-            ("level", omnis_cli::omnis_sim::omnis_core::Level::schema()),
-            ("x", cell()),
-            ("y", cell()),
-            ("facing", facing),
-        ],
-    );
-    door["properties"]["Door"]["required"] = json!(["map", "x", "y", "facing"]);
-    let job = json!({"oneOf": [
-        variant("Object", &[("map", String::schema()), ("object", String::schema())]),
-        door
-    ]});
     let member = ("member", member_id());
     let spell = ("spell", String::schema());
     let item = ("item", String::schema());
@@ -270,8 +251,7 @@ fn service_schema() -> Value {
         variant("Withdraw", &[amount]),
         variant("Train", std::slice::from_ref(&member)),
         variant("Choose", &[member.clone(), spell.clone()]),
-        variant("Learn", &[member, spell]),
-        variant("Repair", &[("job", job)])
+        variant("Learn", &[member, spell])
     ]})
 }
 
@@ -325,7 +305,7 @@ impl Schema for Command {
     fn schema() -> Value {
         let verbs: Vec<String> = Verb::ALL.iter().map(|v| format!("{v:?}")).collect();
         let mut schema = json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use what is in reach: a service on the tile, else the one door, standing group or object interaction; several are refused with ChooseVerb listing them), Door (open or close the door on the faced edge), Search (the party's cell and the one it faces for hidden objects, ten minutes), Clear (the rubble of a doorway on the faced edge that fell in when its door was broken: an hour, and the doorway stands open for good), Climb a ladder or shaft up or down one level to the same tile, a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by its string id at a stack or a member by id with the action or the bonus action, use a carried item by its string id on a member, dodge, exchange with a member, run, a class feature by its name key with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; drop on the ground of the party's cell and pick up from it or from the cell the party faces across an open edge; take out of and put into an open container in reach, by its placement id; items by string id as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, a Repair of a damaged or broken object or door anywhere on the maps of the smith's region for coin and at once (the jobs are among the smith's offers), banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), a Dev edit in a devtools world, Act on an object in the party's cell or the one it faces (a verb, and which of the verb's interactions when the object offers more than one), or Approach a group standing there (the encounter begins; Run puts the party back where it stands, facing away), or Attack one in sight with a member's weapon (the opening strike: the blow lands and the fight begins), or Repair a damaged or broken object or door in touch with a member's work (the party carries the tool of its material and, when it is broken, supplies by its size; a Dexterity check; the time and the supplies are spent pass or fail). A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use what is in reach: a service on the tile, else the one door, standing group or object interaction; several are refused with ChooseVerb listing them), Door (open or close the door on the faced edge), Search (the party's cell and the one it faces for hidden objects, ten minutes), Clear (the rubble of a doorway on the faced edge that fell in when its door was broken: an hour, and the doorway stands open for good), Climb a ladder or shaft up or down one level to the same tile, a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by its string id at a stack or a member by id with the action or the bonus action, use a carried item by its string id on a member, dodge, exchange with a member, run, a class feature by its name key with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; drop on the ground of the party's cell and pick up from it or from the cell the party faces across an open edge; take out of and put into an open container in reach, by its placement id; items by string id as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), a Dev edit in a devtools world, Act on an object in the party's cell or the one it faces (a verb, and which of the verb's interactions when the object offers more than one), or Approach a group standing there (the encounter begins; Run puts the party back where it stands, facing away), or Attack one in sight with a member's weapon (the opening strike: the blow lands and the fight begins), or Repair a damaged or broken object or door in touch with a member's work (the party carries the tool of its material and, when it is broken, supplies by its size; a Dexterity check; the time and the supplies are spent pass or fail). A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -450,7 +430,7 @@ mod tests {
         );
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 16);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
-        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 13);
+        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 12);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][6]["properties"]["Combat"]["oneOf"];

@@ -356,14 +356,15 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
         Event::DoorFrame { .. } => "The frame holds".to_owned(),
         Event::DoorCleared { .. } => "The rubble is cleared".to_owned(),
         // A thing made whole (step 10): by the spell or by tools.
-        // A smith's work (step 11) may be on another map: the thing is named by its kind.
+        // Work no member did (a hired team, when there is one) may be on another map: the thing
+        // is named by its kind.
         Event::ObjectRepaired {
             map,
             object: id,
             by: None,
             ..
-        } => format!("The smith repairs {}", labels::placed(data, map, id)),
-        Event::DoorRepaired { by: None, .. } => "The smith repairs the door".to_owned(),
+        } => format!("{} is repaired", labels::placed(data, map, id)),
+        Event::DoorRepaired { by: None, .. } => "The door is repaired".to_owned(),
         Event::ObjectRepaired {
             object: id,
             by: Some(by),
@@ -419,7 +420,6 @@ fn town(event: &Event, names: &Names, data: &Data) -> Option<String> {
             format!("The party leaves the {}", labels::service(data, service))
         }
         Event::RoomTaken { cost } => format!("A night's rest for {}", coins(cost)),
-        Event::RepairBought { cost, .. } => format!("A repair for {}", coins(cost)),
         Event::FoodBought { count, cost } => format!("Bought {count} food for {}", coins(cost)),
         Event::Rumor {
             service,

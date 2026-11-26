@@ -1,0 +1,2 @@
+// Omnis's own (the owner, 2026-11-26): materials for general repair. `craft`: used up repairing a thing of any material, after the supplies made for that material; the material's tool is still needed.
+(schema: 1, id: "base:item:repair_kit", name: "base:text:item.repair_kit.name", kind: Gear, cost_cp: 100, weight_tenths: 50, craft: Some(Supply([Wood, Stone, Metal, Cloth, Glass, Bone, Plant, Earth, Paper, Liquid])))

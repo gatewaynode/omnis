@@ -42,7 +42,6 @@ pub use crate::event::{
 pub use crate::items::ItemCommand;
 pub use crate::names::Place;
 pub use crate::party::PartyCommand;
-pub use crate::repair::Job;
 pub use crate::rest::{HitDiceSpend, RestCommand};
 pub use crate::service::ServiceCommand;
 pub use crate::tactics::TacticsCommand;

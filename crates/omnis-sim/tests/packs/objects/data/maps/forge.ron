@@ -1,6 +1,6 @@
 // A forge, 4 by 1, in the yard's region (combat in feet step 11): the base smith at (0, 0), a
-// door in the east edge of (1, 0) and a crate at (3, 0). What breaks here or in the yard is the
-// smith's to repair; what breaks in another region is not.
+// door in the east edge of (1, 0) and a crate at (3, 0). The smith sells the tools, the supplies
+// and the repair kit; what breaks here is the party's to repair (the owner, 2026-11-26).
 (
     schema: 1,
     id: "objects:map:forge",

@@ -14,7 +14,7 @@ use omnis_sim::omnis_data::{
     Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill, Verb,
 };
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
-use omnis_sim::{CheckKind, Job, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
+use omnis_sim::{CheckKind, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
 /// Day, hour and minute from elapsed party minutes: "Day 2 01:01".
 #[must_use]
@@ -399,39 +399,9 @@ pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String 
         | ServiceCommand::Learn { member: id, spell } => named(*id, &|m| {
             format!("{}: {}", m.name, self::spell(data, spell))
         }),
-        ServiceCommand::Repair { job } => repair_label(data, offer, job),
         ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => String::new(),
-    }
-}
-
-/// A smith's repair row names the thing, its harm and where it stands: "Crate (broken), Test
-/// Forge", "Door (damaged), Test Tower, Roof (2)".
-fn repair_label(data: &Data, offer: &OfferView, job: &Job) -> String {
-    let kind = offer.subject.as_deref().and_then(|id| {
-        let kind = data.registry.objects.get(id)?;
-        Some(text(data, &data.objects.get(&kind)?.name))
-    });
-    let what = match job {
-        Job::Object { .. } => kind.unwrap_or("Thing"),
-        Job::Door { .. } => "Door",
-    };
-    let harm = if offer.broken == Some(true) {
-        "broken"
-    } else {
-        "damaged"
-    };
-    let def = data.registry.maps.get(job.map());
-    let def = def.and_then(|m| data.maps.get(&m));
-    let floor = match (job, def) {
-        (Job::Door { level: at, .. }, Some(def)) => level(data, def, *at),
-        _ => None,
-    };
-    let place = map(data, job.map());
-    match floor {
-        Some(floor) => format!("{what} ({harm}), {place}, {floor}"),
-        None => format!("{what} ({harm}), {place}"),
     }
 }
 
@@ -470,7 +440,6 @@ pub const fn offer_caption(command: &ServiceCommand) -> &'static str {
         ServiceCommand::Train { .. } => "Train",
         ServiceCommand::Choose { .. } => "Choose",
         ServiceCommand::Learn { .. } => "Learn",
-        ServiceCommand::Repair { .. } => "Repair",
         ServiceCommand::Leave => "Leave",
     }
 }

@@ -46,7 +46,7 @@ variants!(Event, EVENTS, event_name:
     Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
     ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore
     Folded ObjectDamaged ObjectBroken DoorDamaged DoorBroken DoorFrame DoorCleared
-    ObjectRepaired DoorRepaired RepairBought);
+    ObjectRepaired DoorRepaired);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -338,7 +338,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     for (count, what) in [
         (COMMANDS.len(), "`Command` (19 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (16 variants"),
-        (EVENTS.len(), "`Event` has 88 variants"),
+        (EVENTS.len(), "`Event` has 87 variants"),
         (REJECTIONS.len(), "`Rejection` (83 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
         (OPS.len(), "49 ops."),
@@ -396,7 +396,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             EVENTS.len(),
-            "pub enum Event {                    // 88 variants",
+            "pub enum Event {                    // 87 variants",
         ),
         (
             &architecture,

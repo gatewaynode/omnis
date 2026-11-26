@@ -47,13 +47,9 @@ pub struct OfferView {
     pub pays: Option<u32>,
     /// Why the rules would refuse it, if they would.
     pub refusal: Option<Rejection>,
-    /// The id of the item or spell the command names, when it names one (M8 step 8); for a
-    /// repair, the id of the object's kind (a door has none).
+    /// The id of the item or spell the command names, when it names one (M8 step 8).
     #[serde(default)]
     pub subject: Option<String>,
-    /// For a repair: whether the thing is broken, not only damaged. Unwritten otherwise.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub broken: Option<bool>,
 }
 
 /// The service the party is inside, or `None` outside one.
@@ -74,7 +70,6 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
         pays: None,
         refusal: None,
         subject: None,
-        broken: None,
     });
     Some(ServiceView {
         service: def.id.clone(),
@@ -120,12 +115,6 @@ fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
                     asks.push((sell, None));
                 }
             }
-            // What is harmed in the smith's region, a buried doorway with its refusal.
-            let jobs = crate::repair::jobs(world, data, world.position.map);
-            asks.extend(
-                jobs.into_iter()
-                    .map(|job| (ServiceCommand::Repair { job }, None)),
-            );
             asks
         }
         ServiceKind::Temple => {
@@ -230,16 +219,8 @@ fn offer(
         }
         Err(refusal) => (None, None, Some(refusal)),
     };
-    let (subject, broken) = match &command {
-        ServiceCommand::Repair { job } => {
-            let (kind, broken) = crate::repair::described(world, data, job);
-            (kind, Some(broken))
-        }
-        other => (subject(other), None),
-    };
     OfferView {
-        subject,
-        broken,
+        subject: subject(&command),
         command,
         member,
         price,

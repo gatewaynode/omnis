@@ -1,3 +1,6 @@
+> **Superseded 2026-11-26.** The owner tried this and it was not the intent; it is removed. See
+> `tasks/plans/smith-corrected.md`.
+
 # The smith's repair service (combat in feet, step 11)
 
 ## Context

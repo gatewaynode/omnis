@@ -148,7 +148,6 @@ impl Command {
             Command::Service(ServiceCommand::Train { .. }) => "train",
             Command::Service(ServiceCommand::Choose { .. }) => "choose",
             Command::Service(ServiceCommand::Learn { .. }) => "learn",
-            Command::Service(ServiceCommand::Repair { .. }) => "smith-repair",
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",

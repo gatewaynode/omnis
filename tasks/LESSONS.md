@@ -950,3 +950,18 @@ Mine, not the owner's: I added an assertion, did not rerun the tests, and ran th
 - Run the suite green immediately before a mutation run, in the same command, and read its result first.
 - A survivor may be dead code rather than a weak test: the client's copy of the engine's own refusal words
   survived because removing it changed nothing. Remove the copy; do not write a test to keep it.
+
+## 2026-11-26 — A thing I list under "you might not expect" is a question, not a note
+
+The owner tried the smith's repairs: "the repair anything at any distance was not my intent." The master
+plan's one line said "lists broken things on the town's region's maps ... repaired at once", I asked three
+questions about price and scope, and put the distance under "Said plainly" in the plan and the report. The
+owner's intent: the smith repairs only what the party carries and sells repair kits; what the party broke
+out in the world is theirs to repair, or a hired team's once the place is made safe.
+
+- When I can name a consequence the owner "might not expect", that is the first question to ask before
+  building, ahead of price or detail. A one-line item in an old master plan is not the owner's considered
+  intent about how the world works.
+- Ask what the fiction is (who goes where, who does the work) before asking for numbers.
+- A list on a screen does not vanish when its last row is used: the column stays with a placeholder, so the
+  result of the click is seen where the click was. A result line must not sit below a scrolling list.

@@ -4,8 +4,8 @@
 //! its size. The owner's choices (2026-11-25): a failed check loses the supplies with the time;
 //! the tool and the supplies may be in any member's pack or the party's stores; a thing only
 //! damaged needs no supplies; a doorway that fell in is cleared first, then rebuilt as any
-//! broken door is. A smith does the same for coin (`service`, step 11): any harmed thing on the
-//! maps of its region, named by a [`Job`], with no tool, check or supplies.
+//! broken door is. A smith repairs nothing out in the world (the owner, 2026-11-26): it sells the
+//! tools and the supplies, a repair kit among them, that serves any material.
 
 use crate::apply::advance;
 use crate::breaking;
@@ -15,10 +15,8 @@ use crate::command::Rejection;
 use crate::event::{ActorRef, CheckKind, Event, ItemPlace};
 use crate::items::take_from;
 use crate::objects;
-use crate::objects::removed_in;
 use crate::targets::map::{self, Spot};
 use crate::world::World;
-use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Facing, ItemId, Level, MapId};
 use omnis_data::placement::ResolvedPlacement;
@@ -56,48 +54,12 @@ pub(crate) struct Worn<'d> {
     pub broken: bool,
 }
 
-/// A thing the party can repair itself: one it knows of on its own level.
+/// A thing the party can repair: one it knows of on its own level.
 pub(crate) struct Harmed<'d> {
     /// The thing.
     pub thing: Worn<'d>,
     /// Where it stands to the party.
     pub spot: Spot,
-}
-
-/// A thing a smith is asked to repair: it may stand on another map or level than the party.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum Job {
-    /// An object, by its map's string id and its placement's id there.
-    Object {
-        /// The map's string id.
-        map: String,
-        /// The placement's id.
-        object: String,
-    },
-    /// A door, by its map's string id, its level and an edge of a tile.
-    Door {
-        /// The map's string id.
-        map: String,
-        /// The level; unwritten when it is the ground.
-        #[serde(default, skip_serializing_if = "Level::is_ground")]
-        level: Level,
-        /// A tile the door is an edge of.
-        x: u16,
-        /// A tile the door is an edge of.
-        y: u16,
-        /// The edge of that tile the door is on.
-        facing: Facing,
-    },
-}
-
-impl Job {
-    /// The string id of the map the thing is on.
-    #[must_use]
-    pub fn map(&self) -> &str {
-        match self {
-            Job::Object { map, .. } | Job::Door { map, .. } => map,
-        }
-    }
 }
 
 /// What a repair by tools would take.
@@ -225,116 +187,6 @@ pub(crate) fn harmed<'d>(
     }
 }
 
-/// The maps a smith on `town` works over: those of the region that holds it, or only its own
-/// when no region does, by their string ids.
-fn region_maps(data: &Data, town: MapId) -> Vec<(&str, MapId)> {
-    let region = data.regions.values().find(|r| r.maps.contains(&town));
-    let maps = region.map_or_else(|| alloc::vec![town], |r| r.maps.clone());
-    let named = maps
-        .into_iter()
-        .filter_map(|m| Some((data.registry.maps.name(m)?, m)));
-    let mut named: Vec<_> = named.collect();
-    named.sort_unstable();
-    named
-}
-
-/// The thing a smith on `town` is asked to repair, or why it is none: `NotOffered` for a map
-/// that is not of the smith's region, then as the party's own repair has it, but for sight:
-/// the smith knows its region.
-pub(crate) fn job_thing<'d>(
-    world: &World,
-    data: &'d Data,
-    town: MapId,
-    job: &Job,
-) -> Result<Worn<'d>, Rejection> {
-    let maps = region_maps(data, town);
-    let found = maps.iter().find(|(name, _)| *name == job.map());
-    let map = found.ok_or(Rejection::NotOffered)?.1;
-    let def = data.maps.get(&map).ok_or(Rejection::NotOffered)?;
-    match job {
-        Job::Object { object, .. } => {
-            let state = world.maps.get(&map);
-            let placed = def.objects.iter().find(|p| p.id == *object);
-            let placement = placed.filter(|p| !removed_in(state, p)).ok_or_else(|| {
-                Rejection::NoSuchObject {
-                    object: object.clone(),
-                }
-            })?;
-            object_thing(world, data, map, placement)
-        }
-        Job::Door {
-            level,
-            x,
-            y,
-            facing,
-            ..
-        } => {
-            let cell = def.cell(*level, *x, *y);
-            if !cell.is_some_and(|c| c.doors.has(*facing)) {
-                return Err(Rejection::NoDoor);
-            }
-            door_thing(world, data, map, *level, (*x, *y, *facing))
-        }
-    }
-}
-
-/// Every harmed thing a smith on `town` could be asked about, a buried doorway included: by
-/// map id, a map's objects by their ids and then its doors by level and edge. Read from what
-/// the world has saved, so a thing that never changed costs nothing to pass over.
-#[must_use]
-pub fn jobs(world: &World, data: &Data, town: MapId) -> Vec<Job> {
-    let mut jobs = Vec::new();
-    for (name, map) in region_maps(data, town) {
-        let Some(state) = world.maps.get(&map) else {
-            continue;
-        };
-        let harmed = state.objects.iter();
-        for (object, _) in harmed.filter(|(_, s)| (s.damage > 0 || s.broken) && !s.removed) {
-            jobs.push(Job::Object {
-                map: name.into(),
-                object: object.clone(),
-            });
-        }
-        for (level, x, y, facing) in state.worn_doors.keys().copied() {
-            jobs.push(Job::Door {
-                map: name.into(),
-                level,
-                x,
-                y,
-                facing,
-            });
-        }
-    }
-    jobs
-}
-
-/// What a listed job is, for a view to say: the string id of an object's kind (a door has
-/// none), and whether the thing is broken and not only damaged. A buried doorway is broken.
-#[must_use]
-pub fn described(world: &World, data: &Data, job: &Job) -> (Option<String>, bool) {
-    let map = data.registry.maps.get(job.map());
-    let state = map.and_then(|m| world.maps.get(&m));
-    match job {
-        Job::Object { object, .. } => {
-            let def = map.and_then(|m| data.maps.get(&m));
-            let placed = def.and_then(|d| d.objects.iter().find(|p| p.id == *object));
-            let kind = placed.and_then(|p| data.registry.objects.name(p.kind));
-            let broken = state.and_then(|s| s.objects.get(object));
-            (kind.map(String::from), broken.is_some_and(|s| s.broken))
-        }
-        Job::Door {
-            level,
-            x,
-            y,
-            facing,
-            ..
-        } => {
-            let wear = state.map(|s| s.door_wear(*level, *x, *y, *facing));
-            (None, wear.is_some_and(|w| w.broken))
-        }
-    }
-}
-
 /// The thing is whole again, by the member `by` or by a smith (`None`): an object leaves its
 /// kind's broken state for the one it was placed in (what it spilled stays where it fell), and
 /// a door is hung shut.
@@ -430,7 +282,8 @@ fn places(world: &World) -> Vec<(ItemPlace, &Vec<(ItemId, u16)>)> {
 }
 
 /// The supplies for `material` the party carries, by place and item, in the order they are
-/// taken.
+/// taken: a supply made for fewer materials before a more general one (timber before a repair
+/// kit), and among equals the packs in marching order, then the stores.
 fn supplies(world: &World, data: &Data, material: Material) -> Vec<(ItemPlace, ItemId, u16)> {
     let mut found = Vec::new();
     for (place, list) in places(world) {
@@ -440,6 +293,12 @@ fn supplies(world: &World, data: &Data, material: Material) -> Vec<(ItemPlace, I
             }
         }
     }
+    let breadth = |item: &ItemId| {
+        let craft = data.items.get(item).and_then(|d| d.craft.as_ref());
+        craft.map_or(0, |c| c.materials().len())
+    };
+    // A stable sort: the order of the places stands among supplies of one breadth.
+    found.sort_by_key(|(_, item, _)| breadth(item));
     found
 }
 
@@ -491,7 +350,7 @@ pub(crate) fn validate<'d>(
     Ok(Checked { own, thing, quote })
 }
 
-/// Use up `count` supplies for `material`, from the packs in marching order and then the stores.
+/// Use up `count` supplies for `material`, in the order [`supplies`] gives.
 fn spend(world: &mut World, data: &Data, material: Material, count: u16, events: &mut Vec<Event>) {
     let mut left = count;
     for (place, item, have) in supplies(world, data, material) {

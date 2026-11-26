@@ -21,6 +21,7 @@ const BOLT: &str = "base:spell:fire_bolt";
 const MENDING: &str = "base:spell:mending";
 const TOOLS: &str = "base:item:carpenters_tools";
 const TIMBER: &str = "base:item:timber";
+const KIT: &str = "base:item:repair_kit";
 
 /// The yard with doorways that fall in `percent` times in a hundred.
 fn yard_data(percent: u8) -> Data {
@@ -413,6 +414,95 @@ fn a_broken_thing_needs_supplies_by_its_size_and_a_failed_check_loses_them() {
     let (after, _) = outcome(&world, &data, &thing("chest_1"), true);
     assert_eq!(carried(&after, &data, TIMBER), 0);
     assert_eq!(state(&after, &data, "chest_1"), (0, false, None));
+}
+
+/// What a repair used up, in the order it was taken: each item's id, its count and its place.
+fn used(events: &[Event]) -> Vec<(&str, u16, &ItemPlace)> {
+    let spent = events.iter().filter_map(|e| match e {
+        Event::ItemSpent { item, count, from } => Some((item.as_str(), *count, from)),
+        _ => None,
+    });
+    spent.collect()
+}
+
+#[test]
+fn a_repair_kit_is_supplies_for_any_material_and_is_used_after_the_materials_own() {
+    let data = yard_data(0);
+    let mut world = at(&data, 2, 1, Facing::West);
+    hurt(&mut world, &data, "crate_1", true);
+    let crate_1 = thing("crate_1");
+    // A kit is supplies, not a tool.
+    give(&mut world, &data, FIGHTER, KIT, 3);
+    let was = world.clone();
+    assert_eq!(
+        repair(&mut world, &data, FIGHTER, crate_1.clone()),
+        Err(Rejection::NeedsTool {
+            material: Material::Wood
+        })
+    );
+    assert_eq!(world, was);
+    // With the tool, a kit goes for each supply the size takes, pass or fail.
+    give(&mut world, &data, 3, TOOLS, 1);
+    let fighter = ItemPlace::Member(world.party.members[FIGHTER].id);
+    for pass in [true, false] {
+        let (after, events) = outcome(&world, &data, &crate_1, pass);
+        assert_eq!(used(&events), [(KIT, 2, &fighter)], "pass {pass}");
+        assert_eq!(carried(&after, &data, KIT), 1);
+        assert_eq!(state(&after, &data, "crate_1").1, !pass);
+    }
+    // One kit short of the two is not enough.
+    let mut short = world.clone();
+    short.party.members[FIGHTER].equipment.pop();
+    give(&mut short, &data, FIGHTER, KIT, 1);
+    assert_eq!(
+        repair(&mut short, &data, FIGHTER, crate_1.clone()),
+        Err(Rejection::NeedsSupplies {
+            material: Material::Wood,
+            have: 1,
+            need: 2
+        })
+    );
+    // The material's own supply goes first, though it lies in the stores and the kits in the
+    // first pack; the kits make up the rest.
+    world.party.inventory.push((item(&data, TIMBER), 1));
+    let (after, events) = outcome(&world, &data, &crate_1, true);
+    assert_eq!(
+        used(&events),
+        [(TIMBER, 1, &ItemPlace::Stores), (KIT, 1, &fighter)]
+    );
+    assert_eq!(carried(&after, &data, KIT), 2);
+    // With timber enough no kit is touched.
+    world.party.inventory.last_mut().unwrap().1 = 2;
+    let (after, events) = outcome(&world, &data, &crate_1, true);
+    assert_eq!(used(&events), [(TIMBER, 2, &ItemPlace::Stores)]);
+    assert_eq!(carried(&after, &data, KIT), 3);
+    assert_eq!(state(&after, &data, "crate_1"), (0, false, None));
+}
+
+#[test]
+fn a_repair_kit_serves_metal_and_stone_with_their_own_tools() {
+    let mut data = yard_data(0);
+    let mut world = at(&data, 2, 1, Facing::West);
+    hurt(&mut world, &data, "crate_1", true);
+    give(&mut world, &data, FIGHTER, KIT, 2);
+    give(&mut world, &data, FIGHTER, TOOLS, 1);
+    let kind = data.registry.objects.get("objects:object:crate").unwrap();
+    for (material, tools) in [
+        (Material::Metal, "base:item:smiths_tools"),
+        (Material::Stone, "base:item:masons_tools"),
+    ] {
+        data.objects.get_mut(&kind).unwrap().attributes.material = Some(material);
+        // The carpenter's tools are not this material's.
+        assert_eq!(
+            repair(&mut world.clone(), &data, FIGHTER, thing("crate_1")),
+            Err(Rejection::NeedsTool { material })
+        );
+        let mut world = world.clone();
+        give(&mut world, &data, 4, tools, 1);
+        let (after, _) = outcome(&world, &data, &thing("crate_1"), true);
+        assert_eq!(carried(&after, &data, KIT), 0, "{material:?}");
+        assert_eq!(state(&after, &data, "crate_1"), (0, false, None));
+    }
 }
 
 #[test]

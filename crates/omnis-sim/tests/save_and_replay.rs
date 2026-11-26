@@ -856,8 +856,8 @@ fn a_save_from_before_name_tables_is_numbered_without_what_was_added_since() {
     let data = data();
     let now = omnis_sim::save::NameTable::of(&data);
     let then = omnis_sim::save::NameTable::before_names(&data).expect("items were added");
-    assert_eq!(now.items.len(), then.items.len() + 6);
-    for added in ["carpenters_tools", "timber", "smiths_tools"] {
+    assert_eq!(now.items.len(), then.items.len() + 7);
+    for added in ["carpenters_tools", "timber", "smiths_tools", "repair_kit"] {
         let name = format!("base:item:{added}");
         assert!(now.items.contains(&name) && !then.items.contains(&name));
     }

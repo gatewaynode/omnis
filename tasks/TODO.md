@@ -965,7 +965,7 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
           step through `Aim::repair` with a Repairer chooser; each row says its minutes and supplies or
           the engine's reason), the lines "X repairs/mends ...", both events redraw the view. Mending is
           cast from the cast screen's own target step. Built, not yet tried by the owner.
-  - [x] 11. Repair service (built, not yet tried by the owner) (`tasks/plans/repair-service.md`; the owner, 2026-11-25: damaged things too at
+  - [x] 11. Repair service (built; tried by the owner 2026-11-26 and corrected, see 11c) (`tasks/plans/repair-service.md`; the owner, 2026-11-25: damaged things too at
         half, a buried doorway listed and refused, ten times the supplies).
     - [x] 11a. Engine (2026-11-25): `ServiceCommand::Repair { job }`, `repair::Job`/`jobs`/`job_thing`,
           the slot `smith.repair_cost`, `Event::RepairBought` (88 events), `ObjectRepaired` gains `map`
@@ -976,6 +976,31 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
           something is harmed, the rows' words, price and reason, a door's level, the button's command,
           the log lines). 10 mutants caught; one survivor was a redundant client line, removed (the
           engine's own words say the rubble must be cleared).
+    - [ ] 11c. The smith corrected (owner, 2026-11-26: "the repair anything at any distance was not my
+          intent"; plan approved in plan mode, `/Users/john/.claude/plans/zany-painting-eagle.md` copied to
+          `tasks/plans/smith-corrected.md`). The owner's answers: the Repairs column stays and is empty
+          until carried items can wear; a repair kit is general supplies; hired teams get their own plan
+          next; a placed encounter is the source of a map's random table.
+      - [x] Engine and base: `ServiceCommand::Repair`, `repair::Job`/`jobs`/`job_thing`/`described`,
+            `Event::RepairBought` (87 events), `OfferView.broken` and the slot `smith.repair_cost`
+            removed; `base:item:repair_kit` (a `Supply` for every material, 1 gp, 5 lb, in the smith's
+            stock), the material's own supplies spent first; the kit listed in
+            `save/names.rs::ITEMS_SINCE_NAMES`. Kept: `Worn`/`Harmed`, `ObjectRepaired.map`, `by:
+            Option`. Base 0.1.13, fixture `objects` 0.1.12. 6 mutants caught. The kit's tests were
+            written with its code, not before it.
+      - [ ] Client: the "Repairs" column always shown at a smith with "The party carries no broken
+            items"; the result line under the screen's title on every screen; tests.
+  - [ ] **Hired repair teams** (owner, 2026-11-26; own plan, in plan mode, right after 11c and before 12):
+        the party recruits hirelings and pays a team to go and repair what is broken in a place made
+        safe: every placed encounter cleared and the source of its random encounters cleared (the
+        owner's answer: a map names one placed encounter as the source of its random table; with it
+        cleared the random rolls stop). Offered at the inn, tavern or bar, or as a dialogue option of
+        an NPC who can repair or build. To ask in that plan: price, time taken, where offered first.
+        `repair::Worn` and `by: None` on the repaired events are kept for it; step 11's `Job`
+        (`aaed0f1a`) is the starting point for naming a thing on another map.
+  - [ ] **Carried items that wear** (owner, 2026-11-26; later, own plan): weapons, armor and shields the
+        party carries can be damaged and broken, and the smith repairs them: the smith's only repair.
+        Until then the smith's "Repairs" column shows its placeholder.
   - [ ] 12. Client: damaged and broken marks, Attack and Repair entries, the service row.
         Pulled forward at the owner's word (2026-11-15, "a visual representation of a destroyed
         object"): a broken object is drawn as a wreck (`shapes::WRECK`, a quarter of its height,

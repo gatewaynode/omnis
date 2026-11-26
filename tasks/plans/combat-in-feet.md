@@ -191,6 +191,12 @@ Golden replays are rebaselined in steps 1, 3 and 4 (fight arithmetic), noted in 
   with a `Job` that names the map (and a door's level), not `Repair { map, target }`. Damaged things are
   taken too, at half; a buried doorway is listed and refused; the price is the slot `smith.repair_cost`.
   The service row of step 12 was built here.
+  **Corrected 2026-11-26** (the owner tried it: "the repair anything at any distance was not my intent";
+  `tasks/plans/smith-corrected.md`): the command, `Job`, `RepairBought` and the slot are removed. A smith
+  repairs only what the party carries (nothing wears yet, so its "Repairs" column shows a placeholder) and
+  sells a repair kit, general supplies for any material. What broke in the world is the party's to repair,
+  or a hired team's once the place is safe (own plan, next). The plan's line "lists broken things on the
+  town's region's maps ... repaired at once" is void.
 
 ## Not in this plan
 A fight grid, member positions, cover, flanking, retreating or kiting monsters, thrown weapons and

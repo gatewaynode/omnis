@@ -93,7 +93,6 @@ pub use party_view::{
     AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
     TacticsView, party_view,
 };
-pub use repair::Job;
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
 pub use rest_view::{CampMember, RestView, rest_view};
