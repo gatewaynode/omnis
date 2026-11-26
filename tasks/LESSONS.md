@@ -965,3 +965,17 @@ out in the world is theirs to repair, or a hired team's once the place is made s
 - Ask what the fiction is (who goes where, who does the work) before asking for numbers.
 - A list on a screen does not vanish when its last row is used: the column stays with a placeholder, so the
   result of the click is seen where the click was. A result line must not sit below a scrolling list.
+
+## 2026-11-26 — A command or an event that reached a save is retired, never removed
+
+I removed `ServiceCommand::Repair` and `Event::RepairBought` a day after adding them. The owner's quick
+save, made with them, would not load: "Unexpected variant named `Repair` in enum `ServiceCommand`". A
+character save holds its journal (each interaction's command) and its log (events), so both enums are
+part of the save format. No test loaded a save holding the removed forms, and the gate was green.
+
+- Before removing or renaming a variant of `Command`, `Event`, `Change` or anything else a save writes,
+  ask whether any save could hold it. If one could (it was in a commit the owner ran), retire it: keep
+  the variant, refuse or never produce it, and pin with a test that the old text reads back as written.
+- "Removed" in a plan for a type that is serialized is a save-format change: say so in the plan, and
+  check `.omnis/*.ron` for the form before deleting it (`grep` found it at once).
+- The same holds for adding a field without a default, and for changing a field's shape.

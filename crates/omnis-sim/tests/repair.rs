@@ -678,3 +678,64 @@ fn the_targets_of_a_repair_are_the_harmed_things_in_touch_each_with_its_cost() {
     );
     let _ = BOLT;
 }
+
+/// A save keeps the commands of its journal and the events of its log. The smith's repair at a
+/// distance was a command and an event for one day (2026-11-25) and saves were made with it
+/// (the owner's report, 2026-11-26: "Unexpected variant named `Repair` in enum
+/// `ServiceCommand`"). Both still read, exactly as they were written; the command is no
+/// service's to do.
+#[test]
+fn the_retired_smith_s_repair_still_reads_from_a_save_and_is_never_done() {
+    use omnis_data::ron_io::{parse, to_compact};
+    let door = r#"Service(Repair(job:Door(map:"objects:map:forge",x:1,y:0,facing:East)))"#;
+    let above = r#"Service(Repair(job:Door(map:"objects:map:forge",level:1,x:1,y:0,facing:East)))"#;
+    let object = r#"Service(Repair(job:Object(map:"objects:map:forge",object:"crate_f")))"#;
+    for text in [door, above, object] {
+        let command: Command = parse(text).unwrap_or_else(|e| panic!("{text}: {e}"));
+        assert_eq!(
+            to_compact(&command).unwrap(),
+            text,
+            "written as it was read"
+        );
+    }
+    let bought = r#"RepairBought(service:"base:service:smith",cost:1000)"#;
+    let event: Event = parse(bought).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(to_compact(&event).unwrap(), bought);
+    // At the forge's smith, with its crate broken and gold to spare, the command is refused
+    // and nothing changes.
+    let data = objects();
+    let forge = data.registry.maps.get("objects:map:forge").unwrap();
+    let mut world = at(&data, 2, 1, Facing::West);
+    world.position.map = forge;
+    world.position.x = 3;
+    world.position.y = 0;
+    world.party.gold = 100_000;
+    let strike = Command::Attack {
+        member: world.party.members[FIGHTER].id,
+        target: thing("crate_f"),
+    };
+    for _ in 0..200 {
+        if sim_objects::saved(&world, forge, "crate_f").is_some_and(|s| s.broken) {
+            break;
+        }
+        apply(&mut world, &data, strike.clone()).expect("a blow");
+    }
+    assert!(sim_objects::saved(&world, forge, "crate_f").is_some_and(|s| s.broken));
+    world.position.x = 0;
+    world.position.facing = Facing::West;
+    apply(&mut world, &data, Command::Interact).expect("into the smith's");
+    let was = world.clone();
+    let command: Command = parse(object).unwrap();
+    assert_eq!(
+        apply(&mut world, &data, command),
+        Err(Rejection::NotOffered)
+    );
+    assert_eq!(world, was);
+    let offers = omnis_sim::service_view(&world, &data)
+        .expect("inside")
+        .offers;
+    let repairs = offers
+        .iter()
+        .filter(|o| to_compact(&o.command).unwrap().contains("Repair"));
+    assert_eq!(repairs.count(), 0, "never offered");
+}

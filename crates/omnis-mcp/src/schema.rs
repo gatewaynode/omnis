@@ -232,8 +232,28 @@ fn item_schema() -> Value {
 /// The `Service` command's variants, inside a service only: `member` is a member's id, `Buy`'s
 /// `item` a string id in the service's stock, `Sell`'s one in the stores; amounts are copper.
 /// `Choose`'s `spell` is a string id on the member's class list, `Learn`'s one among the
-/// service's spells.
+/// service's spells. `Repair` is retired (no service does it; it is refused as `NotOffered`)
+/// and stays in the schema because the engine still reads it from older saves: its `job` is an
+/// object by its map's string id and its placement's id, or a door by its map, its level (the
+/// ground when left out) and an edge of a tile.
 fn service_schema() -> Value {
+    let cell = || json!({"type": "integer", "minimum": 0, "maximum": 65535});
+    let facing = json!({"type": "string", "enum": ["North", "East", "South", "West"]});
+    let mut door = variant(
+        "Door",
+        &[
+            ("map", String::schema()),
+            ("level", omnis_cli::omnis_sim::omnis_core::Level::schema()),
+            ("x", cell()),
+            ("y", cell()),
+            ("facing", facing),
+        ],
+    );
+    door["properties"]["Door"]["required"] = json!(["map", "x", "y", "facing"]);
+    let job = json!({"oneOf": [
+        variant("Object", &[("map", String::schema()), ("object", String::schema())]),
+        door
+    ]});
     let member = ("member", member_id());
     let spell = ("spell", String::schema());
     let item = ("item", String::schema());
@@ -251,7 +271,8 @@ fn service_schema() -> Value {
         variant("Withdraw", &[amount]),
         variant("Train", std::slice::from_ref(&member)),
         variant("Choose", &[member.clone(), spell.clone()]),
-        variant("Learn", &[member, spell])
+        variant("Learn", &[member, spell]),
+        variant("Repair", &[("job", job)])
     ]})
 }
 
@@ -430,7 +451,7 @@ mod tests {
         );
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 16);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
-        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
+        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 13);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 12);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][6]["properties"]["Combat"]["oneOf"];

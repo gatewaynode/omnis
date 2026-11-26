@@ -12,6 +12,7 @@ use crate::event::Event;
 use crate::items::{add_to, count_of, take_from};
 use crate::names::id_of;
 use crate::party;
+use crate::repair::Job;
 use crate::rest;
 use crate::service_level;
 use crate::world::{Mode, World};
@@ -111,6 +112,13 @@ pub enum ServiceCommand {
         /// The spell's id; the service must teach it.
         spell: String,
     },
+    /// **Retired** (2026-11-26; the owner: a smith repairs nothing at a distance). A command
+    /// for one day; saves made then hold it in their journals, so it still reads. No service
+    /// does it: sent, it is `NotOffered`.
+    Repair {
+        /// The thing it named.
+        job: Job,
+    },
 }
 
 impl ServiceCommand {
@@ -119,6 +127,7 @@ impl ServiceCommand {
     pub const fn offered_in(&self, kind: ServiceKind) -> bool {
         match self {
             ServiceCommand::Leave => true,
+            ServiceCommand::Repair { .. } => false,
             ServiceCommand::Room => matches!(kind, ServiceKind::Inn),
             ServiceCommand::Rumor | ServiceCommand::BuyFood { .. } => {
                 matches!(kind, ServiceKind::Tavern)
@@ -288,7 +297,10 @@ pub(crate) fn quote(
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
     let deal = match *command {
-        ServiceCommand::Leave => return Err(Rejection::NotOffered),
+        // Leaving is not a deal; the retired repair is no service's (`offered_in`).
+        ServiceCommand::Leave | ServiceCommand::Repair { .. } => {
+            return Err(Rejection::NotOffered);
+        }
         ServiceCommand::Room => room(world, data, roller)?,
         ServiceCommand::Rumor => {
             // Only what has happened by the region's clock is told (M8).

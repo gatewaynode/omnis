@@ -928,6 +928,10 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 `Withdraw { amount }` (bank, copper), `Train { member }` (trainer: the next level),
 `Choose { member, spell }` (trainer: a pick from the member's class list, free),
 `Learn { member, spell }` (guild or temple: a spell it teaches, bought).
+`Repair { job }` is **retired**: no service does it and it is refused as `NotOffered`. It was a
+smith's repair at a distance for one day (2026-11-25) and stays in the type because saves made
+then hold it in their journals. A `Job` is `{"Object": {map, object}}` or
+`{"Door": {map, level, x, y, facing}}` (`level` left out for the ground).
 
 `RestCommand`: `Short { spend }` (an hour; `spend` is `[HitDiceSpend]`, each
 `{"member": CharacterId, "count"}`; members not named spend none, a member named twice is
@@ -979,7 +983,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 87 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 88 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -1090,6 +1094,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ServiceEntered` | `service` (id) | The party went into the service on its tile. |
 | `ServiceLeft` | `service` | The party came out. |
 | `RoomTaken` | `cost` | A night at the inn (a long rest); `Healed` follows. |
+| `RepairBought` | `service` (id), `cost` | **Retired**: never told. A smith was paid to repair a thing at a distance (2026-11-25 only); older saves hold it in their logs. |
 | `FoodBought` | `count`, `cost` | Food into the larder. |
 | `Rumor` | `service`, `rumor` (the rumor's position in the tavern's rumors, file order), `ago` (minutes on the region's clock) | A rumor heard. |
 | `Treated` | `member`, `cost` | A temple healed or cured; `Healed` and `Condition` follow. |
@@ -1304,9 +1309,12 @@ As of protocol 2:
 Additive (§13), so `PROTOCOL` stays 2:
 
 - 2026-11-26 (latest, the smith corrected; the owner: "the repair anything at any distance was not my
-  intent"): **removed, not additively, a day after they were added**: `ServiceCommand::Repair { job }`, the
-  type `Job`, event `RepairBought` (87 again), `OfferView.broken`, the object's kind as a repair's
-  `subject`, and the slot `smith.repair_cost`. Kept from that step: `ObjectRepaired.map`, and `by` of
+  intent"): `ServiceCommand::Repair { job }` and event `RepairBought` are **retired**: they stay in the
+  types (88 events) and read from saves made with them, the command is refused as `NotOffered`, no view
+  offers it and nothing tells the event. They were removed outright for an hour and saves made the day
+  before would not load; the rule since: a command or event that reached a save is retired, never
+  removed. **Removed, not additively**: `OfferView.broken`, the object's kind as a repair's `subject`,
+  and the slot `smith.repair_cost`. Kept from that step: `ObjectRepaired.map`, and `by` of
   `ObjectRepaired` and `DoorRepaired` as a `CharacterId` or null (nothing sends null yet). `base` gains
   `base:item:repair_kit` (a `Supply` for every material, in the smith's stock; a repair by tools uses the
   supplies made for the material first) and is resealed (0.1.13).

@@ -420,6 +420,8 @@ fn town(event: &Event, names: &Names, data: &Data) -> Option<String> {
             format!("The party leaves the {}", labels::service(data, service))
         }
         Event::RoomTaken { cost } => format!("A night's rest for {}", coins(cost)),
+        // Retired; an older save's log still holds it.
+        Event::RepairBought { cost, .. } => format!("A repair for {}", coins(cost)),
         Event::FoodBought { count, cost } => format!("Bought {count} food for {}", coins(cost)),
         Event::Rumor {
             service,

@@ -2,9 +2,10 @@
 //! variant fails the build here until it has a successor arm. The schema proof holds each
 //! instance against the hand-written schema; the vocabulary test reads every key they carry.
 
+use omnis_cli::omnis_sim::Job;
 use omnis_cli::omnis_sim::event::ItemPlace;
 use omnis_cli::omnis_sim::omnis_core::CharacterId;
-use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation, Vertical};
+use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Level, Rotation, Vertical};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill, Verb};
 use omnis_cli::omnis_sim::omnis_rules::{
     ActionRef, Cmp, Criteria, CriteriaSet, Draft, Named, Predicate, Trigger, Who,
@@ -390,6 +391,14 @@ fn next_service(command: &ServiceCommand) -> Option<ServiceCommand> {
     let (member, count, amount) = (CharacterId(1), 3, 250);
     let item = || String::from("base:item:dagger");
     let spell = || String::from("base:spell:bless");
+    let map = || String::from("test:map:town");
+    let door = |facing, level| Job::Door {
+        map: map(),
+        level: Level(level),
+        x: 3,
+        y: 4,
+        facing,
+    };
     Some(match command {
         ServiceCommand::Leave => ServiceCommand::Room,
         ServiceCommand::Room => ServiceCommand::Rumor,
@@ -416,7 +425,22 @@ fn next_service(command: &ServiceCommand) -> Option<ServiceCommand> {
             member,
             spell: spell(),
         },
-        ServiceCommand::Learn { .. } => return None,
+        // A smith's repair: an object, then a door on each edge (the last above the ground).
+        ServiceCommand::Learn { .. } => ServiceCommand::Repair {
+            job: Job::Object {
+                map: map(),
+                object: "crate_1".into(),
+            },
+        },
+        ServiceCommand::Repair { job } => ServiceCommand::Repair {
+            job: match job {
+                Job::Object { .. } => door(Facing::North, 0),
+                Job::Door { facing, .. } if *facing != Facing::West => {
+                    door(facing.right(), i8::from(facing.right() == Facing::West))
+                }
+                Job::Door { .. } => return None,
+            },
+        },
     })
 }
 

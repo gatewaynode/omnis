@@ -8,15 +8,18 @@ functions, `Event::RepairBought`, `OfferView.broken` and the slot `smith.repair_
 supplies spent first; the kit is in `save/names.rs::ITEMS_SINCE_NAMES`, as any item added to base must be),
 then the client (the "Repairs" column always shown with "The party carries no broken items"; the outcome
 line under the title on every screen). Kept from step 11: `repair::Worn`/`Harmed`, `ObjectRepaired.map`,
-`by: Option` on the repaired events, the fixture's forge. **Not yet tried by the owner: this correction, and
+`by: Option` on the repaired events, the fixture's forge. **Then the owner: "We broke the save": their quick save held the removed command
+and event. Both are back as retired forms (`ServiceCommand::Repair`, `repair::Job`, `Event::RepairBought`:
+read, never done or told; 88 events, service schema oneOf 13). The rule: what reached a save is retired, never
+removed.** **Not yet tried by the owner: this correction, and
 mending.** The owner's intent, for what comes next: the smith repairs only what the party carries (carried
 items do not wear yet: its own later plan); **next is the plan for hired repair teams** (plan mode; TODO
 "Hired repair teams": hirelings paid to repair what is broken where every placed encounter is cleared and the
 random source is cleared; the owner's answer: a map names one placed encounter as the source of its random
 table; offered at the inn or tavern or by an NPC; ask price, time taken and where first), then steps 12 and
-13. Pins now: 19 commands, 16 dev commands, 87 events, 83 rejections, `SAVE_SCHEMA` 9, base 0.1.13 (hash
+13. Pins now: 19 commands, 16 dev commands, 88 events, 83 rejections, `SAVE_SCHEMA` 9, base 0.1.13 (hash
 5181346836173430193), `objects` fixture 0.1.12 (hash 8894892682113102578), 31 base items, 21 base spells,
-`(36, 30, 5)` rule counts, "71 rules", cli "36 rule slots", service schema oneOf 12. Try path for the owner:
+`(36, 30, 5)` rule counts, "71 rules", cli "36 rule slots", service schema oneOf 13. Try path for the owner:
 `just qa objects:map:forge` (a smith at (0, 0), a door and a crate beside it). Lesson: a consequence I can
 name as one the owner "might not expect" is the first question to ask, not a note in the report.
 

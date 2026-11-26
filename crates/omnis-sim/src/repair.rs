@@ -17,6 +17,7 @@ use crate::items::take_from;
 use crate::objects;
 use crate::targets::map::{self, Spot};
 use crate::world::World;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Facing, ItemId, Level, MapId};
 use omnis_data::placement::ResolvedPlacement;
@@ -60,6 +61,34 @@ pub(crate) struct Harmed<'d> {
     pub thing: Worn<'d>,
     /// Where it stands to the party.
     pub spot: Spot,
+}
+
+/// A thing on any map, as the smith's repair at a distance named it. **Retired** (2026-11-26):
+/// that repair was a command for one day and saves were made with it, so the name still reads
+/// from a save's journal (`ServiceCommand::Repair`). Nothing makes one.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Job {
+    /// An object, by its map's string id and its placement's id there.
+    Object {
+        /// The map's string id.
+        map: String,
+        /// The placement's id.
+        object: String,
+    },
+    /// A door, by its map's string id, its level and an edge of a tile.
+    Door {
+        /// The map's string id.
+        map: String,
+        /// The level; unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
+        /// A tile the door is an edge of.
+        x: u16,
+        /// A tile the door is an edge of.
+        y: u16,
+        /// The edge of that tile the door is on.
+        facing: Facing,
+    },
 }
 
 /// What a repair by tools would take.

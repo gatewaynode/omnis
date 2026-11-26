@@ -988,6 +988,10 @@ map, mana is in the PRD and in the packs, and the performance floor is read agai
             `save/names.rs::ITEMS_SINCE_NAMES`. Kept: `Worn`/`Harmed`, `ObjectRepaired.map`, `by:
             Option`. Base 0.1.13, fixture `objects` 0.1.12. 6 mutants caught. The kit's tests were
             written with its code, not before it.
+      - [x] The save it broke (owner, 2026-11-26: "We broke the save, schema"): the command, `Job` and
+            `RepairBought` are back as retired forms (read from a save, never offered, done or told;
+            88 events, service schema oneOf 13). Test
+            `repair::the_retired_smith_s_repair_still_reads_from_a_save_and_is_never_done`.
       - [x] Client (2026-11-26): the "Repairs" column always shown at a smith with "The party carries
             no broken items" (`screen/service.rs`: `REPAIRS`, `nothing`); the outcome line under the
             screen's title on every screen (`shell/screen_draw.rs::build`). Tests in

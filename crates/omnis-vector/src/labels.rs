@@ -399,7 +399,9 @@ pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String 
         | ServiceCommand::Learn { member: id, spell } => named(*id, &|m| {
             format!("{}: {}", m.name, self::spell(data, spell))
         }),
-        ServiceCommand::Leave
+        // Retired with the smith's repair at a distance: never offered.
+        ServiceCommand::Repair { .. }
+        | ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => String::new(),
     }
@@ -440,6 +442,7 @@ pub const fn offer_caption(command: &ServiceCommand) -> &'static str {
         ServiceCommand::Train { .. } => "Train",
         ServiceCommand::Choose { .. } => "Choose",
         ServiceCommand::Learn { .. } => "Learn",
+        ServiceCommand::Repair { .. } => "Repair",
         ServiceCommand::Leave => "Leave",
     }
 }

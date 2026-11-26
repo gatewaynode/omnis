@@ -891,6 +891,14 @@ pub enum Event {
         /// Which.
         service: String,
     },
+    /// **Retired** (2026-11-26): a smith was paid to repair a thing at a distance. Told for one
+    /// day; saves made then hold it in their logs, so it still reads. Nothing tells it.
+    RepairBought {
+        /// The service's string id.
+        service: String,
+        /// Copper paid.
+        cost: u32,
+    },
     /// A night at the inn: a long rest; the restoration follows as `Healed` events.
     RoomTaken {
         /// Copper paid.
