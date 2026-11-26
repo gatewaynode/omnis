@@ -151,6 +151,15 @@
             facing: West,
             marker: Some("stairs.up"),
         ),
+        (
+            level: 0,
+            x: 12,
+            y: 0,
+            id: "dungeon_alt",
+            link: Some("town_backroom"),
+            facing: South,
+            marker: Some("stairs.up"),
+        ),
     ],
     encounters: [
         (
